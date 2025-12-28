@@ -65,6 +65,8 @@ Simply open `index.html` in a web browser. No server required - everything runs 
 
 This tool can be hosted on GitHub Pages.
 
+**Live Demo**: [View on GitHub Pages](https://ali-duku.github.io/Transcription_Tool/)
+
 ## Browser Requirements
 
 - Modern browser with JavaScript enabled
