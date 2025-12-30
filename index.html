@@ -1605,7 +1605,7 @@
             background: #2c3e50;
             color: white;
         }
-        
+
         /* Dark mode navigation styles */
         [data-theme="dark"] .quick-jump select {
             background: #2d3748 !important;
@@ -1621,7 +1621,7 @@
             background: #2d3748;
             color: #e2e8f0;
         }
-        
+
         /* Dark mode header select styling */
         [data-theme="dark"] .header-select {
             background: rgba(255, 255, 255, 0.15) !important;
@@ -2108,7 +2108,7 @@
                             <h1>Math Textbook Transcription</h1>
                         </div>
                         <div class="header-meta">
-                            <span>v6.3</span>
+                            <span>v6.4</span>
                             <span>•</span>
                             <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.65rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                                 <i class="fas fa-sparkles"></i> What's New
@@ -6332,8 +6332,25 @@
                     latexPlaceholders.forEach((latex, idx) => {
                         descToCheck = descToCheck.replace(`@@LATEX_INLINE_IMG_${idx}@@`, latex);
                     });
+                    
+                    // Check for block LaTeX ($$\n...\n$$) in image description - not allowed
+                    if (descToCheck.includes('$$')) {
+                        const errorIdx = imageDescriptionErrors.push({
+                            type: 'block_latex_in_description',
+                            message: 'Block LaTeX ($$\\n...\\n$$) is not allowed in image descriptions. Use inline LaTeX ($...$) instead',
+                            description: descToCheck,
+                            index: idx
+                        }) - 1;
+                        // Replace with placeholder that will show error
+                        return `@@IMAGE_DESCRIPTION_ERROR_${errorIdx}@@`;
+                    }
+                    
+                    // Remove all LaTeX expressions (inline and block) before checking for newlines
+                    // This ensures LaTeX commands like \neq or \right( don't trigger false positives
+                    const descWithoutMath = removeMathExpressions(descToCheck);
                     // Check if description contains newlines (both literal \n and actual newlines)
-                    if (descToCheck.includes('\n') || descToCheck.includes('\r') || descToCheck.includes('\\n') || descToCheck.includes('\\r')) {
+                    // Only check the parts outside of LaTeX expressions
+                    if (descWithoutMath.includes('\n') || descWithoutMath.includes('\r') || descWithoutMath.includes('\\n') || descWithoutMath.includes('\\r')) {
                         const errorIdx = imageDescriptionErrors.push({
                             type: 'newline_in_description',
                             message: 'Image description cannot contain newline characters',
@@ -6517,8 +6534,7 @@
                     const trimmed = line.trim();
                     
                     // Remove math expressions for detection
-                    let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
-                    lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
+                    let lineWithoutMath = removeMathExpressions(trimmed);
                     
                     // Check if line is a table row
                     const startsWithPipe = lineWithoutMath.startsWith('|');
@@ -7324,7 +7340,7 @@
             // Apply font settings to all existing elements
             applyFontSettings();
         }
-        
+
         function toggleDarkMode() {
             const body = document.body;
             const toggle = document.getElementById('darkModeToggle');
@@ -10035,6 +10051,22 @@
         }
         
         /**
+         * Remove math expressions from text to avoid detecting special characters inside them
+         * @param {string} text - The text to process
+         * @returns {string} Text with math expressions removed
+         */
+        function removeMathExpressions(text) {
+            if (!text || typeof text !== 'string') {
+                return text || '';
+            }
+            // Remove block math first ($$...$$) to avoid conflicts with inline math
+            let result = text.replace(/\$\$[^$]*\$\$/g, '');
+            // Remove inline math ($...$)
+            result = result.replace(/\$[^$]*\$/g, '');
+            return result;
+        }
+        
+        /**
          * Validate all markdown tables in text and return detailed errors
          * @param {string} text - The text to check
          * @returns {Object} { valid: boolean, errors: string[], hasTables: boolean }
@@ -10062,10 +10094,7 @@
                 const rawLine = lines[i]; // Keep original with whitespace
                 
                 // Remove math expressions to avoid detecting pipes inside them
-                // Remove inline math: $...$
-                let lineWithoutMath = line.replace(/\$[^$]+\$/g, '');
-                // Remove block math: $$...$$
-                lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
+                let lineWithoutMath = removeMathExpressions(line);
                 
                 // Check if line has pipes after removing math expressions
                 // Require at least 2 pipes for a table (which creates 3 cells)
@@ -10116,15 +10145,17 @@
                         currentTableEnd = i;
                     } else if (!isContinuation) {
                         // New table row (not a continuation)
-                        currentTable.push({ lineNum: i + 1, content: line });
-                        currentTableEnd = i;
+                    currentTable.push({ lineNum: i + 1, content: line });
+                    currentTableEnd = i;
                         lastTableRowContent = line;
                         lastTableRowLineNum = i + 1;
                     }
                     
                     // Count columns (number of pipes) - use merged content if available
                     const contentToCheck = lastTableRowContent || line;
-                    const pipeCount = (contentToCheck.match(/\|/g) || []).length;
+                    // Remove math expressions before counting pipes to ignore pipes inside LaTeX
+                    const contentWithoutMath = removeMathExpressions(contentToCheck);
+                    const pipeCount = (contentWithoutMath.match(/\|/g) || []).length;
                     
                     // Check if this is a separator row (only for lines that look like separators)
                     const isSeparator = /^[\s|:-]+$/.test(contentToCheck) && contentToCheck.includes('-');
@@ -10165,14 +10196,14 @@
                         // Only validate complete rows - never validate incomplete rows
                         if (rowEndsWithPipe && !isIncompleteRow) {
                             // Only validate complete rows
-                            if (expectedColumnCount === null) {
-                                expectedColumnCount = pipeCount;
-                            } else if (pipeCount !== expectedColumnCount) {
+                        if (expectedColumnCount === null) {
+                            expectedColumnCount = pipeCount;
+                        } else if (pipeCount !== expectedColumnCount) {
                                 errors.push({
                                     message: `Inconsistent column count. Expected ${expectedColumnCount} pipes but found ${pipeCount}. All rows in a table must have the same number of columns.`,
                                     content: contentToCheck
                                 });
-                            }
+                        }
                             // Row is complete, reset tracking for next row
                             lastTableRowContent = null;
                             lastTableRowLineNum = -1;
@@ -10190,21 +10221,21 @@
                     // End of table (non-pipe line after table lines, and not a continuation)
                     // Note: Continuations are handled in the main branch above
                     if (currentTable.length > 0) {
-                    // Validate the completed table
-                    if (!separatorFound) {
+                        // Validate the completed table
+                        if (!separatorFound) {
                         const tableContent = currentTable.map(row => row.content).join('\n');
                         errors.push({
                             message: `Table is missing a separator row. Add a row like |---|---| after the header.`,
                             content: tableContent
                         });
-                    }
-                    if (currentTable.length < 2) {
+                        }
+                        if (currentTable.length < 2) {
                         const tableContent = currentTable.map(row => row.content).join('\n');
                         errors.push({
                             message: `Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`,
                             content: tableContent
                         });
-                    }
+                        }
                         
                         // Check if line after table is empty (when there's more content)
                         if (line.length > 0) {
@@ -10803,6 +10834,19 @@
                                     <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> Your image description cannot have line breaks (newlines) in it</div>
                                         <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Keep the description on one line, no Enter/Return keys pressed</div>
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>Image #${errorIndex} Description:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
+                                        </div>
+                                    </div>
+                                `;
+                            } else if (error.type === 'block_latex_in_description') {
+                                const escapedDesc = escapeHtml(error.description || '');
+                                const errorIndex = error.index || '?';
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> Block LaTeX ($$\\n...\\n$$) is not allowed in image descriptions</div>
+                                        <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Use inline LaTeX ($...$) instead. Change <code>$$\\nformula\\n$$</code> to <code>$formula$</code></div>
                                         <div style="font-size: 0.9em; color: #666;">
                                             <strong>Image #${errorIndex} Description:</strong>
                                             <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
@@ -11877,21 +11921,43 @@
                 }
             });
             
-            // Restore LaTeX math expressions after validation (for any remaining processing)
-            latexPlaceholders.forEach((latex, idx) => {
-                md = md.replace(`@@LATEX_INLINE_IMG_${idx}@@`, latex);
-            });
-            
-            // Check for newlines in image descriptions (for correctly formatted images)
-            const imageMatches = md.match(/!\[([\s\S]*?)\]\(\d+\)/g);
-            if (imageMatches) {
-                imageMatches.forEach(match => {
+            // Check for newlines in image descriptions BEFORE restoring LaTeX
+            // This prevents false positives from LaTeX commands like \neq or \right(
+            // We check while LaTeX is still protected as placeholders
+            const imageMatchesBeforeRestore = md.match(/!\[([\s\S]*?)\]\(\d+\)/g);
+            if (imageMatchesBeforeRestore) {
+                imageMatchesBeforeRestore.forEach(match => {
                     // Extract the description part
                     const descMatch = match.match(/!\[([\s\S]*?)\]\(/);
                     if (descMatch && descMatch[1]) {
-                        const description = descMatch[1];
+                        let description = descMatch[1];
+                        
+                        // Temporarily restore LaTeX to check the full description
+                        // Then remove LaTeX expressions to check for newlines outside of LaTeX
+                        latexPlaceholders.forEach((latex, idx) => {
+                            description = description.replace(`@@LATEX_INLINE_IMG_${idx}@@`, latex);
+                        });
+                        
+                        // Check for block LaTeX ($$\n...\n$$) in image description - not allowed
+                        if (description.includes('$$')) {
+                            // Extract the index
+                            const indexMatch = match.match(/\]\((\d+)\)/);
+                            const index = indexMatch ? indexMatch[1] : '?';
+                            errors.push({
+                                type: 'block_latex_in_description',
+                                message: `Block LaTeX ($$\\n...\\n$$) is not allowed in image descriptions. Use inline LaTeX ($...$) instead (image index: ${index})`,
+                                description: description,
+                                index: index
+                            });
+                        }
+                        
+                        // Remove all LaTeX expressions (inline and block) before checking for newlines
+                        // This ensures LaTeX commands like \neq or \right( don't trigger false positives
+                        const descriptionWithoutMath = removeMathExpressions(description);
+                        
                         // Check if description contains newlines (both literal \n and actual newlines)
-                        if (description.includes('\n') || description.includes('\r') || description.includes('\\n') || description.includes('\\r')) {
+                        // Only check the parts outside of LaTeX expressions
+                        if (descriptionWithoutMath.includes('\n') || descriptionWithoutMath.includes('\r') || descriptionWithoutMath.includes('\\n') || descriptionWithoutMath.includes('\\r')) {
                             // Extract the index
                             const indexMatch = match.match(/\]\((\d+)\)/);
                             const index = indexMatch ? indexMatch[1] : '?';
@@ -11905,6 +11971,11 @@
                     }
                 });
             }
+            
+            // Restore LaTeX math expressions after validation (for any remaining processing)
+            latexPlaceholders.forEach((latex, idx) => {
+                md = md.replace(`@@LATEX_INLINE_IMG_${idx}@@`, latex);
+            });
             
             return errors;
         }
@@ -16915,11 +16986,30 @@
             
             <!-- Content -->
             <div class="whats-new-modal-body">
+                <!-- Version 6.4 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.4</span>
+                        <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Smarter Table Validation:</strong> Table validation now correctly handles LaTeX expressions inside table cells. Pipes inside LaTeX formulas (like <code>$\cancel{||||}$</code>) are no longer counted as table delimiters, preventing false validation errors.</li>
+                            <li><strong>Improved Image Description Validation:</strong> Image description validation now correctly handles LaTeX commands. LaTeX commands like <code>\neq</code> or <code>\right(</code> that contain <code>\n</code> or <code>\r</code> are no longer flagged as errors. Block LaTeX (<code>$$\n...\n$$</code>) in image descriptions is now properly detected and blocked with a helpful error message suggesting to use inline LaTeX instead.</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <!-- Version 6.3 -->
                 <div style="margin-bottom: 40px;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.3</span>
-                        <span class="whats-new-version-badge">Current Version</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- New Features -->
