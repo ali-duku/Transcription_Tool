@@ -17049,6 +17049,7 @@
                         <ul class="whats-new-modal-list">
                             <li><strong>Smarter Table Validation:</strong> Table validation now correctly handles LaTeX expressions inside table cells. Pipes inside LaTeX formulas (like <code>$\cancel{||||}$</code>) are no longer counted as table delimiters, preventing false validation errors.</li>
                             <li><strong>Improved Image Description Validation:</strong> Image description validation now correctly handles LaTeX commands. LaTeX commands like <code>\neq</code> or <code>\right(</code> that contain <code>\n</code> or <code>\r</code> are no longer flagged as errors. Block LaTeX (<code>$$\n...\n$$</code>) in image descriptions is now properly detected and blocked with a helpful error message suggesting to use inline LaTeX instead.</li>
+                            <li><strong>Fixed Direction Button Issue:</strong> Direction buttons (RTL/LTR) now work correctly even after validation errors appear. Previously, clicking the direction button after an error would not update the preview, but this has been fixed.</li>
                         </ul>
                     </div>
                 </div>
