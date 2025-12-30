@@ -6542,15 +6542,27 @@
                     const endsWithPipe = lineWithoutMath.endsWith('|');
                     const isSeparator = /^[\s|:-]+$/.test(lineWithoutMath) && lineWithoutMath.includes('-');
                     
-                    // If we have an incomplete row and this line doesn't start with pipe,
-                    // it's a continuation even if it has pipes
-                    const isContinuation = currentTableRow !== null && !startsWithPipe;
+                    // Check if original line (before removing math) starts with pipe
+                    // This is used for continuation detection - a line starting with LaTeX should still be a continuation
+                    const originalStartsWithPipe = trimmed.startsWith('|');
+                    
+                    // If we have an incomplete row and this line doesn't start with pipe in original,
+                    // it's a continuation even if it has pipes after removing math
+                    // Can only be a continuation if currentTableRow exists and doesn't end with |
+                    const isContinuation = currentTableRow !== null && 
+                        !originalStartsWithPipe && 
+                        currentTableRow.trim() !== '' && 
+                        !currentTableRow.trim().endsWith('|');
+                    
+                    // Empty lines always end tables
+                    const isEmptyLine = trimmed.length === 0;
                     
                     // Determine if this line is part of a table
                     // If it's a continuation, treat it as part of the table
-                    const isTableLine = (hasPipes || (startsWithPipe && inTable)) && !isContinuation;
+                    // Empty lines are NEVER table lines
+                    const isTableLine = !isEmptyLine && ((hasPipes || (startsWithPipe && inTable)) && !isContinuation);
                     
-                    if (isTableLine || isSeparator || isContinuation) {
+                    if ((isTableLine || isSeparator || isContinuation) && !isEmptyLine) {
                         // We're in a table
                         inTable = true;
                         
@@ -6588,16 +6600,14 @@
                             mergedTableLines.push(line);
                         }
                     } else {
-                        // Not a table line
+                        // Not a table line - always end table mode
                         if (currentTableRow !== null) {
                             // Finish incomplete row
                             mergedTableLines.push(currentTableRow);
                             currentTableRow = null;
                         }
-                        // Check if we should exit table mode (blank line usually ends table)
-                        if (trimmed === '') {
-                            inTable = false;
-                        }
+                        // Always exit table mode when we encounter non-table content
+                        inTable = false;
                         mergedTableLines.push(line);
                     }
                 }
@@ -10060,9 +10070,11 @@
                 return text || '';
             }
             // Remove block math first ($$...$$) to avoid conflicts with inline math
-            let result = text.replace(/\$\$[^$]*\$\$/g, '');
+            // Use [\s\S] instead of [^$] to match newlines and all characters except $ would miss newlines
+            let result = text.replace(/\$\$[\s\S]*?\$\$/g, '');
             // Remove inline math ($...$)
-            result = result.replace(/\$[^$]*\$/g, '');
+            // Use [\s\S] to match any character including newlines
+            result = result.replace(/\$[\s\S]*?\$/g, '');
             return result;
         }
         
@@ -10104,10 +10116,18 @@
                 // This handles multi-line cells where a row might start with | but continue on next line
                 const startsWithPipe = lineWithoutMath.trim().startsWith('|');
                 
+                // Check if original line (before removing math) starts with pipe
+                // This is used for continuation detection - a line starting with LaTeX should still be a continuation
+                const originalStartsWithPipe = line.trim().startsWith('|');
+                
+                // Empty lines always end tables
+                const isEmptyLine = line.length === 0;
+                
                 // Check if this could be a continuation of the previous table row
-                // A continuation is a line that doesn't start with | but we're in a table
+                // A continuation is a line that doesn't start with | in the original text but we're in a table
                 // and the previous line was a table row that didn't end with a pipe (or had incomplete cells)
-                const isContinuation = inTable && !startsWithPipe && lastTableRowContent !== null && 
+                // IMPORTANT: Can only be a continuation if lastTableRowContent exists and doesn't end with |
+                const isContinuation = !isEmptyLine && inTable && !originalStartsWithPipe && lastTableRowContent !== null && 
                     lastTableRowContent.trim() !== '' && 
                     !lastTableRowContent.trim().endsWith('|');
                 
@@ -10115,7 +10135,8 @@
                 // 1. It has enough pipes (hasPipes), OR
                 // 2. It starts with a pipe and we're already in a table (handles partial rows), OR
                 // 3. It's a continuation of a previous table row
-                const isTableRow = hasPipes || (startsWithPipe && inTable) || isContinuation;
+                // Empty lines are NEVER table rows
+                const isTableRow = !isEmptyLine && (hasPipes || (startsWithPipe && inTable) || isContinuation);
                 
                 if (isTableRow) {
                     hasTables = true;
