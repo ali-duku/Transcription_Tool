@@ -155,7 +155,7 @@
         .header h1 {
             font-size: 0.9rem;
             margin: 0;
-            font-weight: 500;
+            font-weight: 700;
         }
 
         .header p {
@@ -258,7 +258,10 @@
             border: 2px solid #dee2e6;
             border-radius: 8px;
             font-size: 14px;
+            line-height: 1.5;
             transition: border-color 0.3s ease;
+            font-feature-settings: "kern" 1, "liga" 1; /* Better character spacing */
+            text-rendering: optimizeLegibility; /* Better diacritic rendering */
         }
 
         .form-group input[type="checkbox"] {
@@ -519,6 +522,8 @@
             resize: vertical;
             overflow-y: auto;
             overflow-x: hidden;
+            font-feature-settings: "kern" 1, "liga" 1; /* Better character spacing */
+            text-rendering: optimizeLegibility; /* Better diacritic rendering */
         }
         
         .preview-label {
@@ -1317,6 +1322,15 @@
         }
         
         /* What's New Button Styles */
+        #whats-new-btn {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            padding-left: 8px !important;
+            padding-right: 12px !important;
+        }
+        
         #whats-new-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
@@ -1579,15 +1593,45 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        /* Header select styling (font size and line height) */
+        .header-select {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 4px;
+            color: white !important;
+        }
+        
+        .header-select option {
+            background: #2c3e50;
+            color: white;
+        }
+        
         /* Dark mode navigation styles */
-        body.dark-mode .quick-jump select {
-            background: #2d3748;
-            border-color: #4a5568;
-            color: #e2e8f0;
+        [data-theme="dark"] .quick-jump select {
+            background: #2d3748 !important;
+            border-color: #4a5568 !important;
+            color: #e2e8f0 !important;
         }
 
-        body.dark-mode .quick-jump select:hover {
-            border-color: #667eea;
+        [data-theme="dark"] .quick-jump select:hover {
+            border-color: #667eea !important;
+        }
+        
+        [data-theme="dark"] .quick-jump select option {
+            background: #2d3748;
+            color: #e2e8f0;
+        }
+        
+        /* Dark mode header select styling */
+        [data-theme="dark"] .header-select {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            color: white !important;
+        }
+        
+        [data-theme="dark"] .header-select option {
+            background: #2d3748;
+            color: #e2e8f0;
         }
 
         /* Responsive navigation */
@@ -2064,16 +2108,37 @@
                             <h1>Math Textbook Transcription</h1>
                         </div>
                         <div class="header-meta">
-                            <span>v6.2</span>
+                            <span>v6.3</span>
                             <span>•</span>
-                            <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.65rem; font-weight: 600; display: flex; align-items: center; gap: 5px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                            <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.65rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                                 <i class="fas fa-sparkles"></i> What's New
                             </button>
                             <span>•</span>
-                            <span>ali.e@outlier.ai</span>
+                            <span>DUKU</span>
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
+                        <!-- Font Settings -->
+                        <div class="font-settings" style="display: flex; gap: 6px; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 4px 8px; border-radius: 6px;">
+                            <label style="font-size: 0.7rem; opacity: 0.9;">Font:</label>
+                            <select id="fontSizeSelect" onchange="changeFontSize(this.value)" title="Change font size" class="header-select" style="padding: 2px 6px; font-size: 0.7rem; cursor: pointer; outline: none;">
+                                <option value="14" selected>14px</option>
+                                <option value="16">16px</option>
+                                <option value="18">18px</option>
+                                <option value="20">20px</option>
+                                <option value="22">22px</option>
+                                <option value="24">24px</option>
+                            </select>
+                            <label style="font-size: 0.7rem; opacity: 0.9; margin-left: 4px;">Line:</label>
+                            <select id="lineHeightSelect" onchange="changeLineHeight(this.value)" title="Change line height" class="header-select" style="padding: 2px 6px; font-size: 0.7rem; cursor: pointer; outline: none;">
+                                <option value="1.5" selected>1.5</option>
+                                <option value="1.8">1.8</option>
+                                <option value="2.0">2.0</option>
+                                <option value="2.2">2.2</option>
+                                <option value="2.5">2.5</option>
+                            </select>
+                        </div>
+                        <span>•</span>
                         <div id="saveIndicator" class="auto-save-indicator">
                             <span>No changes</span>
                         </div>
@@ -3373,6 +3438,7 @@
                 textarea.setAttribute('dir', 'rtl');
             }
             attachPreviews(choiceItem);
+            applyFontSettings(choiceItem);
             
             // Update correct answer UI (radio buttons or checkbox summary)
             const questionEl = choicesContainer.closest('.array-item');
@@ -3600,8 +3666,17 @@
                                 if (nextSibling.tagName === 'BUTTON') {
                                     // Skip buttons
                                     nextSibling = nextSibling.nextElementSibling;
-                                } else if (nextSibling.classList && nextSibling.classList.contains('preview-label')) {
-                                    // Skip label, continue to preview
+                                } else if (nextSibling.classList && (
+                                    nextSibling.classList.contains('preview-label') ||
+                                    nextSibling.classList.contains('table-validation-errors') ||
+                                    nextSibling.classList.contains('list-validation-errors') ||
+                                    nextSibling.classList.contains('blockquote-validation-errors') ||
+                                    nextSibling.classList.contains('latex-validation-errors') ||
+                                    nextSibling.classList.contains('image-validation-errors') ||
+                                    nextSibling.classList.contains('quote-validation-errors') ||
+                                    nextSibling.classList.contains('br-validation-errors')
+                                )) {
+                                    // Skip labels and error validation divs, continue to preview
                                     nextSibling = nextSibling.nextElementSibling;
                                 } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
                                     // Found preview!
@@ -4241,6 +4316,7 @@
                     
                     // Initialize the new question
                     attachPreviews(newQuestion);
+                    applyFontSettings(newQuestion);
                     attachBboxValidation(newQuestion);
                     updateQuestionNumbers();
                     
@@ -4277,6 +4353,7 @@
                     
                     // Initialize the new section
                     attachPreviews(newSection);
+                    applyFontSettings(newSection);
                     attachBboxValidation(newSection);
                     updateContentSectionNumbers();
                 }
@@ -4537,6 +4614,7 @@
                     // Re-attach previews and ensure proper direction
                     setTimeout(() => {
                         attachPreviews(sectionEl);
+                        applyFontSettings(sectionEl);
                         attachBboxValidation(sectionEl);
                         
                         // Update direction buttons
@@ -4571,6 +4649,7 @@
                     // Re-attach previews and ensure proper direction
                     setTimeout(() => {
                         attachPreviews(sectionEl);
+                        applyFontSettings(sectionEl);
                         attachBboxValidation(sectionEl);
                         
                         // Update direction buttons
@@ -4853,6 +4932,7 @@
             }
             // Attach preview to the new terminology input
             attachPreviews(newItem);
+            applyFontSettings(newItem);
         }
 
         // Functions to add lesson standards before/after current item
@@ -4945,6 +5025,7 @@
             }
             // Attach preview to the new terminology input
             attachPreviews(newItem);
+            applyFontSettings(newItem);
         }
 
         function addTerminologyAfter(button) {
@@ -4977,6 +5058,7 @@
             }
             // Attach preview to the new terminology input
             attachPreviews(newItem);
+            applyFontSettings(newItem);
         }
 
 
@@ -5003,6 +5085,9 @@
                 // CSS will handle the styling (RTL by default)
             }
             attachPreviews(newSection);
+            
+            // Apply font settings to new section
+            applyFontSettings(newSection);
             
             // Attach bbox validation to all bbox containers in this new section
             attachBboxValidation(newSection);
@@ -5239,6 +5324,7 @@
             
             // Initialize the new section
             attachPreviews(newSection);
+            applyFontSettings(newSection);
             attachBboxValidation(newSection);
             updateContentSectionNumbers();
         }
@@ -5256,6 +5342,7 @@
             
             // Initialize the new section
             attachPreviews(newSection);
+            applyFontSettings(newSection);
             attachBboxValidation(newSection);
             updateContentSectionNumbers();
         }
@@ -5273,6 +5360,7 @@
             
             // Initialize the new question
             attachPreviews(newQuestion);
+            applyFontSettings(newQuestion);
             attachBboxValidation(newQuestion);
             updateQuestionNumbers();
         }
@@ -5290,6 +5378,7 @@
             
             // Initialize the new question
             attachPreviews(newQuestion);
+            applyFontSettings(newQuestion);
             attachBboxValidation(newQuestion);
             updateQuestionNumbers();
         }
@@ -6121,17 +6210,26 @@
 
         // Render Markdown + LaTeX into preview container
         function renderLivePreview(textarea) {
-            // Find preview box by walking through siblings (skip buttons and labels)
+            // Find preview box by walking through siblings (skip buttons, error divs, and labels)
             let nextSibling = textarea.nextElementSibling;
             let preview = null;
             
-            // Skip over buttons to find preview label or preview
+            // Skip over buttons, error divs, and labels to find preview label or preview
             while (nextSibling) {
                 if (nextSibling.tagName === 'BUTTON') {
                     // Skip buttons
                     nextSibling = nextSibling.nextElementSibling;
-                } else if (nextSibling.classList && nextSibling.classList.contains('preview-label')) {
-                    // Skip label, continue to preview
+                } else if (nextSibling.classList && (
+                    nextSibling.classList.contains('preview-label') ||
+                    nextSibling.classList.contains('table-validation-errors') ||
+                    nextSibling.classList.contains('list-validation-errors') ||
+                    nextSibling.classList.contains('blockquote-validation-errors') ||
+                    nextSibling.classList.contains('latex-validation-errors') ||
+                    nextSibling.classList.contains('image-validation-errors') ||
+                    nextSibling.classList.contains('quote-validation-errors') ||
+                    nextSibling.classList.contains('br-validation-errors')
+                )) {
+                    // Skip labels and error validation divs, continue to preview
                     nextSibling = nextSibling.nextElementSibling;
                 } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
                     // Found preview!
@@ -6235,7 +6333,7 @@
                         descToCheck = descToCheck.replace(`@@LATEX_INLINE_IMG_${idx}@@`, latex);
                     });
                     // Check if description contains newlines (both literal \n and actual newlines)
-                    if (descToCheck.includes('\n') || descToCheck.includes('\r')) {
+                    if (descToCheck.includes('\n') || descToCheck.includes('\r') || descToCheck.includes('\\n') || descToCheck.includes('\\r')) {
                         const errorIdx = imageDescriptionErrors.push({
                             type: 'newline_in_description',
                             message: 'Image description cannot contain newline characters',
@@ -6407,6 +6505,109 @@
                 
                 md = hrProcessed.join('\n');
                 
+                // Merge multi-line table rows before markdown processing
+                // This allows cells to contain newlines while still being valid markdown tables
+                const mdLinesForTableMerge = md.split('\n');
+                const mergedTableLines = [];
+                let currentTableRow = null;
+                let inTable = false; // Track if we're currently inside a table
+                
+                for (let i = 0; i < mdLinesForTableMerge.length; i++) {
+                    const line = mdLinesForTableMerge[i];
+                    const trimmed = line.trim();
+                    
+                    // Remove math expressions for detection
+                    let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
+                    lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
+                    
+                    // Check if line is a table row
+                    const startsWithPipe = lineWithoutMath.startsWith('|');
+                    const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
+                    const endsWithPipe = lineWithoutMath.endsWith('|');
+                    const isSeparator = /^[\s|:-]+$/.test(lineWithoutMath) && lineWithoutMath.includes('-');
+                    
+                    // If we have an incomplete row and this line doesn't start with pipe,
+                    // it's a continuation even if it has pipes
+                    const isContinuation = currentTableRow !== null && !startsWithPipe;
+                    
+                    // Determine if this line is part of a table
+                    // If it's a continuation, treat it as part of the table
+                    const isTableLine = (hasPipes || (startsWithPipe && inTable)) && !isContinuation;
+                    
+                    if (isTableLine || isSeparator || isContinuation) {
+                        // We're in a table
+                        inTable = true;
+                        
+                        if (isSeparator) {
+                            // Separator row - finish any incomplete row first
+                            if (currentTableRow !== null) {
+                                mergedTableLines.push(currentTableRow);
+                                currentTableRow = null;
+                            }
+                            mergedTableLines.push(line);
+                        } else if (isContinuation) {
+                            // Continuation of incomplete row (doesn't start with pipe, even if it has pipes)
+                            currentTableRow = currentTableRow + '\n' + line;
+                        } else if (startsWithPipe) {
+                            // Table row starting with pipe
+                            if (endsWithPipe) {
+                                // Complete row
+                                if (currentTableRow !== null) {
+                                    // Finish previous incomplete row
+                                    mergedTableLines.push(currentTableRow);
+                                    currentTableRow = null;
+                                }
+                                mergedTableLines.push(line);
+                            } else {
+                                // Incomplete row - start or continue
+                                if (currentTableRow === null) {
+                                    currentTableRow = line;
+                                } else {
+                                    // Continue previous row
+                                    currentTableRow = currentTableRow + '\n' + line;
+                                }
+                            }
+                        } else {
+                            // Shouldn't happen, but handle it
+                            mergedTableLines.push(line);
+                        }
+                    } else {
+                        // Not a table line
+                        if (currentTableRow !== null) {
+                            // Finish incomplete row
+                            mergedTableLines.push(currentTableRow);
+                            currentTableRow = null;
+                        }
+                        // Check if we should exit table mode (blank line usually ends table)
+                        if (trimmed === '') {
+                            inTable = false;
+                        }
+                        mergedTableLines.push(line);
+                    }
+                }
+                
+                // Finish any remaining incomplete row
+                if (currentTableRow !== null) {
+                    mergedTableLines.push(currentTableRow);
+                }
+                
+                // Convert newlines within merged table rows to <br> tags
+                // This preserves line breaks within cells for proper rendering
+                // We need to be careful: only convert newlines that are within cells, not between rows
+                for (let i = 0; i < mergedTableLines.length; i++) {
+                    let line = mergedTableLines[i];
+                    // Check if this line contains newlines (from merging multi-line cells)
+                    if (line.includes('\n')) {
+                        // This is a merged table row with newlines - convert them to <br>
+                        // The newlines are within the row content (cell content), so convert them
+                        // This will create: | Cell 1<br>continued | Cell 2 |
+                        line = line.replace(/\n/g, '<br>');
+                        mergedTableLines[i] = line;
+                    }
+                }
+                
+                md = mergedTableLines.join('\n');
+                
                 // Preserve multiple consecutive newlines by converting them to <br> tags
                 // BUT preserve markdown block syntax boundaries (blockquotes, horizontal rules, headers, lists, code blocks)
                 // Find all markdown block sections and mark their boundaries
@@ -6524,32 +6725,10 @@
                     html = html.split(token).join(holder);
                 });
                 
-                // Handle math block errors - display them in red
+                // Remove math block error tokens (errors now shown below preview)
                 mathBlockErrors.forEach((error, i) => {
                     const token = `@@MATH_BLOCK_ERROR_${i}@@`;
-                    let errorMessage = '';
-                    let fixMessage = '';
-                    
-                    if (error.type === 'incorrect_delimiters') {
-                        errorMessage = 'Your LaTeX block needs newline characters around it';
-                        fixMessage = 'Use: <code>$$\\n...your formula...\\n$$</code> (with \\n before and after)';
-                    } else if (error.type === 'extra_newlines') {
-                        errorMessage = 'Your LaTeX content has extra newline characters inside';
-                        fixMessage = 'Remove any enters or \\n characters from inside your formula';
-                    } else if (error.type === 'empty_content') {
-                        errorMessage = 'Your LaTeX block is empty';
-                        fixMessage = 'Add your formula between the $$\\n and \\n$$';
-                    } else {
-                        errorMessage = error.message;
-                        fixMessage = 'Check your LaTeX syntax';
-                    }
-                    
-                    const errorHolder = `<div class="__math_block_error">
-                        🔴 <strong>LaTeX Problem:</strong> ${errorMessage}<br>
-                        ➡️ <strong>How to Fix:</strong> ${fixMessage}<br>
-                        📝 <strong>Your Code:</strong> <code>$$\\n${error.content}\\n$$</code>
-                    </div>`;
-                    html = html.split(token).join(errorHolder);
+                    html = html.split(token).join('');
                 });
                 
                 // Unescape HTML entities that were escaped during math processing
@@ -6610,131 +6789,19 @@
                     return match;
                 });
                 
-                // Handle image description errors - display them in red (after unescape to preserve error formatting)
+                // Remove image description error tokens (errors now shown below preview)
                 imageDescriptionErrors.forEach((error, i) => {
                     const token = `@@IMAGE_DESCRIPTION_ERROR_${i}@@`;
-                    let errorHolder;
-                    
-                    if (error.type === 'malformed_syntax') {
-                        // Malformed syntax error - show the matched text
-                        const escapedMatch = error.match
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;');
-                        
-                        // Create user-friendly error message based on the issue
-                        let problemMsg = 'Your image syntax has an error';
-                        let fixMsg = 'Use the correct format: <code>![description](0)</code>';
-                        
-                        if (error.message.includes('Space between ] and (')) {
-                            problemMsg = 'There\'s a space between ] and ( in your image';
-                            fixMsg = 'Remove the space: <code>![description](0)</code> not <code>![description] (0)</code>';
-                        } else if (error.message.includes('Space between ! and [')) {
-                            problemMsg = 'There\'s a space between ! and [ in your image';
-                            fixMsg = 'Remove the space: <code>![description](0)</code> not <code>! [description](0)</code>';
-                        } else if (error.message.includes('Square brackets used instead of parentheses')) {
-                            problemMsg = 'You used square brackets [] for the image number';
-                            fixMsg = 'Use parentheses instead: <code>![description](0)</code> not <code>![description][0]</code>';
-                        } else if (error.message.includes('Parentheses used instead of square brackets')) {
-                            problemMsg = 'You used parentheses () for the description';
-                            fixMsg = 'Use square brackets instead: <code>![description](0)</code> not <code>!(description)(0)</code>';
-                        } else if (error.message.includes('Missing closing ] bracket')) {
-                            problemMsg = 'Your image description is missing the closing ] bracket';
-                            fixMsg = 'Add the ] bracket: <code>![description](0)</code>';
-                        } else if (error.message.includes('Missing opening [ bracket')) {
-                            problemMsg = 'Your image is missing the opening [ bracket';
-                            fixMsg = 'Add the [ bracket: <code>![description](0)</code>';
-                        } else if (error.message.includes('Missing ! at the beginning')) {
-                            problemMsg = 'Your image is missing the ! at the start';
-                            fixMsg = 'Add the ! at the beginning: <code>![description](0)</code>';
-                        } else if (error.message.includes('Missing opening ( parenthesis')) {
-                            problemMsg = 'Your image number is missing the opening ( parenthesis';
-                            fixMsg = 'Add the ( before the number: <code>![description](0)</code>';
-                        } else if (error.message.includes('Missing closing )')) {
-                            problemMsg = 'Your image number is missing the closing ) parenthesis';
-                            fixMsg = 'Add the ) after the number: <code>![description](0)</code>';
-                        }
-                        
-                        errorHolder = `<div class="__math_block_error">
-                            🔴 <strong>Image Problem:</strong> ${problemMsg}<br>
-                            ➡️ <strong>How to Fix:</strong> ${fixMsg}<br>
-                            📝 <strong>What You Wrote:</strong> <code>${escapedMatch}</code>
-                        </div>`;
-                    } else {
-                        // Newline in description error
-                        const escapedDesc = error.description
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/\n/g, '\\n')
-                            .replace(/\r/g, '\\r');
-                        errorHolder = `<div class="__math_block_error">
-                            🔴 <strong>Image Problem:</strong> Your image description cannot have line breaks (newlines) in it<br>
-                            ➡️ <strong>How to Fix:</strong> Keep the description on one line, no Enter/Return keys pressed<br>
-                            📝 <strong>Image #${error.index} Description:</strong> <code>![${escapedDesc}](${error.index})</code>
-                        </div>`;
-                    }
-                    
-                    html = html.split(token).join(errorHolder);
+                    html = html.split(token).join('');
                 });
                 
-                // Handle quote and dollar sign validation errors - display them at the top of preview
-                if (quoteValidationErrors.length > 0) {
-                    let errorHtml = '';
-                    quoteValidationErrors.forEach(error => {
-                        const errorMessage = error.message;
-                        
-                        // Check if this is a dollar sign error (warning) or quote error (blocking error)
-                        if (error.type === 'unmatched_dollar_signs') {
-                            // Dollar sign warning - non-blocking
-                            errorHtml += `<div style="padding: 12px; margin: 8px 0; background: #fff3cd; border-left: 4px solid #ffc107; color: #856404; border-radius: 4px;">
-                                ⚠️ <strong>Dollar Sign Warning:</strong> ${errorMessage}<br>
-                                💡 <strong>Note:</strong> This is a warning only and won't block saving or generation.
-                            </div>`;
-                        } else {
-                            // Quote error - blocking
-                            const fixMessage = 'Each quote must have a matching pair - remove the extra or add the missing one';
-                            errorHtml += `<div class="__math_block_error">
-                            🔴 <strong>Quote Error:</strong> ${errorMessage}<br>
-                            ➡️ <strong>How to Fix:</strong> ${fixMessage}<br>
-                            ⚠️ <strong>Important:</strong> This will break JSON generation and cause data loss!
-                        </div>`;
-                        }
-                    });
-                    html = errorHtml + html;
-                }
-                
-                // Handle <br> tag errors - display them in red
-                if (brTagErrors.length > 0) {
-                    let brErrorHtml = '';
-                    brTagErrors.forEach(error => {
-                        brErrorHtml += `<div class="__math_block_error">
-                            🔴 <strong>HTML Tag Error:</strong> ${error.message}<br>
-                            ➡️ <strong>How to Fix:</strong> Remove all &lt;br&gt; tags from your content. Use markdown line breaks or proper formatting instead.<br>
-                            ⚠️ <strong>Important:</strong> This will break JSON generation and cause data loss!
-                        </div>`;
-                    });
-                    html = brErrorHtml + html;
-                }
+                // Quote, dollar sign, and <br> tag errors are now shown below preview (not in preview HTML)
                 
                 // Restore fill-in-the-blank placeholders with styled HTML
                 html = html.replace(/@@BLANK_PLACEHOLDER_(\d+)@@/g, (match, idx) => {
                     const blankNum = blankPlaceholders[parseInt(idx)];
                     return `<span style="display: inline-block; padding: 2px 8px; margin: 0 2px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 4px; font-weight: 600; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">Blank #${blankNum}</span>`;
                 });
-                
-                // Validate tables and show errors in preview if found
-                const tableValidation = validateTableMarkdown(textarea.value);
-                if (tableValidation.hasTables && !tableValidation.valid && tableValidation.errors.length > 0) {
-                    // Show table errors in the preview instead of rendering broken tables
-                    const tableErrorHtml = `
-                        <div class="__math_block_error">
-                            🔴 <strong>Table Markdown Errors:</strong><br>
-                            ${tableValidation.errors.map(err => `➡️ ${err}`).join('<br>')}
-                        </div>
-                    `;
-                    html = tableErrorHtml + html;
-                }
                 
                 // Don't add label here - it's already outside the preview box
                 preview.innerHTML = html;
@@ -6995,9 +7062,26 @@
                 ta.removeEventListener('input', ta.__livePreviewHandler || (()=>{}));
                 const handler = () => {
                     renderLivePreview(ta);
+                    // Show validation errors for all types
+                    showTableValidationErrors(ta);
+                    showListValidationErrors(ta);
+                    showBlockquoteValidationErrors(ta);
+                    showLatexValidationErrors(ta);
+                    showImageValidationErrors(ta);
+                    showQuoteValidationErrors(ta);
+                    showBrTagValidationErrors(ta);
                 };
                 ta.addEventListener('input', handler);
                 ta.__livePreviewHandler = handler;
+                
+                // Show validation errors on initial load
+                showTableValidationErrors(ta);
+                showListValidationErrors(ta);
+                showBlockquoteValidationErrors(ta);
+                showLatexValidationErrors(ta);
+                showImageValidationErrors(ta);
+                showQuoteValidationErrors(ta);
+                showBrTagValidationErrors(ta);
                 
                 // Add auto-resize functionality to textareas
                 autoResizeTextarea(ta);
@@ -7165,6 +7249,82 @@
             }
         }
 
+        // Font Settings Functions
+        // Apply font settings to specific elements or all elements
+        function applyFontSettings(container) {
+            const savedFontSize = localStorage.getItem('fontSize') || '14';
+            const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
+            const fontSize = savedFontSize + 'px';
+            const lineHeight = savedLineHeight;
+            
+            // Get elements from container or entire document
+            const scope = container || document;
+            
+            // Apply to all textareas and inputs in scope
+            scope.querySelectorAll('.form-group textarea, .form-group input[type="text"], textarea, input[type="text"]').forEach(el => {
+                el.style.fontSize = fontSize;
+                el.style.lineHeight = lineHeight;
+            });
+            
+            // Apply to all preview boxes in scope
+            scope.querySelectorAll('.live-preview').forEach(el => {
+                el.style.fontSize = fontSize;
+                el.style.lineHeight = lineHeight;
+            });
+        }
+        
+        function changeFontSize(size) {
+            const fontSize = size + 'px';
+            // Apply to all textareas and inputs
+            document.querySelectorAll('.form-group textarea, .form-group input[type="text"], textarea, input[type="text"]').forEach(el => {
+                el.style.fontSize = fontSize;
+            });
+            // Apply to all preview boxes
+            document.querySelectorAll('.live-preview').forEach(el => {
+                el.style.fontSize = fontSize;
+            });
+            // Save to localStorage
+            localStorage.setItem('fontSize', size);
+        }
+        
+        function changeLineHeight(height) {
+            const lineHeight = height;
+            // Apply to all textareas and inputs
+            document.querySelectorAll('.form-group textarea, .form-group input[type="text"], textarea, input[type="text"]').forEach(el => {
+                el.style.lineHeight = lineHeight;
+            });
+            // Apply to all preview boxes
+            document.querySelectorAll('.live-preview').forEach(el => {
+                el.style.lineHeight = lineHeight;
+            });
+            // Save to localStorage
+            localStorage.setItem('lineHeight', height);
+        }
+        
+        // Initialize font settings from localStorage
+        function initializeFontSettings() {
+            const savedFontSize = localStorage.getItem('fontSize');
+            const savedLineHeight = localStorage.getItem('lineHeight');
+            
+            if (savedFontSize) {
+                const fontSizeSelect = document.getElementById('fontSizeSelect');
+                if (fontSizeSelect) {
+                    fontSizeSelect.value = savedFontSize;
+                    changeFontSize(savedFontSize);
+                }
+            }
+            
+            if (savedLineHeight) {
+                const lineHeightSelect = document.getElementById('lineHeightSelect');
+                if (lineHeightSelect) {
+                    lineHeightSelect.value = savedLineHeight;
+                }
+            }
+            
+            // Apply font settings to all existing elements
+            applyFontSettings();
+        }
+        
         function toggleDarkMode() {
             const body = document.body;
             const toggle = document.getElementById('darkModeToggle');
@@ -9894,6 +10054,8 @@
             let separatorFound = false;
             let separatorLineNum = -1;
             let expectedColumnCount = null;
+            let lastTableRowContent = null; // Track the last table row content for multi-line cells
+            let lastTableRowLineNum = -1; // Track the line number of the last table row
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -9909,7 +10071,24 @@
                 // Require at least 2 pipes for a table (which creates 3 cells)
                 const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
                 
-                if (hasPipes) {
+                // Check if line starts with a pipe (even if it doesn't have enough pipes for a full row)
+                // This handles multi-line cells where a row might start with | but continue on next line
+                const startsWithPipe = lineWithoutMath.trim().startsWith('|');
+                
+                // Check if this could be a continuation of the previous table row
+                // A continuation is a line that doesn't start with | but we're in a table
+                // and the previous line was a table row that didn't end with a pipe (or had incomplete cells)
+                const isContinuation = inTable && !startsWithPipe && lastTableRowContent !== null && 
+                    lastTableRowContent.trim() !== '' && 
+                    !lastTableRowContent.trim().endsWith('|');
+                
+                // A line is part of a table if:
+                // 1. It has enough pipes (hasPipes), OR
+                // 2. It starts with a pipe and we're already in a table (handles partial rows), OR
+                // 3. It's a continuation of a previous table row
+                const isTableRow = hasPipes || (startsWithPipe && inTable) || isContinuation;
+                
+                if (isTableRow) {
                     hasTables = true;
                     
                     if (!inTable) {
@@ -9920,56 +10099,122 @@
                         separatorFound = false;
                         separatorLineNum = -1;
                         expectedColumnCount = null;
+                        lastTableRowContent = null;
+                        lastTableRowLineNum = -1;
                     }
                     
-                    currentTable.push({ lineNum: i + 1, content: line });
-                    currentTableEnd = i;
+                    // If this is a continuation line, merge it with the previous row
+                    if (isContinuation && lastTableRowContent !== null) {
+                        // Merge the continuation with the last row, preserving the newline
+                        // Use newline to preserve line breaks in cells for proper rendering
+                        const mergedRow = lastTableRowContent + '\n' + line;
+                        // Update the last entry in currentTable
+                        if (currentTable.length > 0) {
+                            currentTable[currentTable.length - 1].content = mergedRow;
+                        }
+                        lastTableRowContent = mergedRow;
+                        currentTableEnd = i;
+                    } else if (!isContinuation) {
+                        // New table row (not a continuation)
+                        currentTable.push({ lineNum: i + 1, content: line });
+                        currentTableEnd = i;
+                        lastTableRowContent = line;
+                        lastTableRowLineNum = i + 1;
+                    }
                     
-                    // Count columns (number of pipes)
-                    const pipeCount = (line.match(/\|/g) || []).length;
+                    // Count columns (number of pipes) - use merged content if available
+                    const contentToCheck = lastTableRowContent || line;
+                    const pipeCount = (contentToCheck.match(/\|/g) || []).length;
                     
-                    // Check if this is a separator row
-                    const isSeparator = /^[\s|:-]+$/.test(line) && line.includes('-');
+                    // Check if this is a separator row (only for lines that look like separators)
+                    const isSeparator = /^[\s|:-]+$/.test(contentToCheck) && contentToCheck.includes('-');
                     
                     if (isSeparator) {
                         if (separatorFound) {
-                            errors.push(`Line ${i + 1}: Multiple separator rows in the same table. Each table should have only one separator row (|---|---|).`);
+                            errors.push({
+                                message: `Multiple separator rows found in the same table. Each table should have only one separator row (|---|---|).`,
+                                content: contentToCheck
+                            });
                         }
                         separatorFound = true;
                         separatorLineNum = i + 1;
                         
                         // Separator must have same pipe count as expected columns
                         if (expectedColumnCount !== null && pipeCount !== expectedColumnCount) {
-                            errors.push(`Line ${i + 1}: Separator row has ${pipeCount} pipes but expected ${expectedColumnCount} based on other rows. All rows including the separator must have the same number of columns.`);
+                            errors.push({
+                                message: `Separator row has ${pipeCount} pipes but expected ${expectedColumnCount} based on other rows. All rows including the separator must have the same number of columns.`,
+                                content: contentToCheck
+                            });
                         }
                         
                         // Separator sets the expected column count if not set
                         if (expectedColumnCount === null) {
                             expectedColumnCount = pipeCount;
                         }
+                        // Reset last row tracking after separator
+                        lastTableRowContent = null;
+                        lastTableRowLineNum = -1;
                     } else {
                         // Regular row - check column count consistency
-                        if (expectedColumnCount === null) {
-                            expectedColumnCount = pipeCount;
-                        } else if (pipeCount !== expectedColumnCount) {
-                            errors.push(`Line ${i + 1}: Inconsistent column count. Expected ${expectedColumnCount} pipes but found ${pipeCount}. All rows in a table must have the same number of columns.`);
+                        // CRITICAL: Only validate if we have a complete row (ends with |)
+                        // Never validate incomplete rows that might continue on the next line
+                        const rowEndsWithPipe = contentToCheck.trim().endsWith('|');
+                        const rowStartsWithPipe = contentToCheck.trim().startsWith('|');
+                        const isIncompleteRow = rowStartsWithPipe && !rowEndsWithPipe;
+                        
+                        // Only validate complete rows - never validate incomplete rows
+                        if (rowEndsWithPipe && !isIncompleteRow) {
+                            // Only validate complete rows
+                            if (expectedColumnCount === null) {
+                                expectedColumnCount = pipeCount;
+                            } else if (pipeCount !== expectedColumnCount) {
+                                errors.push({
+                                    message: `Inconsistent column count. Expected ${expectedColumnCount} pipes but found ${pipeCount}. All rows in a table must have the same number of columns.`,
+                                    content: contentToCheck
+                                });
+                            }
+                            // Row is complete, reset tracking for next row
+                            lastTableRowContent = null;
+                            lastTableRowLineNum = -1;
+                        } else if (isIncompleteRow) {
+                            // This is an incomplete row that will continue on the next line
+                            // Do NOT validate it - wait until it's complete
+                            // Keep lastTableRowContent so next line can merge with it
                         }
+                        // If row doesn't end with pipe, it might continue on next line
+                        // Keep lastTableRowContent so next line can merge with it
+                        // DO NOT validate incomplete rows - they will be validated when complete
                     }
                     
                 } else if (inTable) {
-                    // End of table (non-pipe line after table lines)
+                    // End of table (non-pipe line after table lines, and not a continuation)
+                    // Note: Continuations are handled in the main branch above
                     if (currentTable.length > 0) {
-                        // Validate the completed table
-                        if (!separatorFound) {
-                            errors.push(`Lines ${currentTableStart}-${currentTableEnd + 1}: Table is missing a separator row. Add a row like |---|---| after the header.`);
-                        }
-                        if (currentTable.length < 2) {
-                            errors.push(`Lines ${currentTableStart}-${currentTableEnd + 1}: Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`);
-                        }
+                    // Validate the completed table
+                    if (!separatorFound) {
+                        const tableContent = currentTable.map(row => row.content).join('\n');
+                        errors.push({
+                            message: `Table is missing a separator row. Add a row like |---|---| after the header.`,
+                            content: tableContent
+                        });
+                    }
+                    if (currentTable.length < 2) {
+                        const tableContent = currentTable.map(row => row.content).join('\n');
+                        errors.push({
+                            message: `Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`,
+                            content: tableContent
+                        });
+                    }
                         
                         // Check if line after table is empty (when there's more content)
                         if (line.length > 0) {
-                            errors.push(`Line ${i + 1}: Content immediately after table (line ${currentTableEnd + 1}) without an empty line. Add an empty line after the table before adding new content.`);
+                            // Get the last few table rows and the problematic content
+                            const tableContent = currentTable.slice(-3).map(row => row.content).join('\n');
+                            const problematicContent = line.length > 50 ? line.substring(0, 50) + '...' : line;
+                            errors.push({
+                                message: `Content immediately after table without an empty line. Add an empty line after the table before adding new content.`,
+                                content: tableContent + '\n' + problematicContent
+                            });
                         }
                     }
                     
@@ -9978,16 +10223,26 @@
                     separatorFound = false;
                     separatorLineNum = -1;
                     expectedColumnCount = null;
+                    lastTableRowContent = null;
+                    lastTableRowLineNum = -1;
                 }
             }
             
             // Check if we ended while still in a table
             if (inTable && currentTable.length > 0) {
                 if (!separatorFound) {
-                    errors.push(`Lines ${currentTableStart}-${lines.length}: Table is missing a separator row. Add a row like |---|---| after the header.`);
+                    const tableContent = currentTable.map(row => row.content).join('\n');
+                    errors.push({
+                        message: `Table is missing a separator row. Add a row like |---|---| after the header.`,
+                        content: tableContent
+                    });
                 }
                 if (currentTable.length < 2) {
-                    errors.push(`Lines ${currentTableStart}-${lines.length}: Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`);
+                    const tableContent = currentTable.map(row => row.content).join('\n');
+                    errors.push({
+                        message: `Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`,
+                        content: tableContent
+                    });
                 }
             }
             
@@ -10008,7 +10263,7 @@
             const text = textarea.value;
             const result = validateTableMarkdown(text);
             
-            // Find or create error container
+            // Find or create error container - insert right after textarea
             const container = textarea.closest('.text-field-container') || textarea.parentElement;
             if (!container) return;
             
@@ -10019,20 +10274,32 @@
                 if (!errorDiv) {
                     errorDiv = document.createElement('div');
                     errorDiv.className = 'table-validation-errors';
-                    errorDiv.style.cssText = 'margin-top: 8px; order: 999;'; // Use order to keep it at the end
-                    
-                    // Insert after all existing elements (buttons, preview, etc.)
-                    // Find the last element in the container
-                    container.appendChild(errorDiv);
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
                 }
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
                     <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
                         <strong>⚠️ Table Markdown Errors:</strong>
-                        <ul style="margin: 5px 0 0 20px; padding: 0;">
-                            ${result.errors.map(err => `<li>${err}</li>`).join('')}
-                        </ul>
+                        ${result.errors.map(err => {
+                            const errorMsg = typeof err === 'string' ? err : err.message;
+                            const errorContent = typeof err === 'object' && err.content ? err.content : '';
+                            if (errorContent) {
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">${errorMsg}</div>
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>Your Code:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                return `<div style="margin: 4px 0;">${errorMsg}</div>`;
+                            }
+                        }).join('')}
                     </div>
                 `;
                 textarea.classList.add('validation-error');
@@ -10045,6 +10312,675 @@
                 textarea.classList.remove('validation-error');
             }
         }
+        
+        // ========== CATEGORY 9.6: LIST VALIDATION HELPERS ==========
+        
+        /**
+         * Validate markdown lists and check for empty lines after lists
+         * @param {string} text - The text to check
+         * @returns {Object} { valid: boolean, errors: string[], hasLists: boolean }
+         */
+        function validateListMarkdown(text) {
+            if (!text || typeof text !== 'string') {
+                return { valid: true, errors: [], hasLists: false };
+            }
+            
+            const lines = text.split('\n');
+            const errors = [];
+            let hasLists = false;
+            let inList = false;
+            let listStartLine = -1;
+            let lastListLine = -1;
+            let currentListItems = []; // Track the actual list items in the current list
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                
+                // Remove math expressions to avoid detecting list markers inside them
+                let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
+                lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
+                
+                // Check if line is a list item (bullet or numbered)
+                // Bullet list: starts with -, *, or + followed by space (may be indented)
+                // Numbered list: starts with number followed by . and space (may be indented)
+                // Allow for indentation (spaces or tabs) before the list marker
+                const isBulletList = /^\s*[-*+]\s/.test(lineWithoutMath);
+                const isNumberedList = /^\s*\d+\.\s/.test(lineWithoutMath);
+                const isListItem = isBulletList || isNumberedList;
+                const isBlankLine = trimmed === '';
+                
+                if (isListItem) {
+                    hasLists = true;
+                    
+                    if (!inList) {
+                        // Starting a new list
+                        inList = true;
+                        listStartLine = i + 1;
+                        currentListItems = []; // Reset list items
+                    }
+                    
+                    // Add this list item to our tracking
+                    currentListItems.push(line);
+                    lastListLine = i + 1;
+                } else if (inList) {
+                    // We were in a list, check if this line ends the list
+                    if (isBlankLine) {
+                        // Blank line after list - this is correct, list ends here
+                        inList = false;
+                        listStartLine = -1;
+                        lastListLine = -1;
+                        currentListItems = []; // Clear tracked items
+                    } else {
+                        // Non-blank line immediately after list without empty line
+                        // This is an error - content will be appended to the list
+                        // Use the actual list items we tracked, not a filtered slice
+                        const listContent = currentListItems.join('\n');
+                        const problematicContent = line.length > 50 ? line.substring(0, 50) + '...' : line;
+                        errors.push({
+                            message: `Content immediately after list without an empty line. Add an empty line after the list before adding new content.`,
+                            content: listContent + '\n' + problematicContent
+                        });
+                        // End the list here
+                        inList = false;
+                        listStartLine = -1;
+                        lastListLine = -1;
+                        currentListItems = []; // Clear tracked items
+                    }
+                }
+            }
+            
+            // If we ended while still in a list, that's okay - it's at the end of the content
+            // No need to require an empty line at the very end
+            
+            return {
+                valid: errors.length === 0,
+                errors: errors,
+                hasLists: hasLists
+            };
+        }
+        
+        /**
+         * Show list validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showListValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const result = validateListMarkdown(text);
+            
+            // Find or create error container - insert right after textarea
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.list-validation-errors');
+            
+            if (result.hasLists && !result.valid && result.errors.length > 0) {
+                // Show errors
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'list-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ List Markdown Errors:</strong>
+                        ${result.errors.map(err => {
+                            const errorMsg = typeof err === 'string' ? err : err.message;
+                            const errorContent = typeof err === 'object' && err.content ? err.content : '';
+                            if (errorContent) {
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">${errorMsg}</div>
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>Your Code:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                return `<div style="margin: 4px 0;">${errorMsg}</div>`;
+                            }
+                        }).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                // Clear errors
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                // Don't remove validation-error class here as it might be set by other validations
+                // Only remove if no other errors exist
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+        
+        // ========== CATEGORY 9.7: BLOCKQUOTE VALIDATION HELPERS ==========
+        
+        /**
+         * Validate markdown blockquotes and check for empty lines after blockquotes
+         * @param {string} text - The text to check
+         * @returns {Object} { valid: boolean, errors: string[], hasBlockquotes: boolean }
+         */
+        function validateBlockquoteMarkdown(text) {
+            if (!text || typeof text !== 'string') {
+                return { valid: true, errors: [], hasBlockquotes: false };
+            }
+            
+            const lines = text.split('\n');
+            const errors = [];
+            let hasBlockquotes = false;
+            let inBlockquote = false;
+            let blockquoteStartLine = -1;
+            let lastBlockquoteLine = -1;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                
+                // Remove math expressions to avoid detecting blockquote markers inside them
+                let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
+                lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
+                
+                // Check if line is a blockquote (starts with > followed by space or end of line)
+                // Allow for indentation (spaces or tabs) before the >
+                const isBlockquoteLine = /^\s*>($| )/.test(lineWithoutMath);
+                const isBlankLine = trimmed === '';
+                
+                if (isBlockquoteLine) {
+                    hasBlockquotes = true;
+                    
+                    if (!inBlockquote) {
+                        // Starting a new blockquote
+                        inBlockquote = true;
+                        blockquoteStartLine = i + 1;
+                    }
+                    
+                    lastBlockquoteLine = i + 1;
+                } else if (inBlockquote) {
+                    // We were in a blockquote, check if this line ends the blockquote
+                    if (isBlankLine) {
+                        // Blank line after blockquote - this is correct, blockquote ends here
+                        inBlockquote = false;
+                        blockquoteStartLine = -1;
+                        lastBlockquoteLine = -1;
+                    } else {
+                        // Non-blank line immediately after blockquote without empty line
+                        // This is an error - content will be appended to the blockquote
+                        // Get the last few blockquote lines and the problematic content
+                        const blockquoteStart = Math.max(0, i - 5); // Get up to 5 lines before
+                        const blockquoteContent = lines.slice(blockquoteStart, i).filter(l => /^\s*>/.test(l)).join('\n');
+                        const problematicContent = line.length > 50 ? line.substring(0, 50) + '...' : line;
+                        errors.push({
+                            message: `Content immediately after blockquote without an empty line. Add an empty line after the blockquote before adding new content.`,
+                            content: blockquoteContent + '\n' + problematicContent
+                        });
+                        // End the blockquote here
+                        inBlockquote = false;
+                        blockquoteStartLine = -1;
+                        lastBlockquoteLine = -1;
+                    }
+                }
+            }
+            
+            // If we ended while still in a blockquote, that's okay - it's at the end of the content
+            // No need to require an empty line at the very end
+            
+            return {
+                valid: errors.length === 0,
+                errors: errors,
+                hasBlockquotes: hasBlockquotes
+            };
+        }
+        
+        /**
+         * Show blockquote validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showBlockquoteValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const result = validateBlockquoteMarkdown(text);
+            
+            // Find or create error container - insert right after textarea
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.blockquote-validation-errors');
+            
+            if (result.hasBlockquotes && !result.valid && result.errors.length > 0) {
+                // Show errors
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'blockquote-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ Blockquote Markdown Errors:</strong>
+                        ${result.errors.map(err => {
+                            const errorMsg = typeof err === 'string' ? err : err.message;
+                            const errorContent = typeof err === 'object' && err.content ? err.content : '';
+                            if (errorContent) {
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">${errorMsg}</div>
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>Your Code:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                return `<div style="margin: 4px 0;">${errorMsg}</div>`;
+                            }
+                        }).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                // Clear errors
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                // Don't remove validation-error class here as it might be set by other validations
+                // Only remove if no other errors exist
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+        
+        // ========== CATEGORY 9.8: OTHER VALIDATION ERROR DISPLAY HELPERS ==========
+        
+        /**
+         * Show LaTeX validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showLatexValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const mathBlockErrors = validateBlockLatex(text);
+            
+            // Find or create error container - insert right after textarea
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.latex-validation-errors');
+            
+            if (mathBlockErrors.length > 0) {
+                // Show errors
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'latex-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ LaTeX Errors:</strong>
+                        ${mathBlockErrors.map(error => {
+                            let errorMessage = '';
+                            let fixMessage = '';
+                            
+                            if (error.type === 'incorrect_delimiters') {
+                                errorMessage = 'Your LaTeX block needs newline characters around it';
+                                fixMessage = 'Use: <code>$$\\n...your formula...\\n$$</code> (with \\n before and after)';
+                            } else if (error.type === 'extra_newlines') {
+                                errorMessage = 'Your LaTeX content has extra newline characters inside';
+                                fixMessage = 'Remove any enters or \\n characters from inside your formula';
+                            } else if (error.type === 'empty_content') {
+                                errorMessage = 'Your LaTeX block is empty';
+                                fixMessage = 'Add your formula between the $$\\n and \\n$$';
+                            } else {
+                                errorMessage = error.message;
+                                fixMessage = 'Check your LaTeX syntax';
+                            }
+                            
+                            // Get content from error object, or use empty string if not available
+                            const errorContent = error.content || '';
+                            const codeDisplay = errorContent ? `$$\\n${errorContent}\\n$$` : '$$\\n...\\n$$';
+                            
+                            return `
+                                <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin-bottom: 6px;">🔴 <strong>LaTeX Problem:</strong> ${errorMessage}</div>
+                                    <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMessage}</div>
+                                    ${errorContent ? `
+                                    <div style="font-size: 0.9em; color: #666;">
+                                        <strong>Your Code:</strong>
+                                        <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(codeDisplay)}</code>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                // Clear errors
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+        
+        /**
+         * Show image validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showImageValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const imageDescErrors = validateImageDescriptions(text);
+            
+            // Find or create error container - insert right after textarea
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.image-validation-errors');
+            
+            if (imageDescErrors.length > 0) {
+                // Show errors
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'image-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ Image Description Errors:</strong>
+                        ${imageDescErrors.map(error => {
+                            if (error.type === 'malformed_image_syntax' || error.type === 'malformed_syntax') {
+                                let problemMsg = 'Your image syntax has an error';
+                                let fixMsg = 'Use the correct format: <code>![description](0)</code>';
+                                
+                                const errorMsg = error.message || '';
+                                
+                                if (errorMsg.includes('Space between ] and (')) {
+                                    problemMsg = 'There\'s a space between ] and ( in your image';
+                                    fixMsg = 'Remove the space: <code>![description](0)</code> not <code>![description] (0)</code>';
+                                } else if (errorMsg.includes('Space between ! and [')) {
+                                    problemMsg = 'There\'s a space between ! and [ in your image';
+                                    fixMsg = 'Remove the space: <code>![description](0)</code> not <code>! [description](0)</code>';
+                                } else if (errorMsg.includes('Square brackets used instead of parentheses')) {
+                                    problemMsg = 'You used square brackets [] for the image number';
+                                    fixMsg = 'Use parentheses instead: <code>![description](0)</code> not <code>![description][0]</code>';
+                                } else if (errorMsg.includes('Parentheses used instead of square brackets')) {
+                                    problemMsg = 'You used parentheses () for the description';
+                                    fixMsg = 'Use square brackets instead: <code>![description](0)</code> not <code>!(description)(0)</code>';
+                                } else if (errorMsg.includes('Curly braces used instead')) {
+                                    if (errorMsg.includes('square brackets')) {
+                                        problemMsg = 'You used curly braces {} for the image description';
+                                        fixMsg = 'Use square brackets instead: <code>![description](0)</code> not <code>!{description}(0)</code>';
+                                    } else {
+                                        problemMsg = 'You used curly braces {} for the image number';
+                                        fixMsg = 'Use parentheses instead: <code>![description](0)</code> not <code>![description]{0}</code>';
+                                    }
+                                } else if (errorMsg.includes('Space after opening (') || errorMsg.includes('Space before closing )')) {
+                                    problemMsg = 'There are spaces around the image number';
+                                    fixMsg = 'Remove spaces: <code>![description](0)</code> not <code>![description]( 0 )</code>';
+                                } else if (errorMsg.includes('Missing closing ] bracket')) {
+                                    problemMsg = 'Your image description is missing the closing ] bracket';
+                                    fixMsg = 'Add the ] bracket: <code>![description](0)</code>';
+                                } else if (errorMsg.includes('Missing opening [ bracket')) {
+                                    problemMsg = 'Your image is missing the opening [ bracket';
+                                    fixMsg = 'Add the [ bracket: <code>![description](0)</code>';
+                                } else if (errorMsg.includes('Missing ! at the beginning')) {
+                                    problemMsg = 'Your image is missing the ! at the start';
+                                    fixMsg = 'Add the ! at the beginning: <code>![description](0)</code>';
+                                } else if (errorMsg.includes('Missing opening ( parenthesis')) {
+                                    problemMsg = 'Your image number is missing the opening ( parenthesis';
+                                    fixMsg = 'Add the ( before the number: <code>![description](0)</code>';
+                                } else if (errorMsg.includes('Missing closing ) parenthesis') || errorMsg.includes('Missing closing )')) {
+                                    problemMsg = 'Your image number is missing the closing ) parenthesis';
+                                    fixMsg = 'Add the ) after the number: <code>![description](0)</code>';
+                                } else if (errorMsg.includes('extra characters')) {
+                                    problemMsg = 'Your image syntax has extra characters after the number';
+                                    fixMsg = 'Remove extra characters: <code>![description](0)</code>';
+                                } else {
+                                    // Use the message from the validation function
+                                    problemMsg = errorMsg.split(':')[0] || problemMsg;
+                                }
+                                
+                                const errorMatch = error.match || '';
+                                
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> ${problemMsg}</div>
+                                        <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMsg}</div>
+                                        ${errorMatch ? `
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>What You Wrote:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorMatch)}</code>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            } else if (error.type === 'newline_in_description') {
+                                const escapedDesc = (error.description || '')
+                                    .replace(/\n/g, '\\n')
+                                    .replace(/\r/g, '\\r');
+                                const errorIndex = error.index || '?';
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> Your image description cannot have line breaks (newlines) in it</div>
+                                        <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Keep the description on one line, no Enter/Return keys pressed</div>
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>Image #${errorIndex} Description:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                // Fallback for any other error types
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> ${error.message || 'Image syntax error'}</div>
+                                        ${error.match ? `
+                                        <div style="font-size: 0.9em; color: #666;">
+                                            <strong>What You Wrote:</strong>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(error.match)}</code>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }
+                        }).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                // Clear errors
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+        
+        /**
+         * Show quote and dollar sign validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showQuoteValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const quoteErrors = validateQuotes(text);
+            const dollarErrors = validateDollarSigns(text);
+            
+            // Find or create error container - insert right after textarea
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.quote-validation-errors');
+            
+            const allErrors = [...quoteErrors, ...dollarErrors];
+            
+            if (allErrors.length > 0) {
+                // Show errors
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'quote-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ Quote & Dollar Sign Errors:</strong>
+                        ${allErrors.map(error => {
+                            if (error.type === 'unmatched_dollar_signs') {
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px; color: #856404;">
+                                        <div style="margin-bottom: 6px;">⚠️ <strong>Dollar Sign Warning:</strong> ${error.message}</div>
+                                        <div>💡 <strong>Note:</strong> This is a warning only and won't block saving or generation.</div>
+                                    </div>
+                                `;
+                            } else {
+                                const fixMessage = 'Each quote must have a matching pair - remove the extra or add the missing one';
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">🔴 <strong>Quote Error:</strong> ${error.message}</div>
+                                        <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMessage}</div>
+                                        <div>⚠️ <strong>Important:</strong> This will break JSON generation and cause data loss!</div>
+                                    </div>
+                                `;
+                            }
+                        }).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                // Clear errors
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+        
+        /**
+         * Show <br> tag validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showBrTagValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const brErrors = validateBrTags(text);
+            
+            // Find or create error container - insert right after textarea
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.br-validation-errors');
+            
+            if (brErrors.length > 0) {
+                // Show errors
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'br-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    // Insert right after the textarea
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ HTML Tag Errors:</strong>
+                        ${brErrors.map(error => `
+                            <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                <div style="margin-bottom: 6px;">🔴 <strong>HTML Tag Error:</strong> ${error.message}</div>
+                                <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Remove all &lt;br&gt; tags from your content. Use markdown line breaks or proper formatting instead.</div>
+                                <div>⚠️ <strong>Important:</strong> This will break JSON generation and cause data loss!</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                // Clear errors
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+        
+        // ========== END CATEGORY 9.8 ==========
+        
+        // ========== END CATEGORY 9.7 ==========
+        
+        // ========== END CATEGORY 9.6 ==========
         
         // ========== END CATEGORY 9.5 ==========
         
@@ -10955,7 +11891,7 @@
                     if (descMatch && descMatch[1]) {
                         const description = descMatch[1];
                         // Check if description contains newlines (both literal \n and actual newlines)
-                        if (description.includes('\n') || description.includes('\r')) {
+                        if (description.includes('\n') || description.includes('\r') || description.includes('\\n') || description.includes('\\r')) {
                             // Extract the index
                             const indexMatch = match.match(/\]\((\d+)\)/);
                             const index = indexMatch ? indexMatch[1] : '?';
@@ -10997,7 +11933,8 @@
                         if (inner.trim().length > 0) { // Only error if there's actual content
                             errors.push({
                                 type: 'incorrect_delimiters',
-                                message: 'Block latex must use newline delimiters: $$\\n...\\n$$ or $$ \\n...\\n $$'
+                                message: 'Block latex must use newline delimiters: $$\\n...\\n$$ or $$ \\n...\\n $$',
+                                content: inner
                             });
                         }
                     }
@@ -11015,14 +11952,16 @@
                         if (inner.includes('\\n') || inner.includes('\n')) {
                             errors.push({
                                 type: 'extra_newlines',
-                                message: 'Block latex cannot contain extra newline characters inside the content'
+                                message: 'Block latex cannot contain extra newline characters inside the content',
+                                content: inner
                             });
                         }
                         // Check for empty content
                         if (inner.trim().length === 0) {
                             errors.push({
                                 type: 'empty_content',
-                                message: 'Block latex cannot be empty'
+                                message: 'Block latex cannot be empty',
+                                content: inner
                             });
                         }
                     }
@@ -11261,7 +12200,28 @@
                 if (tableValidation.hasTables && !tableValidation.valid && tableValidation.errors.length > 0) {
                     const location = getTextareaLocation(textarea);
                     tableValidation.errors.forEach(error => {
-                        validationErrors.push(`Table Markdown Error in ${location}: ${error}`);
+                        const errorMsg = typeof error === 'string' ? error : error.message;
+                        validationErrors.push(`Table Markdown Error in ${location}: ${errorMsg}`);
+                    });
+                }
+                
+                // Validate list markdown
+                const listValidation = validateListMarkdown(content);
+                if (listValidation.hasLists && !listValidation.valid && listValidation.errors.length > 0) {
+                    const location = getTextareaLocation(textarea);
+                    listValidation.errors.forEach(error => {
+                        const errorMsg = typeof error === 'string' ? error : error.message;
+                        validationErrors.push(`List Markdown Error in ${location}: ${errorMsg}`);
+                    });
+                }
+                
+                // Validate blockquote markdown
+                const blockquoteValidation = validateBlockquoteMarkdown(content);
+                if (blockquoteValidation.hasBlockquotes && !blockquoteValidation.valid && blockquoteValidation.errors.length > 0) {
+                    const location = getTextareaLocation(textarea);
+                    blockquoteValidation.errors.forEach(error => {
+                        const errorMsg = typeof error === 'string' ? error : error.message;
+                        validationErrors.push(`Blockquote Markdown Error in ${location}: ${errorMsg}`);
                     });
                 }
             });
@@ -13288,7 +14248,26 @@
                     const tableValidation = validateTableMarkdown(content);
                     if (tableValidation.hasTables && !tableValidation.valid && tableValidation.errors.length > 0) {
                         tableValidation.errors.forEach(error => {
-                            validationErrors.push(`Table Markdown Error in ${getTextareaLocation(textarea)}: ${error}`);
+                            const errorMsg = typeof error === 'string' ? error : error.message;
+                            validationErrors.push(`Table Markdown Error in ${getTextareaLocation(textarea)}: ${errorMsg}`);
+                        });
+                    }
+                    
+                    // Validate list markdown
+                    const listValidation = validateListMarkdown(content);
+                    if (listValidation.hasLists && !listValidation.valid && listValidation.errors.length > 0) {
+                        listValidation.errors.forEach(error => {
+                            const errorMsg = typeof error === 'string' ? error : error.message;
+                            validationErrors.push(`List Markdown Error in ${getTextareaLocation(textarea)}: ${errorMsg}`);
+                        });
+                    }
+                    
+                    // Validate blockquote markdown
+                    const blockquoteValidation = validateBlockquoteMarkdown(content);
+                    if (blockquoteValidation.hasBlockquotes && !blockquoteValidation.valid && blockquoteValidation.errors.length > 0) {
+                        blockquoteValidation.errors.forEach(error => {
+                            const errorMsg = typeof error === 'string' ? error : error.message;
+                            validationErrors.push(`Blockquote Markdown Error in ${getTextareaLocation(textarea)}: ${errorMsg}`);
                         });
                     }
                 });
@@ -13772,6 +14751,9 @@
             
             // Initialize dark mode
             initializeDarkMode();
+            
+            // Initialize font settings
+            initializeFontSettings();
             
             // Initialize auto-resize toggle
             initializeAutoResize();
@@ -15933,11 +16915,43 @@
             
             <!-- Content -->
             <div class="whats-new-modal-body">
+                <!-- Version 6.3 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.3</span>
+                        <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- New Features -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-star" style="color: #ffc107;"></i> New Features
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Multi-Line Table Cells:</strong> You can now press Enter inside table cells to create line breaks. The preview will show your content on multiple lines within the same cell.</li>
+                            <li><strong>List Validation:</strong> The tool now reminds you to add an empty line after lists. If you forget, you'll see a helpful error message to fix it.</li>
+                            <li><strong>Blockquote Validation:</strong> The tool now reminds you to add an empty line after blockquotes. If you forget, you'll see a helpful error message to fix it.</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Better Table Validation:</strong> Table validation is now smarter and won't show errors when you use line breaks inside cells.</li>
+                            <li><strong>Unified Error Display:</strong> All validation errors (tables, lists, blockquotes, LaTeX, images, quotes, and HTML tags) now appear in a consistent format and are displayed right after the input box for easier visibility.</li>
+                            <li><strong>Customizable Font Settings:</strong> You can now adjust font size and line height directly from the top bar. Your preferences are saved and apply to all text inputs and previews for both Arabic and English text.</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <!-- Version 6.2 -->
                 <div style="margin-bottom: 40px;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.2</span>
-                        <span class="whats-new-version-badge">Current Version</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- Enhancements -->
