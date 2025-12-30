@@ -7252,14 +7252,25 @@
                 textarea.setAttribute('dir', 'ltr');
             }
             
-            // Find preview box by walking through siblings (skip buttons and labels)
+            // Find preview box by walking through siblings (skip buttons, labels, and error divs)
             let nextSibling = textarea.nextElementSibling;
             let preview = null;
             
-            // Skip over buttons to find preview label or preview
+            // Skip over buttons, error divs, and labels to find preview
             while (nextSibling) {
                 if (nextSibling.tagName === 'BUTTON') {
                     // Skip buttons
+                    nextSibling = nextSibling.nextElementSibling;
+                } else if (nextSibling.classList && (
+                    nextSibling.classList.contains('table-validation-errors') ||
+                    nextSibling.classList.contains('list-validation-errors') ||
+                    nextSibling.classList.contains('blockquote-validation-errors') ||
+                    nextSibling.classList.contains('latex-validation-errors') ||
+                    nextSibling.classList.contains('image-validation-errors') ||
+                    nextSibling.classList.contains('quote-validation-errors') ||
+                    nextSibling.classList.contains('br-validation-errors')
+                )) {
+                    // Skip validation error divs
                     nextSibling = nextSibling.nextElementSibling;
                 } else if (nextSibling.classList && nextSibling.classList.contains('preview-label')) {
                     // Skip label, continue to preview
@@ -7278,6 +7289,8 @@
                 const newDir = textarea.hasAttribute('data-ltr') ? 'ltr' : 'rtl';
                 preview.setAttribute('dir', newDir);
                 preview.style.textAlign = newDir === 'rtl' ? 'right' : 'left';
+                // Re-render preview to ensure direction is applied to content
+                renderLivePreview(textarea);
             }
             
             // Update button label: find the dir button in this container
