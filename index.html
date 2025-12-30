@@ -3330,6 +3330,12 @@
                     }
                 }
             }
+            
+            // Reinitialize previews for all textareas in this question after type change
+            // This ensures newly shown fields get previews and direction is properly set
+            setTimeout(() => {
+                attachPreviews(questionEl);
+            }, 50);
         }
 
         function addChoice(button, position = 'end', questionType = null) {
@@ -6242,6 +6248,14 @@
             }
             
             if (!preview) return;
+            
+            // Always sync preview direction with textarea direction
+            const isLTR = textarea.hasAttribute('data-ltr');
+            const direction = isLTR ? 'ltr' : 'rtl';
+            const textAlign = isLTR ? 'left' : 'right';
+            preview.setAttribute('dir', direction);
+            preview.style.textAlign = textAlign;
+            
             try {
                 // Normalize CRLF
                 let md = (textarea.value || '').replace(/\r\n?/g, '\n');
