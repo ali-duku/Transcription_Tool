@@ -11,6 +11,188 @@
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
         gtag('config', 'G-3DP5ZC653Y');
+        
+        // Analytics Helper Functions
+        function trackEvent(eventName, eventParams) {
+            if (typeof gtag !== 'undefined') {
+                gtag('event', eventName, eventParams);
+            }
+        }
+        
+        // Session tracking
+        let sessionStartTime = Date.now();
+        
+        // Track session duration
+        function trackSessionDuration(context = 'periodic') {
+            const sessionDuration = Math.round((Date.now() - sessionStartTime) / 1000); // Duration in seconds
+            const sessionDurationMinutes = Math.round(sessionDuration / 60 * 10) / 10;
+            
+            trackEvent('session_duration', {
+                session_duration_seconds: sessionDuration,
+                session_duration_minutes: sessionDurationMinutes,
+                context: context
+            });
+        }
+        
+        // Start a new session (reset start time and track event)
+        function startNewSession(context = 'page_load') {
+            sessionStartTime = Date.now();
+            trackEvent('session_started', {
+                timestamp: new Date().toISOString(),
+                context: context
+            });
+        }
+        
+        // Track session duration every 5 minutes
+        setInterval(() => {
+            trackSessionDuration('periodic');
+        }, 5 * 60 * 1000); // 5 minutes
+        
+        // Track session end on page unload
+        window.addEventListener('beforeunload', () => {
+            const sessionDuration = Math.round((Date.now() - sessionStartTime) / 1000); // Duration in seconds
+            const sessionDurationMinutes = Math.round(sessionDuration / 60 * 10) / 10;
+            
+            // Track final session duration
+            trackEvent('session_ended', {
+                session_duration_seconds: sessionDuration,
+                session_duration_minutes: sessionDurationMinutes
+            });
+        });
+        
+        // Track initial session start on page load
+        startNewSession('page_load');
+        
+        // Categorize and count validation errors
+        function categorizeValidationErrors(validationErrors) {
+            const categories = {
+                required_field: 0,
+                block_latex: 0,
+                image_description: 0,
+                quote_error: 0,
+                dollar_sign: 0,
+                table_markdown: 0,
+                list_markdown: 0,
+                blockquote_markdown: 0,
+                html_tag: 0,
+                image_reference: 0,
+                image_mismatch: 0,
+                image_numbering: 0,
+                question_id: 0,
+                question_text: 0,
+                guide_answer: 0,
+                guide_pdf_page: 0,
+                blank_format: 0,
+                matching_format: 0,
+                choice_format: 0,
+                duplicate_id: 0,
+                other: 0
+            };
+            
+            validationErrors.forEach(error => {
+                const errorLower = error.toLowerCase();
+                if (errorLower.includes('required') || errorLower.includes('missing')) {
+                    if (errorLower.includes('question id')) categories.question_id++;
+                    else if (errorLower.includes('question text')) categories.question_text++;
+                    else if (errorLower.includes('guide answer')) categories.guide_answer++;
+                    else if (errorLower.includes('guide pdf page') || errorLower.includes('guide page')) categories.guide_pdf_page++;
+                    else if (errorLower.includes('content')) categories.required_field++;
+                    else categories.required_field++;
+                } else if (errorLower.includes('block latex') || errorLower.includes('block laTeX')) {
+                    categories.block_latex++;
+                } else if (errorLower.includes('image description')) {
+                    categories.image_description++;
+                } else if (errorLower.includes('quote error')) {
+                    categories.quote_error++;
+                } else if (errorLower.includes('dollar sign')) {
+                    categories.dollar_sign++;
+                } else if (errorLower.includes('table markdown')) {
+                    categories.table_markdown++;
+                } else if (errorLower.includes('list markdown')) {
+                    categories.list_markdown++;
+                } else if (errorLower.includes('blockquote markdown')) {
+                    categories.blockquote_markdown++;
+                } else if (errorLower.includes('html tag') || errorLower.includes('<br>')) {
+                    categories.html_tag++;
+                } else if (errorLower.includes('image') && (errorLower.includes('not being used') || errorLower.includes('missing') || errorLower.includes('not found'))) {
+                    categories.image_reference++;
+                } else if (errorLower.includes('image') && (errorLower.includes('mismatch') || errorLower.includes('count'))) {
+                    categories.image_mismatch++;
+                } else if (errorLower.includes('image') && (errorLower.includes('number') || errorLower.includes('skip') || errorLower.includes('order'))) {
+                    categories.image_numbering++;
+                } else if (errorLower.includes('blank') || errorLower.includes('fill in the blank')) {
+                    categories.blank_format++;
+                } else if (errorLower.includes('matching')) {
+                    categories.matching_format++;
+                } else if (errorLower.includes('choice') || errorLower.includes('checkbox') || errorLower.includes('multiple choice')) {
+                    categories.choice_format++;
+                } else if (errorLower.includes('duplicate')) {
+                    categories.duplicate_id++;
+                } else {
+                    categories.other++;
+                }
+            });
+            
+            return categories;
+        }
+        
+        // Get current form statistics with section sizes
+        function getFormStats() {
+            const questions = document.querySelectorAll('#questions_container > .array-item');
+            const contentSections = document.querySelectorAll('#content_sections_container > .array-item');
+            
+            const questionTypes = {};
+            const questionSizes = [];
+            const contentSectionSizes = [];
+            
+            questions.forEach(q => {
+                const typeSelect = q.querySelector('select[onchange*="toggleQuestionType"]');
+                const type = typeSelect ? typeSelect.value : 'unknown';
+                questionTypes[type] = (questionTypes[type] || 0) + 1;
+                
+                // Calculate question size (sum of all text fields)
+                let questionSize = 0;
+                const questionText = q.querySelector('textarea[placeholder*="Enter question text"]');
+                const setupText = q.querySelector('textarea[placeholder*="Enter set-up text"]');
+                const guideAnswer = q.querySelector('#guide-answer-container textarea, .guide-answer-notes');
+                
+                if (questionText) questionSize += (questionText.value || '').length;
+                if (setupText) questionSize += (setupText.value || '').length;
+                if (guideAnswer) questionSize += (guideAnswer.value || '').length;
+                
+                questionSizes.push(questionSize);
+            });
+            
+            contentSections.forEach(section => {
+                // Calculate content section size
+                let sectionSize = 0;
+                const sectionTitle = section.querySelector('input[placeholder="Section title"]');
+                const sectionText = section.querySelector('textarea[placeholder*="Enter content"]');
+                
+                if (sectionTitle) sectionSize += (sectionTitle.value || '').length;
+                if (sectionText) sectionSize += (sectionText.value || '').length;
+                
+                contentSectionSizes.push(sectionSize);
+            });
+            
+            // Calculate averages
+            const avgQuestionSize = questionSizes.length > 0 
+                ? Math.round(questionSizes.reduce((a, b) => a + b, 0) / questionSizes.length) 
+                : 0;
+            const avgContentSectionSize = contentSectionSizes.length > 0 
+                ? Math.round(contentSectionSizes.reduce((a, b) => a + b, 0) / contentSectionSizes.length) 
+                : 0;
+            
+            return {
+                totalQuestions: questions.length,
+                totalContentSections: contentSections.length,
+                questionTypes: questionTypes,
+                avgQuestionSize: avgQuestionSize,
+                avgContentSectionSize: avgContentSectionSize,
+                totalQuestionSize: questionSizes.reduce((a, b) => a + b, 0),
+                totalContentSectionSize: contentSectionSizes.reduce((a, b) => a + b, 0)
+            };
+        }
     </script>
     
     <title>Math Textbook Transcription Workflow</title>
@@ -2108,7 +2290,7 @@
                             <h1>Math Textbook Transcription</h1>
                         </div>
                         <div class="header-meta">
-                            <span>v6.4</span>
+                            <span>v6.5</span>
                             <span>•</span>
                             <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.65rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                                 <i class="fas fa-sparkles"></i> What's New
@@ -2167,6 +2349,9 @@
                         </div>
                         <button id="saveBtn" class="dark-mode-toggle" onclick="saveProgress()" title="Save Progress (Ctrl+S)">
                             <i class="fas fa-save"></i>
+                        </button>
+                        <button class="dark-mode-toggle" onclick="location.reload()" title="Reload Page">
+                            <i class="fas fa-sync-alt"></i>
                         </button>
                         <button class="dark-mode-toggle" onclick="scrollToTop()" title="Scroll to Top">
                             <i class="fas fa-arrow-up"></i>
@@ -2314,6 +2499,9 @@
                             </button>
                             <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                                 <i class="fas fa-list-ol"></i>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                                <i class="fas fa-quote-right"></i>
                             </button>
                             <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                                 <i class="fas fa-dollar-sign"></i>
@@ -2677,6 +2865,11 @@
             
             // Add active class to clicked tab
             event.target.classList.add('active');
+            
+            // Track tab navigation
+            trackEvent('tab_navigation', {
+                tab_name: tabName
+            });
         }
 
         // Quick jump functionality
@@ -2733,6 +2926,7 @@
             if (term.length === 0) {
                 // Clear search - show all items
                 clearSearch();
+                trackEvent('search_performed', { search_term_length: 0 });
                 return;
             }
             
@@ -2780,8 +2974,21 @@
                     }
                 });
             }
+            
+            // Track search with results
+            const visibleSections = Array.from(document.querySelectorAll('#content_sections_container .array-item')).filter(el => 
+                el.style.display !== 'none' && !el.style.display.includes('none')
+            ).length;
+            const visibleQuestions = Array.from(document.querySelectorAll('#questions_container .array-item')).filter(el => 
+                el.style.display !== 'none' && !el.style.display.includes('none')
+            ).length;
+            trackEvent('search_performed', { 
+                search_term_length: term.length,
+                visible_content_sections: visibleSections,
+                visible_questions: visibleQuestions
+            });
         }
-        
+
         function clearSearch() {
             const searchInput = document.getElementById('searchFilter');
             const clearBtn = document.getElementById('clearSearchBtn');
@@ -3103,6 +3310,14 @@
             if (!isBulkOperation) {
                 updateQuestionNumbers();
             }
+            
+            // Track question addition
+            const stats = getFormStats();
+            trackEvent('question_added', {
+                question_type: 'free_form', // Default type for new questions
+                total_questions: stats.totalQuestions,
+                total_content_sections: stats.totalContentSections
+            });
         }
 
         function toggleQuestionType(selectElement) {
@@ -3270,6 +3485,8 @@
                                     if (newCheckbox) {
                                         newCheckbox.addEventListener('change', () => {
                                             updateCheckboxSummary(questionEl);
+                                            markFormAsChanged();
+                                            triggerAutoSave();
                                         });
                                     }
                                 } else if (questionType === 'multiple_choice' && existingCorrectField) {
@@ -3336,6 +3553,14 @@
             setTimeout(() => {
                 attachPreviews(questionEl);
             }, 50);
+            
+            // Track question type change
+            const stats = getFormStats();
+            trackEvent('question_type_changed', {
+                question_type: questionType,
+                total_questions: stats.totalQuestions,
+                total_content_sections: stats.totalContentSections
+            });
         }
 
         function addChoice(button, position = 'end', questionType = null) {
@@ -3401,6 +3626,9 @@
                         <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                             <i class="fas fa-list-ol"></i>
                         </button>
+                        <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                            <i class="fas fa-quote-right"></i>
+                        </button>
                         <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                             <i class="fas fa-dollar-sign"></i>
                         </button>
@@ -3457,6 +3685,8 @@
                 if (correctCheckbox) {
                     correctCheckbox.addEventListener('change', () => {
                         updateCheckboxSummary(questionEl);
+                        markFormAsChanged();
+                        triggerAutoSave();
                     });
                 }
             } else if (questionType === 'multiple_choice') {
@@ -3630,6 +3860,14 @@
                     if (currentValue && parseInt(currentValue) === position) {
                         radioInput.checked = true;
                     }
+                    
+                    // Add change listener to trigger auto-save when correct answer is selected
+                    radioInput.addEventListener('change', () => {
+                        if (radioInput.checked) {
+                            markFormAsChanged();
+                            triggerAutoSave();
+                        }
+                    });
                     
                     const radioLabel = document.createElement('label');
                     radioLabel.htmlFor = radioId;
@@ -3844,6 +4082,8 @@
                     if (correctCheckbox && !correctCheckbox.dataset.listenerAttached) {
                         correctCheckbox.addEventListener('change', () => {
                             updateCheckboxSummary(questionEl);
+                            markFormAsChanged();
+                            triggerAutoSave();
                         });
                         correctCheckbox.dataset.listenerAttached = 'true';
                     }
@@ -3861,6 +4101,8 @@
                 const questionEl = choicesList.closest('.array-item');
                 updateCorrectAnswerRadios(questionEl);
                 updateCheckboxSummary(questionEl);
+                markFormAsChanged();
+                triggerAutoSave();
             }
         }
 
@@ -3874,6 +4116,8 @@
                 const questionEl = choicesList.closest('.array-item');
                 updateCorrectAnswerRadios(questionEl);
                 updateCheckboxSummary(questionEl);
+                markFormAsChanged();
+                triggerAutoSave();
             }
         }
 
@@ -3972,6 +4216,7 @@
                 }
                 
                 markFormAsChanged();
+                triggerAutoSave();
             }
         }
 
@@ -3991,6 +4236,7 @@
                 }
                 
                 markFormAsChanged();
+                triggerAutoSave();
             }
         }
 
@@ -4081,6 +4327,13 @@
                     copyBtn.innerHTML = originalIcon;
                     copyBtn.style.background = '';
                 }, 1200);
+                
+                // Track section copy
+                const questionType = isQuestion ? (sectionData.data.question_type || 'unknown') : null;
+                trackEvent('section_copied', {
+                    section_type: isQuestion ? 'question' : 'content',
+                    question_type: questionType
+                });
                 
             } catch (e) {
                 console.error('Failed to copy section:', e);
@@ -4373,6 +4626,17 @@
                     duplicateBtn.innerHTML = originalIcon;
                     duplicateBtn.style.background = '';
                 }, 1200);
+                
+                // Mark form as changed and trigger auto-save
+                markFormAsChanged();
+                triggerAutoSave();
+                
+                // Track section duplication
+                const questionType = sectionData.type === 'question' ? (sectionData.data.question_type || 'unknown') : null;
+                trackEvent('section_duplicated', {
+                    section_type: sectionData.type,
+                    question_type: questionType
+                });
                 
             } catch (e) {
                 console.error('Failed to duplicate section:', e);
@@ -4671,6 +4935,7 @@
                 }
                 
                 markFormAsChanged();
+                triggerAutoSave();
                 
                 // Visual feedback
                 const pasteBtn = button;
@@ -4875,7 +5140,7 @@
                 }
                 
                 markFormAsChanged();
-                
+                triggerAutoSave();
                 
             } catch (e) {
                 console.error('Failed to paste section:', e);
@@ -5108,6 +5373,13 @@
             if (!isBulkOperation) {
                 updateContentSectionNumbers();
             }
+            
+            // Track content section addition
+            const stats = getFormStats();
+            trackEvent('content_section_added', {
+                total_questions: stats.totalQuestions,
+                total_content_sections: stats.totalContentSections
+            });
         }
 
         function addContentBbox(button) {
@@ -5148,6 +5420,11 @@
                 };
                 input.addEventListener('blur', handler);
                 input.__bboxValidationHandler = handler;
+            });
+            
+            // Track content image addition
+            trackEvent('image_added', {
+                image_type: 'content_section'
             });
         }
 
@@ -5232,6 +5509,11 @@
                 input.addEventListener('blur', handler);
                 input.__bboxValidationHandler = handler;
             });
+            
+            // Track question image addition
+            trackEvent('image_added', {
+                image_type: 'question'
+            });
         }
 
         function addAnswerBbox(button) {
@@ -5273,6 +5555,11 @@
                 input.addEventListener('blur', handler);
                 input.__bboxValidationHandler = handler;
             });
+            
+            // Track answer image addition
+            trackEvent('image_added', {
+                image_type: 'answer'
+            });
         }
 
         function addAnswerImage(button) {
@@ -5313,6 +5600,11 @@
                 };
                 input.addEventListener('blur', handler);
                 input.__bboxValidationHandler = handler;
+            });
+            
+            // Track answer image addition
+            trackEvent('image_added', {
+                image_type: 'answer'
             });
         }
 
@@ -5460,6 +5752,9 @@
                         <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                             <i class="fas fa-list-ol"></i>
                         </button>
+                        <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                            <i class="fas fa-quote-right"></i>
+                        </button>
                         <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                             <i class="fas fa-dollar-sign"></i>
                         </button>
@@ -5583,6 +5878,9 @@
                         <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                             <i class="fas fa-list-ol"></i>
                         </button>
+                        <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                            <i class="fas fa-quote-right"></i>
+                        </button>
                         <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                             <i class="fas fa-dollar-sign"></i>
                         </button>
@@ -5621,6 +5919,9 @@
                         </button>
                         <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                             <i class="fas fa-list-ol"></i>
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                            <i class="fas fa-quote-right"></i>
                         </button>
                         <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                             <i class="fas fa-dollar-sign"></i>
@@ -5663,6 +5964,9 @@
                         </button>
                         <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                             <i class="fas fa-list-ol"></i>
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                            <i class="fas fa-quote-right"></i>
                         </button>
                         <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                             <i class="fas fa-dollar-sign"></i>
@@ -5723,6 +6027,9 @@
                             <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                                 <i class="fas fa-list-ol"></i>
                             </button>
+                            <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                                <i class="fas fa-quote-right"></i>
+                            </button>
                             <button type="button" class="table-btn" onclick="insertTable(this.parentElement.querySelector('textarea'))" title="Insert a markdown table template">
                                 <i class="fas fa-table"></i> Insert Table
                             </button>
@@ -5774,6 +6081,9 @@
                             </button>
                             <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                                 <i class="fas fa-list-ol"></i>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                                <i class="fas fa-quote-right"></i>
                             </button>
                             <button type="button" class="table-btn" onclick="insertTable(this.parentElement.querySelector('textarea'))" title="Insert a markdown table template">
                                 <i class="fas fa-table"></i> Insert Table
@@ -7205,6 +7515,8 @@
                 toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
             }
             
+            trackEvent('feature_toggled', { feature: 'auto_resize', enabled: autoResizeEnabled });
+            
             // Save preference to localStorage
             localStorage.setItem('autoResizeEnabled', autoResizeEnabled ? 'true' : 'false');
             
@@ -7384,6 +7696,7 @@
             const icon = toggle.querySelector('i');
             
             // Toggle the data-theme attribute
+            const isDark = body.getAttribute('data-theme') !== 'dark';
             if (body.getAttribute('data-theme') === 'dark') {
                 body.removeAttribute('data-theme');
                 icon.className = 'fas fa-moon';
@@ -7393,6 +7706,8 @@
                 icon.className = 'fas fa-sun';
                 localStorage.setItem('darkMode', 'dark');
             }
+            
+            trackEvent('feature_toggled', { feature: 'dark_mode', enabled: isDark });
         }
 
         // Initialize dark mode from localStorage
@@ -7494,6 +7809,10 @@
                     inputs[3].value = Math.round(xLeft) || 0;  // X1 (bottom-left x)
                     inputs[4].value = Math.round(yBottom) || 0;// Y1 (bottom-left y)
                 }
+                
+                // Mark form as changed and trigger auto-save after pasting coordinates
+                markFormAsChanged();
+                triggerAutoSave();
             } catch (err) {
                 console.error(err);
                 alert('Failed to paste.');
@@ -7623,6 +7942,10 @@
                     duplicateBtn.innerHTML = originalIcon;
                     duplicateBtn.style.background = '';
                 }, 1200);
+                
+                // Mark form as changed and trigger auto-save
+                markFormAsChanged();
+                triggerAutoSave();
                 
             } catch (e) {
                 console.error('Failed to duplicate bbox:', e);
@@ -8457,7 +8780,14 @@
                 }
                 
                 lastDrawn = { page: currentPage, position: [[xr, yt], [xl, yb]] }; 
-                paintTemp(lastDrawn); 
+                paintTemp(lastDrawn);
+                
+                // Track bounding box drawing
+                trackEvent('bbox_drawn', {
+                    page: currentPage,
+                    width: Math.abs(xr - xl),
+                    height: Math.abs(yb - yt)
+                }); 
             }
 
             function paintTemp(bbox){
@@ -8999,6 +9329,11 @@
                         });
                     });
                 }
+                
+                // Mark form as changed and trigger auto-save after coordinates are filled
+                markFormAsChanged();
+                triggerAutoSave();
+                
                 closeModal();
             };
             cancelBtn.onclick = ()=>{
@@ -10571,10 +10906,45 @@
                 let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
                 lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
                 
-                // Check if line is a blockquote (starts with > followed by space or end of line)
+                // Check if line is a blockquote (starts with >)
                 // Allow for indentation (spaces or tabs) before the >
-                const isBlockquoteLine = /^\s*>($| )/.test(lineWithoutMath);
+                const isBlockquoteLine = /^\s*>/.test(lineWithoutMath);
                 const isBlankLine = trimmed === '';
+                const isBlankBlockquote = trimmed === '>';
+                
+                // Validate blockquote formatting: if it's a blockquote with content, must have exactly one space after >
+                if (isBlockquoteLine && !isBlankBlockquote) {
+                    // Check the original line (preserving leading whitespace) to see the exact spacing after >
+                    const leadingWhitespaceMatch = line.match(/^(\s*)/);
+                    const leadingWhitespace = leadingWhitespaceMatch ? leadingWhitespaceMatch[1] : '';
+                    const afterLeadingWhitespace = line.substring(leadingWhitespace.length);
+                    
+                    // After removing leading whitespace, check if > is followed by exactly one space
+                    if (afterLeadingWhitespace.startsWith('>')) {
+                        const afterGT = afterLeadingWhitespace.substring(1);
+                        
+                        // Must have exactly one space after > when there's content
+                        if (afterGT.length === 0) {
+                            // This should have been caught by isBlankBlockquote, but just in case
+                            // Blank blockquote is valid, skip
+                        } else if (!afterGT.startsWith(' ')) {
+                            // No space after > (starts with non-space character like 'text' or tab)
+                            errors.push({
+                                message: `Blockquote on line ${i + 1} must have exactly one space after the ">" character. Found "${afterGT[0] === '\t' ? 'tab' : afterGT[0]}" instead of a space.`,
+                                content: line.length > 100 ? line.substring(0, 100) + '...' : line,
+                                lineNumber: i + 1
+                            });
+                        } else if (afterGT.length > 1 && afterGT[1] === ' ') {
+                            // Multiple spaces after > (second character is also a space)
+                            errors.push({
+                                message: `Blockquote on line ${i + 1} must have exactly one space after the ">" character. Found multiple spaces.`,
+                                content: line.length > 100 ? line.substring(0, 100) + '...' : line,
+                                lineNumber: i + 1
+                            });
+                        }
+                        // If afterGT starts with exactly one space (and second char is not space), it's valid
+                    }
+                }
                 
                 if (isBlockquoteLine) {
                     hasBlockquotes = true;
@@ -11254,6 +11624,9 @@
                         <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                             <i class="fas fa-list-ol"></i>
                         </button>
+                        <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                            <i class="fas fa-quote-right"></i>
+                        </button>
                         <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                             <i class="fas fa-dollar-sign"></i>
                         </button>
@@ -11503,6 +11876,9 @@
                     <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
                         <i class="fas fa-list-ol"></i>
                     </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                        <i class="fas fa-quote-right"></i>
+                    </button>
                     <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
                         <i class="fas fa-dollar-sign"></i>
                     </button>
@@ -11582,6 +11958,9 @@
                 if (questionEl) {
                     updateRelationshipUI(questionEl);
                 }
+                
+                markFormAsChanged();
+                triggerAutoSave();
             }
         }
 
@@ -11609,6 +11988,9 @@
                 if (questionEl) {
                     updateRelationshipUI(questionEl);
                 }
+                
+                markFormAsChanged();
+                triggerAutoSave();
             }
         }
 
@@ -12346,6 +12728,34 @@
             });
             
             if (validationErrors.length > 0) {
+                // Track validation errors
+                const errorCategories = categorizeValidationErrors(validationErrors);
+                trackEvent('validation_errors', {
+                    total_errors: validationErrors.length,
+                    error_type_required_field: errorCategories.required_field,
+                    error_type_block_latex: errorCategories.block_latex,
+                    error_type_image_description: errorCategories.image_description,
+                    error_type_quote_error: errorCategories.quote_error,
+                    error_type_dollar_sign: errorCategories.dollar_sign,
+                    error_type_table_markdown: errorCategories.table_markdown,
+                    error_type_list_markdown: errorCategories.list_markdown,
+                    error_type_blockquote_markdown: errorCategories.blockquote_markdown,
+                    error_type_html_tag: errorCategories.html_tag,
+                    error_type_image_reference: errorCategories.image_reference,
+                    error_type_image_mismatch: errorCategories.image_mismatch,
+                    error_type_image_numbering: errorCategories.image_numbering,
+                    error_type_question_id: errorCategories.question_id,
+                    error_type_question_text: errorCategories.question_text,
+                    error_type_guide_answer: errorCategories.guide_answer,
+                    error_type_guide_pdf_page: errorCategories.guide_pdf_page,
+                    error_type_blank_format: errorCategories.blank_format,
+                    error_type_matching_format: errorCategories.matching_format,
+                    error_type_choice_format: errorCategories.choice_format,
+                    error_type_duplicate_id: errorCategories.duplicate_id,
+                    error_type_other: errorCategories.other,
+                    validation_context: 'json_generation'
+                });
+                
                 alert("Validation errors:\n" + validationErrors.join("\n"));
                 return;
             }
@@ -12667,6 +13077,49 @@
             const jsonOutput = document.getElementById('json_output');
             jsonOutput.innerHTML = formatJSON(jsonData);
             jsonOutput.setAttribute('data-raw-json', JSON.stringify(jsonData));
+            
+            // Track session duration on JSON generation
+            trackSessionDuration('json_generation');
+            
+            // Track JSON generation with detailed statistics
+            const stats = getFormStats();
+            const jsonString = JSON.stringify(jsonData);
+            
+            // Calculate section sizes from generated data
+            const contentSizes = jsonData.instructional_content.map(c => 
+                ((c.section_title || '') + (c.text || '')).length
+            );
+            const questionSizes = jsonData.practice_questions.map(q => {
+                let size = (q.question_text || '').length + (q.set_up_text || '').length;
+                if (q.guide_answer) size += q.guide_answer.length;
+                if (q.choices) {
+                    size += q.choices.reduce((sum, c) => sum + (c.text || '').length, 0);
+                }
+                return size;
+            });
+            
+            trackEvent('json_generated', {
+                total_questions: stats.totalQuestions,
+                total_content_sections: stats.totalContentSections,
+                question_type_free_form: stats.questionTypes.free_form || 0,
+                question_type_multiple_choice: stats.questionTypes.multiple_choice || 0,
+                question_type_checkbox: stats.questionTypes.checkbox || 0,
+                question_type_fill_in_the_blanks: stats.questionTypes.fill_in_the_blanks || 0,
+                question_type_matching: stats.questionTypes.matching || 0,
+                question_type_annotate: stats.questionTypes.annotate || 0,
+                question_type_create_table: stats.questionTypes.create_table || 0,
+                avg_question_size: stats.avgQuestionSize,
+                avg_content_section_size: stats.avgContentSectionSize,
+                total_question_size: stats.totalQuestionSize,
+                total_content_section_size: stats.totalContentSectionSize,
+                min_content_section_size: contentSizes.length > 0 ? Math.min(...contentSizes) : 0,
+                max_content_section_size: contentSizes.length > 0 ? Math.max(...contentSizes) : 0,
+                min_question_size: questionSizes.length > 0 ? Math.min(...questionSizes) : 0,
+                max_question_size: questionSizes.length > 0 ? Math.max(...questionSizes) : 0,
+                json_length: jsonString.length,
+                has_lesson_preamble: !!jsonData.lesson_preamble,
+                validation_warnings_count: validationWarnings.length
+            });
             
         }
 
@@ -13652,6 +14105,9 @@
                 
                 populateFormFromJSON(data);
                 
+                // Start a new session when JSON is loaded (user is starting new work)
+                startNewSession('json_load');
+                
                 // Auto-resize all textareas after loading
                 setTimeout(() => {
                     autoResizeAllTextareas();
@@ -13661,9 +14117,47 @@
                 hasUnsavedChanges = false;
                 updateSaveIndicator('none');
                 
+                // Track JSON import with statistics
+                setTimeout(() => {
+                    // Track session duration on JSON import (will be 0 or very small since we just started)
+                    trackSessionDuration('json_import');
+                    
+                    const stats = getFormStats();
+                    const importedQuestions = data.practice_questions ? data.practice_questions.length : 0;
+                    const importedContentSections = data.instructional_content ? data.instructional_content.length : 0;
+                    
+                    // Count question types from imported data
+                    const importedQuestionTypes = {};
+                    if (data.practice_questions) {
+                        data.practice_questions.forEach(q => {
+                            const type = q.question_type || 'free_form';
+                            importedQuestionTypes[type] = (importedQuestionTypes[type] || 0) + 1;
+                        });
+                    }
+                    
+                    trackEvent('json_imported', {
+                        imported_questions: importedQuestions,
+                        imported_content_sections: importedContentSections,
+                        imported_question_type_free_form: importedQuestionTypes.free_form || 0,
+                        imported_question_type_multiple_choice: importedQuestionTypes.multiple_choice || 0,
+                        imported_question_type_checkbox: importedQuestionTypes.checkbox || 0,
+                        imported_question_type_fill_in_the_blanks: importedQuestionTypes.fill_in_the_blanks || 0,
+                        imported_question_type_matching: importedQuestionTypes.matching || 0,
+                        imported_question_type_annotate: importedQuestionTypes.annotate || 0,
+                        imported_question_type_create_table: importedQuestionTypes.create_table || 0,
+                        json_length: txt.length,
+                        has_lesson_preamble: !!data.lesson_preamble,
+                        has_textbook_pdf: !!data.textbook_pdf,
+                        has_guidebook_pdf: !!data.guidebook_pdf
+                    });
+                }, 500);
+                
                 alert('✅ Success! Your form has been filled with the data from the JSON.');
             } catch (e) {
                 console.error(e);
+                trackEvent('json_import_failed', {
+                    error_message: e.message.substring(0, 100) // Limit error message length
+                });
                 alert('Failed to populate form from JSON: ' + e.message);
             }
         }
@@ -13811,16 +14305,22 @@
                 refreshPreviewFor(element);
             }
             element.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
         }
         
         function insertBold(element) {
             const field = element.tagName === 'BUTTON' ? element.parentElement.querySelector('textarea, input[type="text"]') : element;
             insertMarkdown(field, ['**', '**'], true);
+            trackEvent('markdown_button_used', { button_type: 'bold' });
         }
         
         function insertItalic(element) {
             const field = element.tagName === 'BUTTON' ? element.parentElement.querySelector('textarea, input[type="text"]') : element;
             insertMarkdown(field, ['*', '*'], true);
+            trackEvent('markdown_button_used', { button_type: 'italic' });
         }
         
         function insertBulletList(element) {
@@ -13873,6 +14373,12 @@
             
             refreshPreviewFor(field);
             field.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
+            
+            trackEvent('markdown_button_used', { button_type: 'bullet_list' });
         }
         
         function insertNumberedList(element) {
@@ -13935,6 +14441,85 @@
             
             refreshPreviewFor(field);
             field.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
+            
+            trackEvent('markdown_button_used', { button_type: 'numbered_list' });
+        }
+        
+        function insertBlockquote(element) {
+            const field = element.tagName === 'BUTTON' ? element.parentElement.querySelector('textarea') : element;
+            if (!field || field.tagName !== 'TEXTAREA') return; // Only works with textareas
+            
+            const start = field.selectionStart;
+            const end = field.selectionEnd;
+            const text = field.value;
+            const textBefore = text.substring(0, start);
+            const textAfter = text.substring(end);
+            
+            // Find the start of the current line(s)
+            const lineStart = textBefore.lastIndexOf('\n') + 1;
+            const lineEnd = textAfter.indexOf('\n') === -1 ? text.length : end + textAfter.indexOf('\n');
+            
+            const selectedText = text.substring(lineStart, lineEnd);
+            const lines = selectedText.split('\n');
+            
+            // Process each line
+            const processedLines = lines.map(line => {
+                const trimmed = line.trim();
+                // Handle empty lines - add blockquote marker
+                if (trimmed === '') {
+                    const indent = line.match(/^(\s*)/)[1];
+                    return indent + '> ';
+                }
+                // Check if line already starts with blockquote (with proper spacing: > followed by exactly one space)
+                if (trimmed.match(/^>\s[^\s]/) || trimmed === '>') {
+                    return line; // Already a blockquote, don't change
+                }
+                // Add blockquote marker with exactly one space (per validation requirement)
+                const indent = line.match(/^(\s*)/)[1];
+                return indent + '> ' + trimmed;
+            });
+            
+            const newText = text.substring(0, lineStart) + processedLines.join('\n') + text.substring(lineEnd);
+            const oldValue = field.value;
+            field.value = newText;
+            
+            // Calculate new cursor position
+            let newCursorPos;
+            // If cursor was on an empty line (no selection and line is empty), place cursor after "> "
+            if (start === end && selectedText.trim() === '') {
+                // Find where the cursor should be - right after "> " on the current line
+                const beforeNewText = text.substring(0, lineStart);
+                const currentLineInNewText = processedLines[0]; // First processed line
+                newCursorPos = beforeNewText.length + currentLineInNewText.length;
+            } else {
+                // Multiple lines or selection - place cursor at the end of the processed text
+                newCursorPos = start + (processedLines.join('\n').length - selectedText.length);
+            }
+            
+            field.setSelectionRange(newCursorPos, newCursorPos);
+            field.focus();
+            
+            // Track this operation for undo
+            addToUndoHistory(field, {
+                type: 'blockquote',
+                oldValue: oldValue,
+                newValue: newText,
+                oldSelection: { start: start, end: end },
+                newSelection: { start: newCursorPos, end: newCursorPos }
+            });
+            
+            refreshPreviewFor(field);
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
+            
+            trackEvent('markdown_button_used', { button_type: 'blockquote' });
         }
         
         function removeMarkdownFormatting(element) {
@@ -13981,6 +14566,12 @@
                     refreshPreviewFor(field);
                 }
                 field.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Mark form as changed and trigger auto-save
+                markFormAsChanged();
+                triggerAutoSave();
+                
+                trackEvent('markdown_button_used', { button_type: 'undo' });
             } catch (error) {
                 console.error('Error in removeMarkdownFormatting:', error);
             }
@@ -14030,6 +14621,12 @@
                     refreshPreviewFor(field);
                 }
                 field.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // Mark form as changed and trigger auto-save
+                markFormAsChanged();
+                triggerAutoSave();
+                
+                trackEvent('markdown_button_used', { button_type: 'redo' });
             } catch (error) {
                 console.error('Error in redoMarkdownFormatting:', error);
             }
@@ -14073,6 +14670,12 @@
                 refreshPreviewFor(field);
             }
             field.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
+            
+            trackEvent('markdown_button_used', { button_type: 'inline_latex' });
         }
         
         function insertBlockLatex(element) {
@@ -14113,6 +14716,10 @@
             
             refreshPreviewFor(field);
             field.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
         }
         
         // Insert table into text field with automatic indexing
@@ -14191,6 +14798,16 @@
             // Trigger input event to update radio buttons (if in a multiple choice question)
             // This will trigger the existing event listener that updates radio buttons
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
+            
+            trackEvent('markdown_button_used', { 
+                button_type: 'table',
+                table_columns: parseInt(numColumns),
+                table_rows: parseInt(numRows)
+            });
         }
 
         // Insert image into text field with automatic indexing
@@ -14236,6 +14853,12 @@
             // Trigger input event to update radio buttons (if in a multiple choice question)
             // This will trigger the existing event listener that updates radio buttons
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Mark form as changed and trigger auto-save
+            markFormAsChanged();
+            triggerAutoSave();
+            
+            trackEvent('markdown_button_used', { button_type: 'image' });
         }
 
         // Copy JSON to clipboard
@@ -14261,11 +14884,35 @@
                 copyBtn.innerHTML = originalText;
                 copyBtn.style.background = '';
             }, 2000);
+            
+            // Track session duration on JSON export
+            trackSessionDuration('json_export');
+            
+            // Track JSON export with statistics
+            const stats = getFormStats();
+            trackEvent('json_exported', {
+                total_questions: stats.totalQuestions,
+                total_content_sections: stats.totalContentSections,
+                question_type_free_form: stats.questionTypes.free_form || 0,
+                question_type_multiple_choice: stats.questionTypes.multiple_choice || 0,
+                question_type_checkbox: stats.questionTypes.checkbox || 0,
+                question_type_fill_in_the_blanks: stats.questionTypes.fill_in_the_blanks || 0,
+                question_type_matching: stats.questionTypes.matching || 0,
+                question_type_annotate: stats.questionTypes.annotate || 0,
+                question_type_create_table: stats.questionTypes.create_table || 0,
+                json_length: jsonText.length
+            });
         }
 
         // Confirm before clearing the form
         function confirmClearForm() {
             if (confirm('⚠️ Warning: This will delete everything you\'ve entered in the form and clear your saved progress.\nThis cannot be undone!\n\nAre you sure you want to clear the form?')) {
+                // Track form clearing
+                const stats = getFormStats();
+                trackEvent('form_cleared', {
+                    total_questions_before_clear: stats.totalQuestions,
+                    total_content_sections_before_clear: stats.totalContentSections
+                });
                 resetForm(false);
             }
         }
@@ -14275,6 +14922,8 @@
         const SAVE_KEY = 'transcription_form_save';
         let hasUnsavedChanges = false;
         let lastSavedData = null;
+        let autoSaveTimeout = null;
+        let fieldValues = new Map(); // Track field values to detect changes
         
         // Update save indicator
         function updateSaveIndicator(status) {
@@ -14289,6 +14938,9 @@
             if (status === 'unsaved') {
                 indicator.classList.add('saving');
                 text.textContent = '⚠ Unsaved changes';
+            } else if (status === 'saving') {
+                indicator.classList.add('saving');
+                text.textContent = 'Saving...';
             } else if (status === 'saved') {
                 indicator.classList.add('saved');
                 text.textContent = '✓ All saved';
@@ -14303,8 +14955,35 @@
             updateSaveIndicator('unsaved');
         }
         
+        // Debounced auto-save function
+        function triggerAutoSave() {
+            // Clear any pending auto-save
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+            }
+            
+            // Only save if there are unsaved changes
+            if (!hasUnsavedChanges) {
+                return;
+            }
+            
+            // Debounce: wait 1 second after last change before saving
+            autoSaveTimeout = setTimeout(() => {
+                if (hasUnsavedChanges) {
+                    try {
+                        updateSaveIndicator('saving');
+                        saveProgress(true); // Pass true to indicate this is an auto-save
+                    } catch (error) {
+                        console.error('Auto-save failed:', error);
+                        updateSaveIndicator('unsaved');
+                    }
+                }
+            }, 1000);
+        }
+        
         // Manual save function - uses the same generateJSON logic
-        function saveProgress() {
+        // Optional parameter: isAutoSave - if true, suppress some alerts for validation warnings
+        function saveProgress(isAutoSave = false) {
             try {
                 // Use the exact same logic as generateJSON() to create the JSON structure
                 const textbookPage = document.getElementById('textbook_page').value;
@@ -14402,6 +15081,40 @@
                 if (!pageType || pageType.trim().length === 0) validationErrors.push('Page type is required');
 
                 if (validationErrors.length > 0) {
+                    // Track validation errors
+                    const errorCategories = categorizeValidationErrors(validationErrors);
+                    trackEvent('validation_errors', {
+                        total_errors: validationErrors.length,
+                        error_type_required_field: errorCategories.required_field,
+                        error_type_block_latex: errorCategories.block_latex,
+                        error_type_image_description: errorCategories.image_description,
+                        error_type_quote_error: errorCategories.quote_error,
+                        error_type_dollar_sign: errorCategories.dollar_sign,
+                        error_type_table_markdown: errorCategories.table_markdown,
+                        error_type_list_markdown: errorCategories.list_markdown,
+                        error_type_blockquote_markdown: errorCategories.blockquote_markdown,
+                        error_type_html_tag: errorCategories.html_tag,
+                        error_type_image_reference: errorCategories.image_reference,
+                        error_type_image_mismatch: errorCategories.image_mismatch,
+                        error_type_image_numbering: errorCategories.image_numbering,
+                        error_type_question_id: errorCategories.question_id,
+                        error_type_question_text: errorCategories.question_text,
+                        error_type_guide_answer: errorCategories.guide_answer,
+                        error_type_guide_pdf_page: errorCategories.guide_pdf_page,
+                        error_type_blank_format: errorCategories.blank_format,
+                        error_type_matching_format: errorCategories.matching_format,
+                        error_type_choice_format: errorCategories.choice_format,
+                        error_type_duplicate_id: errorCategories.duplicate_id,
+                        error_type_other: errorCategories.other,
+                        validation_context: isAutoSave ? 'auto_save' : 'manual_save'
+                    });
+                    
+                    // For auto-save, don't show alerts but log to console and keep unsaved state
+                    if (isAutoSave) {
+                        console.warn('Auto-save blocked by validation errors:', validationErrors);
+                        updateSaveIndicator('unsaved');
+                        return;
+                    }
                     alert("Cannot save - Validation errors found:\n" + validationErrors.join("\n"));
                     return;
                 }
@@ -14666,12 +15379,19 @@
                 });
 
                 if (validationErrors.length > 0) {
+                    // For auto-save, don't show alerts but log to console and keep unsaved state
+                    if (isAutoSave) {
+                        console.warn('Auto-save blocked by validation errors:', validationErrors);
+                        updateSaveIndicator('unsaved');
+                        return;
+                    }
                     alert("Cannot save - Validation errors found:\n" + validationErrors.join("\n"));
                     return;
                 }
 
                 // Show warnings if any (but don't block saving)
-                if (validationWarnings.length > 0) {
+                // Only show alerts for manual saves, not auto-saves
+                if (validationWarnings.length > 0 && !isAutoSave) {
                     alert("Validation warnings:\n" + validationWarnings.join("\n"));
                 }
 
@@ -14686,6 +15406,25 @@
                 
                 updateSaveIndicator('saved');
                 
+                // Track session duration on save
+                trackSessionDuration('save');
+                
+                // Track save with statistics
+                const stats = getFormStats();
+                trackEvent('progress_saved', {
+                    save_type: isAutoSave ? 'auto' : 'manual',
+                    total_questions: stats.totalQuestions,
+                    total_content_sections: stats.totalContentSections,
+                    question_type_free_form: stats.questionTypes.free_form || 0,
+                    question_type_multiple_choice: stats.questionTypes.multiple_choice || 0,
+                    question_type_checkbox: stats.questionTypes.checkbox || 0,
+                    question_type_fill_in_the_blanks: stats.questionTypes.fill_in_the_blanks || 0,
+                    question_type_matching: stats.questionTypes.matching || 0,
+                    question_type_annotate: stats.questionTypes.annotate || 0,
+                    question_type_create_table: stats.questionTypes.create_table || 0,
+                    has_lesson_preamble: !!jsonData.lesson_preamble,
+                    data_size: dataString.length
+                });
                 
                 // Show brief success message
                 const saveBtn = document.getElementById('saveBtn');
@@ -14731,22 +15470,64 @@
             }
         }
         
-        // Track changes to form inputs (lightweight - no saving)
+        // Track changes to form inputs and auto-save
         function attachChangeTrackers() {
             const container = document.querySelector('.container');
             if (!container) return;
             
-            // Use event delegation - just mark as changed, no heavy operations
+            // Track initial values when fields get focus
+            container.addEventListener('focusin', (e) => {
+                if (e.target.matches('input, textarea, select')) {
+                    // Store the value when field gets focus
+                    fieldValues.set(e.target, e.target.value);
+                }
+            }, true);
+            
+            // Track changes and auto-save on blur
+            container.addEventListener('focusout', (e) => {
+                if (e.target.matches('input, textarea, select')) {
+                    const originalValue = fieldValues.get(e.target);
+                    const currentValue = e.target.value;
+                    
+                    // Check if value actually changed
+                    if (originalValue !== currentValue) {
+                        markFormAsChanged();
+                        // Trigger auto-save after field loses focus and value changed
+                        triggerAutoSave();
+                    }
+                    
+                    // Clean up stored value
+                    fieldValues.delete(e.target);
+                }
+            }, true);
+            
+            // Also track input events for immediate feedback (but save on blur)
             container.addEventListener('input', (e) => {
                 if (e.target.matches('input, textarea, select')) {
-                    markFormAsChanged();
+                    // Mark as changed immediately for visual feedback
+                    const originalValue = fieldValues.get(e.target);
+                    const currentValue = e.target.value;
+                    
+                    if (originalValue !== currentValue) {
+                        markFormAsChanged();
+                    }
                 }
             });
             
-            // Track when buttons modify the form
+            // Track when buttons modify the form (add/remove/duplicate items)
             container.addEventListener('click', (e) => {
-                if (e.target.closest('.add-btn, .remove-btn')) {
+                if (e.target.closest('.add-btn, .remove-btn, .duplicate-btn')) {
                     markFormAsChanged();
+                    // Auto-save when items are added/removed/duplicated (after a short delay)
+                    triggerAutoSave();
+                }
+            });
+            
+            // Track select changes (dropdowns)
+            container.addEventListener('change', (e) => {
+                if (e.target.matches('select')) {
+                    markFormAsChanged();
+                    triggerAutoSave();
                 }
             });
         }
@@ -14864,6 +15645,12 @@
 
         // Initialize page
         window.onload = function() {
+            
+            // Check if user needs to reload for latest version (initial check)
+            checkVersionReload();
+            
+            // Periodically check if reload is needed (every hour while page is open)
+            setInterval(checkVersionReload, 60 * 60 * 1000);
             
             // Auto-load PDFs from IndexedDB storage (for both bbox modal and main PDF viewer)
             initializePdfStore();
@@ -15001,6 +15788,80 @@
             }
             
             return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
+        }
+        
+        // Check if user needs to reload for latest version
+        function checkVersionReload() {
+            try {
+                const PAGE_LOAD_TIME_KEY = 'transcription_tool_page_load_time';
+                const RELOAD_PROMPT_INTERVAL = 3 * 24 * 60 * 60 * 1000; // 3 days
+                const PROMPT_SHOWN_KEY = 'transcription_tool_reload_prompt_shown';
+                const CURRENT_VERSION_KEY = 'transcription_tool_current_version';
+                const CURRENT_VERSION = '6.5'; // Update this when version changes
+                const PAGE_LOAD_ID_KEY = 'transcription_tool_page_load_id';
+                
+                const now = new Date().getTime();
+                const storedVersion = localStorage.getItem(CURRENT_VERSION_KEY);
+                const storedPageLoadTime = localStorage.getItem(PAGE_LOAD_TIME_KEY);
+                const currentPageLoadId = Date.now().toString() + Math.random().toString();
+                const storedPageLoadId = sessionStorage.getItem(PAGE_LOAD_ID_KEY);
+                
+                // Check if this is a new version (page was updated)
+                const isNewVersion = storedVersion !== CURRENT_VERSION;
+                
+                // Check if this is a fresh page load (new session or reload)
+                const isFreshLoad = !storedPageLoadId;
+                
+                // If it's a new version, reset the page load time
+                if (isNewVersion) {
+                    localStorage.setItem(CURRENT_VERSION_KEY, CURRENT_VERSION);
+                    localStorage.setItem(PAGE_LOAD_TIME_KEY, now.toString());
+                    sessionStorage.removeItem(PROMPT_SHOWN_KEY);
+                    sessionStorage.setItem(PAGE_LOAD_ID_KEY, currentPageLoadId);
+                    return; // Don't prompt on fresh version load
+                }
+                
+                // If this is a fresh page load (not just a periodic check), update the timestamp
+                if (isFreshLoad) {
+                    localStorage.setItem(PAGE_LOAD_TIME_KEY, now.toString());
+                    sessionStorage.setItem(PAGE_LOAD_ID_KEY, currentPageLoadId);
+                    return; // Don't prompt on fresh load
+                }
+                
+                // Check how long the page has been loaded (using stored timestamp from when it was first loaded)
+                if (!storedPageLoadTime) {
+                    // Fallback: if no stored time, set it now
+                    localStorage.setItem(PAGE_LOAD_TIME_KEY, now.toString());
+                    return;
+                }
+                
+                const pageLoadTime = parseInt(storedPageLoadTime, 10);
+                const timeSincePageLoad = now - pageLoadTime;
+                const promptShownTime = sessionStorage.getItem(PROMPT_SHOWN_KEY);
+                
+                // Only show prompt if enough time has passed since page load
+                if (timeSincePageLoad > RELOAD_PROMPT_INTERVAL) {
+                    // Don't show more than once per 5 minutes in the same session
+                    if (!promptShownTime || (now - parseInt(promptShownTime, 10)) > 5 * 60 * 1000) {
+                        // Show prompt
+                        const shouldReload = confirm(
+                            'You\'ve been using this page for a while. For the best experience, please reload the page to make sure you\'re using the latest version of the tool.\n\n' +
+                            'Click OK to reload now, or Cancel to continue.'
+                        );
+                        
+                        if (shouldReload) {
+                            // Reset page load time on reload (will be set on fresh load after reload)
+                            localStorage.setItem(PAGE_LOAD_TIME_KEY, now.toString());
+                            location.reload();
+                        } else {
+                            // Remember we showed the prompt in this session
+                            sessionStorage.setItem(PROMPT_SHOWN_KEY, now.toString());
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error checking version reload:', e);
+            }
         }
 
         // Open BBox drawer for textbook PDF upload
@@ -17034,11 +17895,32 @@
             
             <!-- Content -->
             <div class="whats-new-modal-body">
+                <!-- Version 6.5 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.5</span>
+                        <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- New Features -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Auto-Save:</strong> Your work is now automatically saved as you edit! The form saves your changes automatically after you finish editing a field, so you won't lose your progress. You'll see "Saving..." and "All saved" indicators to track the save status.</li>
+                            <li><strong>Blockquote Formatting Button:</strong> A new blockquote button in the markdown toolbar makes it easy to format quotes. Select your text and click the quote button, or click it on an empty line to start typing a quote.</li>
+                            <li><strong>Blockquote Format Validation:</strong> The form now checks that blockquotes use the correct format (one space after the ">" character). This ensures your quotes are properly formatted and prevents formatting issues when generating the final output.</li>
+                            <li><strong>Reload Button & Reminder:</strong> A new reload button in the top bar lets you quickly refresh the page. The tool will also remind you to reload every few days to make sure you're using the latest version of the tool and getting all the newest features and improvements. This is especially important since the tool is updated regularly with new capabilities and bug fixes.</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <!-- Version 6.4 -->
                 <div style="margin-bottom: 40px;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.4</span>
-                        <span class="whats-new-version-badge">Current Version</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- Enhancements -->
