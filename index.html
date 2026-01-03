@@ -755,10 +755,17 @@
         .live-preview[dir="rtl"] ul ul,
         .live-preview[dir="rtl"] ol ol { padding-left: 0; padding-right: 30px; }
         /* Keep KaTeX math LTR even when container is RTL */
+        /* Force all LaTeX elements to be LTR regardless of parent direction */
+        .live-preview .__math_block,
+        .live-preview .__math_inline,
+        .live-preview .katex,
+        .live-preview .katex *,
+        .live-preview[dir="rtl"] .__math_block,
+        .live-preview[dir="rtl"] .__math_inline,
         .live-preview[dir="rtl"] .katex,
         .live-preview[dir="rtl"] .katex * {
             direction: ltr !important;
-            unicode-bidi: isolate;
+            unicode-bidi: isolate !important;
         }
         .live-preview[dir="rtl"] .katex-display { direction: ltr !important; }
         /* Center LaTeX block math */
@@ -830,13 +837,24 @@
         .choice-preview-mini .__math_block,
         .choice-preview-mini .katex-display {
             direction: ltr !important;
+            unicode-bidi: isolate !important;
             text-align: center !important;
             margin: 1em auto !important;
             display: block !important;
         }
+        .choice-preview-mini .__math_inline,
+        .choice-preview-mini .katex,
+        .choice-preview-mini .katex * {
+            direction: ltr !important;
+            unicode-bidi: isolate !important;
+        }
         .choice-preview-mini[dir="rtl"] .__math_block,
+        .choice-preview-mini[dir="rtl"] .__math_inline,
+        .choice-preview-mini[dir="rtl"] .katex,
+        .choice-preview-mini[dir="rtl"] .katex *,
         .choice-preview-mini[dir="rtl"] .katex-display {
             direction: ltr !important;
+            unicode-bidi: isolate !important;
             text-align: center !important;
         }
         /* Inline math should stay inline and flow with text */
@@ -3939,10 +3957,11 @@
                             
                             // Only set direction to LTR for LaTeX elements - don't change display or text-align
                             // This preserves the exact inline/block structure from the original preview
-                            const allMathElements = previewDiv.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html');
+                            const allMathElements = previewDiv.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html, .katex *');
                             allMathElements.forEach(mathEl => {
                                 mathEl.setAttribute('dir', 'ltr');
                                 mathEl.style.direction = 'ltr';
+                                mathEl.style.unicodeBidi = 'isolate';
                                 // Don't modify display, text-align, or any other properties
                                 // Let the original structure be preserved
                             });
@@ -3971,10 +3990,11 @@
                                             previewDiv.innerHTML = nextSibling.innerHTML;
                                             
                                             // Only set direction to LTR for all LaTeX elements
-                                            const allMathElements = previewDiv.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html');
+                                            const allMathElements = previewDiv.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html, .katex *');
                                             allMathElements.forEach(mathEl => {
                                                 mathEl.setAttribute('dir', 'ltr');
                                                 mathEl.style.direction = 'ltr';
+                                                mathEl.style.unicodeBidi = 'isolate';
                                                 // Don't modify display or other properties
                                             });
                                             
@@ -7308,6 +7328,15 @@
                         ]
                     });
                 }
+                
+                // Force all LaTeX elements to be LTR regardless of parent direction
+                // This ensures math expressions are always read left-to-right
+                const allMathElements = preview.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html, .katex *');
+                allMathElements.forEach(mathEl => {
+                    mathEl.setAttribute('dir', 'ltr');
+                    mathEl.style.direction = 'ltr';
+                    mathEl.style.unicodeBidi = 'isolate';
+                });
             } catch (e) {
                 // fail silent to avoid blocking typing
             }
@@ -11799,6 +11828,13 @@
                                         { left: '\\(', right: '\\)', display: false },
                                         { left: '\\[', right: '\\]', display: true }
                                     ]
+                                });
+                                // Force all LaTeX elements to be LTR regardless of parent direction
+                                const allMathElements = preview.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html, .katex *');
+                                allMathElements.forEach(mathEl => {
+                                    mathEl.setAttribute('dir', 'ltr');
+                                    mathEl.style.direction = 'ltr';
+                                    mathEl.style.unicodeBidi = 'isolate';
                                 });
                             } catch (e) {
                                 // ignore math errors
@@ -18050,6 +18086,7 @@
                             <li><strong>Blockquote Formatting Button:</strong> A new blockquote button in the markdown toolbar makes it easy to format quotes. Select your text and click the quote button, or click it on an empty line to start typing a quote.</li>
                             <li><strong>Blockquote Format Validation:</strong> The form now checks that blockquotes use the correct format (one space after the ">" character). This ensures your quotes are properly formatted and prevents formatting issues when generating the final output.</li>
                             <li><strong>Blank in LaTeX Validation:</strong> The tool now prevents you from writing blanks (<code>___1___</code>, <code>___2___</code>, etc.) inside LaTeX expressions. If you try to use a blank inside inline LaTeX (<code>$...$</code>) or block LaTeX (<code>$$\n...\n$$</code>), you'll see an error message and won't be able to save or generate the JSON until you move the blank outside the LaTeX expression.</li>
+                            <li><strong>LaTeX Always Reads Left-to-Right:</strong> Math formulas in the preview now always display from left to right, even when your text is set to right-to-left (RTL). This makes math expressions easier to read and ensures they display correctly regardless of the text direction you've chosen.</li>
                             <li><strong>Reload Button & Reminder:</strong> A new reload button in the top bar lets you quickly refresh the page. The tool will also remind you to reload every few days to make sure you're using the latest version of the tool and getting all the newest features and improvements. This is especially important since the tool is updated regularly with new capabilities and bug fixes.</li>
                         </ul>
                     </div>
