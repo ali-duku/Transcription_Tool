@@ -11069,6 +11069,8 @@
             
             const text = textarea.value;
             const mathBlockErrors = validateBlockLatex(text);
+            const blanksInLatexErrors = validateBlanksInLatex(text);
+            const allErrors = [...mathBlockErrors, ...blanksInLatexErrors];
             
             // Find or create error container - insert right after textarea
             const container = textarea.closest('.text-field-container') || textarea.parentElement;
@@ -11076,7 +11078,7 @@
             
             let errorDiv = container.querySelector('.latex-validation-errors');
             
-            if (mathBlockErrors.length > 0) {
+            if (allErrors.length > 0) {
                 // Show errors
                 if (!errorDiv) {
                     errorDiv = document.createElement('div');
@@ -11090,7 +11092,7 @@
                 errorDiv.innerHTML = `
                     <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
                         <strong>⚠️ LaTeX Errors:</strong>
-                        ${mathBlockErrors.map(error => {
+                        ${allErrors.map(error => {
                             let errorMessage = '';
                             let fixMessage = '';
                             
@@ -11103,6 +11105,9 @@
                             } else if (error.type === 'empty_content') {
                                 errorMessage = 'Your LaTeX block is empty';
                                 fixMessage = 'Add your formula between the $$\\n and \\n$$';
+                            } else if (error.type === 'blank_in_latex') {
+                                errorMessage = error.message || `Blank ${error.blank || ''} cannot be written inside LaTeX`;
+                                fixMessage = 'Move the blank outside the LaTeX expression. Blanks should be placed before or after LaTeX, not inside it.';
                             } else {
                                 errorMessage = error.message;
                                 fixMessage = 'Check your LaTeX syntax';
@@ -11110,16 +11115,49 @@
                             
                             // Get content from error object, or use empty string if not available
                             const errorContent = error.content || '';
-                            const codeDisplay = errorContent ? `$$\\n${errorContent}\\n$$` : '$$\\n...\\n$$';
+                            let codeDisplay = '';
+                            if (error.type === 'blank_in_latex') {
+                                // For blank in LaTeX errors, show the LaTeX expression with the blank
+                                // Try to determine if it's inline or block LaTeX
+                                const originalText = textarea.value;
+                                const blankPos = originalText.indexOf(error.blank);
+                                if (blankPos !== -1) {
+                                    // Find the LaTeX expression containing this blank
+                                    const beforeBlank = originalText.substring(0, blankPos);
+                                    const afterBlank = originalText.substring(blankPos + error.blank.length);
+                                    
+                                    // Check for block LaTeX ($$...$$)
+                                    const blockStart = beforeBlank.lastIndexOf('$$');
+                                    const blockEnd = afterBlank.indexOf('$$');
+                                    if (blockStart !== -1 && blockEnd !== -1) {
+                                        const fullLatex = originalText.substring(blockStart, blankPos + error.blank.length + blockEnd + 2);
+                                        codeDisplay = escapeHtml(fullLatex);
+                                    } else {
+                                        // Check for inline LaTeX ($...$)
+                                        const inlineStart = beforeBlank.lastIndexOf('$');
+                                        const inlineEnd = afterBlank.indexOf('$');
+                                        if (inlineStart !== -1 && inlineEnd !== -1) {
+                                            const fullLatex = originalText.substring(inlineStart, blankPos + error.blank.length + inlineEnd + 1);
+                                            codeDisplay = escapeHtml(fullLatex);
+                                        } else {
+                                            codeDisplay = escapeHtml(errorContent ? `$$${errorContent}$$` : `$$...${error.blank}...$$`);
+                                        }
+                                    }
+                                } else {
+                                    codeDisplay = escapeHtml(errorContent ? `$$${errorContent}$$` : `$$...${error.blank}...$$`);
+                                }
+                            } else {
+                                codeDisplay = errorContent ? `$$\\n${errorContent}\\n$$` : '$$\\n...\\n$$';
+                            }
                             
                             return `
                                 <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
                                     <div style="margin-bottom: 6px;">🔴 <strong>LaTeX Problem:</strong> ${errorMessage}</div>
                                     <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMessage}</div>
-                                    ${errorContent ? `
+                                    ${codeDisplay ? `
                                     <div style="font-size: 0.9em; color: #666;">
                                         <strong>Your Code:</strong>
-                                        <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(codeDisplay)}</code>
+                                        <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${codeDisplay}</code>
                                     </div>
                                     ` : ''}
                                 </div>
@@ -12410,6 +12448,89 @@
             return errors;
         }
 
+        /**
+         * Validate that blanks (___i___) are not written inside LaTeX expressions
+         * @param {string} content - The text to check
+         * @returns {Array} Array of error objects
+         */
+        function validateBlanksInLatex(content) {
+            const errors = [];
+            if (!content || content.trim().length === 0) {
+                return errors; // Skip empty content
+            }
+            
+            // Pattern to match blanks: ___1___, ___2___, etc.
+            const blankPattern = /___(\d+)___/g;
+            
+            // Find all LaTeX expressions (both inline $...$ and block $$...$$)
+            // First, find block LaTeX ($$...$$) - handle both formats
+            const blockLatexPattern = /\$\$[\s\S]*?\$\$/g;
+            const blockRanges = [];
+            let blockMatch;
+            blockLatexPattern.lastIndex = 0;
+            
+            // Process block LaTeX and track their positions
+            while ((blockMatch = blockLatexPattern.exec(content)) !== null) {
+                const match = blockMatch[0];
+                const startPos = blockMatch.index;
+                const endPos = startPos + match.length;
+                
+                // Track this block LaTeX range
+                blockRanges.push({ start: startPos, end: endPos });
+                
+                // Check if this block LaTeX contains any blanks
+                const blankMatches = match.match(blankPattern);
+                if (blankMatches) {
+                    // Extract the content inside the LaTeX (without the $$ delimiters)
+                    const innerContent = match.replace(/^\$\$/, '').replace(/\$\$$/, '');
+                    blankMatches.forEach(blankMatch => {
+                        errors.push({
+                            type: 'blank_in_latex',
+                            message: `Blank ${blankMatch} cannot be written inside LaTeX. Blanks should be outside LaTeX expressions.`,
+                            content: innerContent,
+                            blank: blankMatch
+                        });
+                    });
+                }
+            }
+            
+            // Find all inline LaTeX expressions
+            const inlineLatexPattern = /\$[^$\n]*?\$/g;
+            let inlineMatch;
+            inlineLatexPattern.lastIndex = 0;
+            
+            while ((inlineMatch = inlineLatexPattern.exec(content)) !== null) {
+                const match = inlineMatch[0];
+                const startPos = inlineMatch.index;
+                const endPos = startPos + match.length;
+                
+                // Check if this inline LaTeX is inside a block LaTeX
+                const isInsideBlock = blockRanges.some(range => 
+                    startPos >= range.start && endPos <= range.end
+                );
+                
+                if (!isInsideBlock) {
+                    // This is a genuine inline LaTeX expression
+                    // Check if it contains any blanks
+                    const blankMatches = match.match(blankPattern);
+                    if (blankMatches) {
+                        // Extract the content inside the LaTeX (without the $ delimiters)
+                        const innerContent = match.replace(/^\$/, '').replace(/\$$/, '');
+                        blankMatches.forEach(blankMatch => {
+                            errors.push({
+                                type: 'blank_in_latex',
+                                message: `Blank ${blankMatch} cannot be written inside LaTeX. Blanks should be outside LaTeX expressions.`,
+                                content: innerContent,
+                                blank: blankMatch
+                            });
+                        });
+                    }
+                }
+            }
+            
+            return errors;
+        }
+        
         function validateBlockLatex(content) {
             const errors = [];
             if (!content || content.trim().length === 0) {
@@ -12660,6 +12781,15 @@
                     const location = getTextareaLocation(textarea);
                     mathBlockErrors.forEach(error => {
                         validationErrors.push(`Block LaTeX Error in ${location}: ${error.message}`);
+                    });
+                }
+                
+                // Validate blanks in LaTeX
+                const blanksInLatexErrors = validateBlanksInLatex(content);
+                if (blanksInLatexErrors.length > 0) {
+                    const location = getTextareaLocation(textarea);
+                    blanksInLatexErrors.forEach(error => {
+                        validationErrors.push(`Blank in LaTeX Error in ${location}: ${error.message}`);
                     });
                 }
                 
@@ -15010,6 +15140,14 @@
                     if (mathBlockErrors.length > 0) {
                         mathBlockErrors.forEach(error => {
                             validationErrors.push(`Block LaTeX Error in ${getTextareaLocation(textarea)}: ${error.message}`);
+                        });
+                    }
+                    
+                    // Validate blanks in LaTeX
+                    const blanksInLatexErrors = validateBlanksInLatex(content);
+                    if (blanksInLatexErrors.length > 0) {
+                        blanksInLatexErrors.forEach(error => {
+                            validationErrors.push(`Blank in LaTeX Error in ${getTextareaLocation(textarea)}: ${error.message}`);
                         });
                     }
                     
@@ -17911,6 +18049,7 @@
                             <li><strong>Auto-Save:</strong> Your work is now automatically saved as you edit! The form saves your changes automatically after you finish editing a field, so you won't lose your progress. You'll see "Saving..." and "All saved" indicators to track the save status.</li>
                             <li><strong>Blockquote Formatting Button:</strong> A new blockquote button in the markdown toolbar makes it easy to format quotes. Select your text and click the quote button, or click it on an empty line to start typing a quote.</li>
                             <li><strong>Blockquote Format Validation:</strong> The form now checks that blockquotes use the correct format (one space after the ">" character). This ensures your quotes are properly formatted and prevents formatting issues when generating the final output.</li>
+                            <li><strong>Blank in LaTeX Validation:</strong> The tool now prevents you from writing blanks (<code>___1___</code>, <code>___2___</code>, etc.) inside LaTeX expressions. If you try to use a blank inside inline LaTeX (<code>$...$</code>) or block LaTeX (<code>$$\n...\n$$</code>), you'll see an error message and won't be able to save or generate the JSON until you move the blank outside the LaTeX expression.</li>
                             <li><strong>Reload Button & Reminder:</strong> A new reload button in the top bar lets you quickly refresh the page. The tool will also remind you to reload every few days to make sure you're using the latest version of the tool and getting all the newest features and improvements. This is especially important since the tool is updated regularly with new capabilities and bug fixes.</li>
                         </ul>
                     </div>
