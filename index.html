@@ -30,7 +30,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.6' to '6.7' when releasing version 6.7
-        const CURRENT_VERSION = '6.6';
+        const CURRENT_VERSION = '6.6.1';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -617,7 +617,7 @@
                 let questionEl = null;
                 if (action && action.questionEl) {
                     questionEl = action.questionEl;
-                } else {
+            } else {
                     const matchingContainer = element.closest('#matching-container');
                     questionEl = matchingContainer ? matchingContainer.closest('.array-item') : 
                                 element.closest('.array-item');
@@ -668,9 +668,9 @@
                         targetInput.value = sourceInput.value;
                         // Trigger input event to update previews
                         targetInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
                 }
-            });
+            }
+        });
         }
         
         // Initialize undo/redo buttons on page load
@@ -11124,17 +11124,65 @@
                     }
                 }
                 
-                if (hasExistingBbox && bboxPage) {
+                if (hasExistingBbox && bboxPage && pdfDoc) {
                     // Override saved state with bbox values
                     currentPage = Math.min(Math.max(bboxPage, 1), totalPages || bboxPage);
                     store.docs[MODAL_SESSION_KEY].currentPage = currentPage;
-                    // Still load saved scale (bbox jump overrides scroll, not zoom)
-                    scale = store.docs[MODAL_SESSION_KEY].scale || 1.2;
-                    // Store bbox coords for scroll calculation after render
-                    store.docs[MODAL_SESSION_KEY]._jumpToBbox = bboxCoords;
-                    // Render page first, then scroll to bbox
+                    
+                    // Calculate optimal zoom to fit bbox in viewport
+                    try {
+                        const page = await pdfDoc.getPage(currentPage);
+                        const defaultViewport = page.getViewport({ scale: 1.0 });
+                        
+                        // Bbox coordinates: x0,y0 is top-right, x1,y1 is bottom-left
+                        // Calculate bbox dimensions in PDF space
+                        const bboxWidth = Math.abs(bboxCoords.x0 - bboxCoords.x1);
+                        const bboxHeight = Math.abs(bboxCoords.y0 - bboxCoords.y1);
+                        
+                        // Get viewport dimensions - use modal dimensions or reasonable defaults
+                        // The modal is visible at this point, so we can get its dimensions
+                        let viewportWidth = canvasWrap.clientWidth;
+                        let viewportHeight = canvasWrap.clientHeight;
+                        
+                        // If dimensions aren't available yet, use modal container or defaults
+                        if (!viewportWidth || !viewportHeight) {
+                            const modalContent = document.querySelector('.bbox-content');
+                            if (modalContent) {
+                                viewportWidth = modalContent.clientWidth - 360; // Account for sidebar (340px + gap)
+                                viewportHeight = window.innerHeight * 0.7; // Use 70% of viewport height
+                            } else {
+                                // Fallback to reasonable defaults
+                                viewportWidth = 800;
+                                viewportHeight = 600;
+                            }
+                        }
+                        
+                        const padding = 40; // Padding around bbox
+                        const availableWidth = Math.max(viewportWidth - (padding * 2), 200);
+                        const availableHeight = Math.max(viewportHeight - (padding * 2), 200);
+                        
+                        // Calculate optimal scale to fit bbox with padding
+                        const scaleX = availableWidth / bboxWidth;
+                        const scaleY = availableHeight / bboxHeight;
+                        // Use the smaller scale to ensure bbox fits entirely
+                        const optimalScale = Math.min(scaleX, scaleY, 6.0); // Cap at 6x zoom
+                        // Ensure minimum zoom level
+                        scale = Math.max(optimalScale, 0.5);
+                        
+                        // Store bbox coords for centering calculation after render
+                        store.docs[MODAL_SESSION_KEY]._jumpToBbox = bboxCoords;
+                        // Update scale in store
+                        store.docs[MODAL_SESSION_KEY].scale = scale;
+                    } catch (error) {
+                        console.error('Error calculating optimal zoom:', error);
+                        // Fallback to saved scale if calculation fails
+                        scale = store.docs[MODAL_SESSION_KEY].scale || 1.2;
+                        store.docs[MODAL_SESSION_KEY]._jumpToBbox = bboxCoords;
+                    }
+                    
+                    // Render page with optimal zoom, then center bbox
                     await renderPage();
-                    // Scroll to bbox will be handled in renderPage after canvas is rendered
+                    // Centering will be handled in renderPage after canvas is rendered
                 } else {
                     // ALWAYS load saved state from the store for MODAL_SESSION_KEY
                     // This ensures we get the correct zoom/scroll for the PDF that opened this modal
@@ -19987,6 +20035,7 @@
                             <i class="fas fa-star" style="color: #ffd700;"></i> New Features
                         </h3>
                         <ul class="whats-new-modal-list">
+                            <li><strong>Smart Bbox Zoom & Centering:</strong> When you press the Draw button for a bounding box that already has coordinates, the PDF viewer now automatically zooms to show the entire bounding box clearly and centers it in the middle of the screen. The zoom level is calculated to fit the bbox with optimal padding, making it easy to see and edit existing bounding boxes. This saves time when reviewing or adjusting previously drawn boxes.</li>
                             <li><strong>Form-Level Undo/Redo Buttons:</strong> New undo and redo buttons at the top of the page let you reverse or redo actions throughout the form. These buttons affect structural changes like adding or removing sections, questions, terminology, choices, matching items, bounding boxes, and images. They can save your work if you accidentally remove a section or even if you clear the entire form using the "Clear Form" button or load a JSON file. <strong>Important:</strong> This is completely different from the undo/redo buttons in each text field (which only affect markdown formatting operations like bold, italic, lists, etc.). The form-level undo/redo buttons work independently and track all major form actions, giving you a safety net for your work.</li>
                             <li><strong>Smart Search:</strong> Find anything instantly across all your content sections and questions. As you type, a dropdown shows matching results with a preview of the text and highlights your search term. Each result clearly shows whether it's a section title, content text, question answer, choice, or other field. Click any result to jump directly to it, or use arrow keys to navigate. The search bar shows how many results were found and keeps your search term so you can easily check multiple matches.</li>
                         </ul>
