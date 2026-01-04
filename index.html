@@ -3305,6 +3305,12 @@
                             <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
                                 <i class="fas fa-square-root-alt"></i>
                             </button>
+                            <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                            <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                                <i class="fas fa-redo"></i>
+                            </button>
                             <button type="button" class="dir-btn" onclick="toggleDirection(this.parentElement.querySelector('textarea'))" title="Toggle text direction (LTR/RTL)">LTR</button>
                         </div>
                     </div>
