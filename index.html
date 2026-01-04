@@ -19,6 +19,663 @@
             }
         }
         
+        // ===== VERSION CONFIGURATION =====
+        // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
+        // Update this when you want to change what version is displayed to users
+        const DISPLAY_VERSION = '6.6';
+        
+        // CURRENT_VERSION: Internal version number that triggers the What's New modal
+        // Update this when you release a new version to trigger:
+        //   - Auto-open of What's New modal (only if user hasn't seen this version)
+        //   - Version reload checks
+        // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
+        // Example: Change '6.6' to '6.7' when releasing version 6.7
+        const CURRENT_VERSION = '6.6';
+        const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
+        
+        // ===== UNDO/REDO SYSTEM =====
+        const formUndoHistory = [];
+        const formRedoHistory = [];
+        const MAX_HISTORY_SIZE = 100;
+        let isFormUndoRedoInProgress = false;
+        
+        // Action types
+        const ACTION_TYPES = {
+            ADD_ITEM: 'add_item',
+            REMOVE_ITEM: 'remove_item',
+            DUPLICATE_ITEM: 'duplicate_item',
+            FIELD_CHANGE: 'field_change',
+            MOVE_ITEM: 'move_item',
+            CLEAR_FORM: 'clear_form',
+            LOAD_JSON: 'load_json',
+            PASTE: 'paste',
+            PASTE_SECTION: 'paste_section',
+            PASTE_QUESTION: 'paste_question',
+            PASTE_BBOX: 'paste_bbox'
+        };
+        
+        // Record an action for undo/redo
+        function recordFormAction(action) {
+            if (isFormUndoRedoInProgress) return;
+            
+            // Clear redo history when new action is recorded
+            formRedoHistory.length = 0;
+            
+            // Add to undo history
+            formUndoHistory.push(action);
+            
+            // Limit history size
+            if (formUndoHistory.length > MAX_HISTORY_SIZE) {
+                formUndoHistory.shift();
+            }
+            
+            updateUndoRedoButtons();
+        }
+        
+        // Update undo/redo button states
+        function updateUndoRedoButtons() {
+            const undoBtn = document.getElementById('undo-btn');
+            const redoBtn = document.getElementById('redo-btn');
+            
+            if (undoBtn) {
+                undoBtn.disabled = formUndoHistory.length === 0;
+                undoBtn.style.opacity = formUndoHistory.length === 0 ? '0.5' : '1';
+                undoBtn.style.cursor = formUndoHistory.length === 0 ? 'not-allowed' : 'pointer';
+            }
+            
+            if (redoBtn) {
+                redoBtn.disabled = formRedoHistory.length === 0;
+                redoBtn.style.opacity = formRedoHistory.length === 0 ? '0.5' : '1';
+                redoBtn.style.cursor = formRedoHistory.length === 0 ? 'not-allowed' : 'pointer';
+            }
+        }
+        
+        // Undo last action
+        function undoAction() {
+            if (formUndoHistory.length === 0 || isFormUndoRedoInProgress) return;
+            
+            isFormUndoRedoInProgress = true;
+            const action = formUndoHistory.pop();
+            
+            try {
+                executeUndo(action);
+                // Move to redo history
+                formRedoHistory.push(action);
+                updateUndoRedoButtons();
+            } catch (e) {
+                console.error('Error undoing action:', e);
+                // Put action back if undo failed
+                formUndoHistory.push(action);
+            } finally {
+                isFormUndoRedoInProgress = false;
+            }
+        }
+        
+        // Redo last undone action
+        function redoAction() {
+            if (formRedoHistory.length === 0 || isFormUndoRedoInProgress) return;
+            
+            isFormUndoRedoInProgress = true;
+            const action = formRedoHistory.pop();
+            
+            try {
+                executeRedo(action);
+                // Move back to undo history
+                formUndoHistory.push(action);
+                updateUndoRedoButtons();
+            } catch (e) {
+                console.error('Error redoing action:', e);
+                // Put action back if redo failed
+                formRedoHistory.push(action);
+            } finally {
+                isFormUndoRedoInProgress = false;
+            }
+        }
+        
+        // Execute undo for an action
+        function executeUndo(action) {
+            switch (action.type) {
+                case ACTION_TYPES.ADD_ITEM:
+                    // Undo add = remove
+                    if (action.element && action.element.parentNode) {
+                        // Check if this is a choice item BEFORE removing it
+                        const isChoiceItem = action.element.classList.contains('choice-item') || 
+                                           (action.element.closest && action.element.closest('[id^="choices-list-"]') !== null);
+                        let questionEl = null;
+                        if (isChoiceItem) {
+                            // Find the parent question element before removing
+                            const choicesList = action.element.closest('[id^="choices-list-"]');
+                            questionEl = choicesList ? choicesList.closest('.array-item') : 
+                                        (action.element.closest('.array-item[data-type="question"]') || 
+                                         action.element.closest('.array-item'));
+                        }
+                        
+                        // For matching items, find question element before removing
+                        const isMatchingItem = action.element.classList.contains('matching-item') || 
+                                             (action && action.isMatchingItem === true);
+                        let matchingQuestionEl = null;
+                        if (isMatchingItem && action.questionEl) {
+                            matchingQuestionEl = action.questionEl;
+                        } else if (isMatchingItem) {
+                            const matchingContainer = action.element.closest('#matching-container');
+                            matchingQuestionEl = matchingContainer ? matchingContainer.closest('.array-item') : 
+                                                 action.element.closest('.array-item');
+                        }
+                        
+                        action.element.remove();
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                        
+                        // Update choice UI if this was a choice item (use the questionEl we found before removal)
+                        if (isChoiceItem && questionEl) {
+                            setTimeout(() => {
+                                updateCorrectAnswerRadios(questionEl);
+                                updateCheckboxSummary(questionEl);
+                            }, 0);
+                        }
+                        
+                        // Update matching UI if this was a matching item (use the questionEl we found before removal)
+                        if (isMatchingItem && matchingQuestionEl) {
+                            setTimeout(() => {
+                                if (action.side) {
+                                    updateMatchingItemNumbers(matchingQuestionEl, action.side);
+                                } else {
+                                    updateMatchingItemNumbers(matchingQuestionEl, 'left');
+                                }
+                                updateRelationshipUI(matchingQuestionEl);
+                            }, 0);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.REMOVE_ITEM:
+                    // Undo remove = restore element
+                    if (action.element && action.parent && action.nextSibling) {
+                        action.parent.insertBefore(action.element, action.nextSibling);
+                    } else if (action.element && action.parent) {
+                        action.parent.appendChild(action.element);
+                    }
+                    if (action.updateNumbers) {
+                        updateNumbersForContainer(action.containerId);
+                    }
+                    // Reattach previews and event listeners
+                    if (action.element) {
+                        attachPreviews(action.element);
+                        // For matching items, ensure textarea has RTL direction
+                        if (action.element.classList.contains('matching-item')) {
+                            const textarea = action.element.querySelector('textarea');
+                            if (textarea) {
+                                textarea.setAttribute('dir', 'rtl');
+                            }
+                        }
+                    }
+                    // Update choice UI if this was a choice item (after element is restored)
+                    setTimeout(() => {
+                        updateChoiceUIIfNeeded(action.element);
+                    }, 0);
+                    // Update matching UI if this was a matching item (after element is restored)
+                    setTimeout(() => {
+                        updateMatchingUIIfNeeded(action.element, action);
+                    }, 0);
+                    break;
+                    
+                case ACTION_TYPES.DUPLICATE_ITEM:
+                    // Undo duplicate = remove duplicated element
+                    if (action.duplicatedElement && action.duplicatedElement.parentNode) {
+                        action.duplicatedElement.remove();
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.FIELD_CHANGE:
+                    // Undo field change = restore old value
+                    if (action.field) {
+                        action.field.value = action.oldValue;
+                        // Trigger input event to update previews
+                        action.field.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    break;
+                    
+                case ACTION_TYPES.MOVE_ITEM:
+                    // Undo move = move back
+                    if (action.element && action.oldParent && action.oldNextSibling) {
+                        action.oldParent.insertBefore(action.element, action.oldNextSibling);
+                    } else if (action.element && action.oldParent) {
+                        action.oldParent.appendChild(action.element);
+                    }
+                    if (action.updateNumbers) {
+                        updateNumbersForContainer(action.containerId);
+                    }
+                    break;
+                    
+                case ACTION_TYPES.CLEAR_FORM:
+                    // Undo clear = restore form state
+                    if (action.savedState) {
+                        isFormUndoRedoInProgress = true;
+                        try {
+                            populateFormFromJSON(action.savedState);
+                        } finally {
+                            isFormUndoRedoInProgress = false;
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.LOAD_JSON:
+                    // Undo load = restore previous form state
+                    if (action.previousState) {
+                        isFormUndoRedoInProgress = true;
+                        try {
+                            populateFormFromJSON(action.previousState);
+                        } finally {
+                            isFormUndoRedoInProgress = false;
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.PASTE:
+                    // Undo paste = restore old element content
+                    if (action.pastedElement && action.oldElement && action.parent) {
+                        // Restore the content from the old element, preserving all field values
+                        restoreSectionContent(action.pastedElement, action.oldElement);
+                        // Reinitialize the element
+                        attachPreviews(action.pastedElement);
+                        applyFontSettings(action.pastedElement);
+                        attachBboxValidation(action.pastedElement);
+                        // Reattach event listeners by triggering any necessary initialization
+                        const questionTypeSelect = action.pastedElement.querySelector('select[onchange*="toggleQuestionType"]');
+                        if (questionTypeSelect) {
+                            toggleQuestionType(questionTypeSelect);
+                        }
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.PASTE_SECTION:
+                case ACTION_TYPES.PASTE_QUESTION:
+                    // Undo paste = remove pasted element
+                    if (action.pastedElement && action.pastedElement.parentNode) {
+                        action.pastedElement.remove();
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.PASTE_BBOX:
+                    // Undo bbox paste = restore old values
+                    if (action.targetRow && action.oldState) {
+                        const pageInput = action.targetRow.querySelector('.bbox-page');
+                        const x0Input = action.targetRow.querySelector('.bbox-x0');
+                        const y0Input = action.targetRow.querySelector('.bbox-y0');
+                        const x1Input = action.targetRow.querySelector('.bbox-x1');
+                        const y1Input = action.targetRow.querySelector('.bbox-y1');
+                        
+                        if (pageInput) pageInput.value = action.oldState.page || '';
+                        if (x0Input) x0Input.value = action.oldState.x0 || '';
+                        if (y0Input) y0Input.value = action.oldState.y0 || '';
+                        if (x1Input) x1Input.value = action.oldState.x1 || '';
+                        if (y1Input) y1Input.value = action.oldState.y1 || '';
+                        
+                        // Trigger validation
+                        validateAndNormalizeBbox(action.targetRow);
+                    }
+                    break;
+            }
+        }
+        
+        // Execute redo for an action
+        function executeRedo(action) {
+            switch (action.type) {
+                case ACTION_TYPES.ADD_ITEM:
+                    // Redo add = add again
+                    if (action.element && action.parent && action.nextSibling) {
+                        action.parent.insertBefore(action.element, action.nextSibling);
+                    } else if (action.element && action.parent) {
+                        action.parent.appendChild(action.element);
+                    }
+                    if (action.updateNumbers) {
+                        updateNumbersForContainer(action.containerId);
+                    }
+                    // Reattach previews and event listeners
+                    if (action.element) {
+                        attachPreviews(action.element);
+                        // For matching items, ensure textarea has RTL direction
+                        if (action.element.classList.contains('matching-item')) {
+                            const textarea = action.element.querySelector('textarea');
+                            if (textarea) {
+                                textarea.setAttribute('dir', 'rtl');
+                            }
+                        }
+                    }
+                    // Update choice UI if this was a choice item (after element is added back)
+                    setTimeout(() => {
+                        updateChoiceUIIfNeeded(action.element);
+                    }, 0);
+                    // Update matching UI if this was a matching item (after element is added back)
+                    setTimeout(() => {
+                        updateMatchingUIIfNeeded(action.element, action);
+                    }, 0);
+                    break;
+                    
+                case ACTION_TYPES.REMOVE_ITEM:
+                    // Redo remove = remove again
+                    if (action.element && action.element.parentNode) {
+                        // Check if this is a choice item BEFORE removing it
+                        const isChoiceItem = action.element.classList.contains('choice-item') || 
+                                           (action.element.closest && action.element.closest('[id^="choices-list-"]') !== null);
+                        let questionEl = null;
+                        if (isChoiceItem) {
+                            // Find the parent question element before removing
+                            const choicesList = action.element.closest('[id^="choices-list-"]');
+                            questionEl = choicesList ? choicesList.closest('.array-item') : 
+                                        (action.element.closest('.array-item[data-type="question"]') || 
+                                         action.element.closest('.array-item'));
+                        }
+                        
+                        // For matching items, find question element before removing
+                        const isMatchingItem = action.element.classList.contains('matching-item') || 
+                                             (action && action.isMatchingItem === true);
+                        let matchingQuestionEl = null;
+                        if (isMatchingItem && action.questionEl) {
+                            matchingQuestionEl = action.questionEl;
+                        } else if (isMatchingItem) {
+                            const matchingContainer = action.element.closest('#matching-container');
+                            matchingQuestionEl = matchingContainer ? matchingContainer.closest('.array-item') : 
+                                                action.element.closest('.array-item');
+                        }
+                        
+                        action.element.remove();
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                        
+                        // Update choice UI if this was a choice item (use the questionEl we found before removal)
+                        if (isChoiceItem && questionEl) {
+                            setTimeout(() => {
+                                updateCorrectAnswerRadios(questionEl);
+                                updateCheckboxSummary(questionEl);
+                            }, 0);
+                        }
+                        
+                        // Update matching UI if this was a matching item (use the matchingQuestionEl we found before removal)
+                        if (isMatchingItem && matchingQuestionEl) {
+                            setTimeout(() => {
+                                if (action.side) {
+                                    updateMatchingItemNumbers(matchingQuestionEl, action.side);
+                                } else {
+                                    updateMatchingItemNumbers(matchingQuestionEl, 'left');
+                                }
+                                updateRelationshipUI(matchingQuestionEl);
+                            }, 0);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.DUPLICATE_ITEM:
+                    // Redo duplicate = duplicate again
+                    if (action.duplicatedElement && action.parent && action.nextSibling) {
+                        // Clone the element for redo (since it may have been removed during undo)
+                        const cloned = action.duplicatedElement.cloneNode(true);
+                        action.parent.insertBefore(cloned, action.nextSibling);
+                        // Reinitialize the cloned element
+                        attachPreviews(cloned);
+                        applyFontSettings(cloned);
+                        attachBboxValidation(cloned);
+                        // Update the action to reference the new cloned element for future operations
+                        action.duplicatedElement = cloned;
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.FIELD_CHANGE:
+                    // Redo field change = apply new value
+                    if (action.field) {
+                        action.field.value = action.newValue;
+                        // Trigger input event to update previews
+                        action.field.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    break;
+                    
+                case ACTION_TYPES.MOVE_ITEM:
+                    // Redo move = move again
+                    if (action.element && action.newParent && action.newNextSibling) {
+                        action.newParent.insertBefore(action.element, action.newNextSibling);
+                    } else if (action.element && action.newParent) {
+                        action.newParent.appendChild(action.element);
+                    }
+                    if (action.updateNumbers) {
+                        updateNumbersForContainer(action.containerId);
+                    }
+                    break;
+                    
+                case ACTION_TYPES.CLEAR_FORM:
+                    // Redo clear = clear form again
+                    if (action.clearFunction) {
+                        isFormUndoRedoInProgress = true;
+                        try {
+                            action.clearFunction(true); // Pass true to indicate internal call
+                        } finally {
+                            isFormUndoRedoInProgress = false;
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.LOAD_JSON:
+                    // Redo load = load JSON again
+                    if (action.jsonData) {
+                        isFormUndoRedoInProgress = true;
+                        try {
+                            populateFormFromJSON(action.jsonData);
+                        } finally {
+                            isFormUndoRedoInProgress = false;
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.PASTE:
+                    // Redo paste = restore pasted content
+                    if (action.pastedElement && action.pastedState && action.parent) {
+                        // Save the current state as the new oldElement for future undo
+                        const currentState = action.pastedElement.cloneNode(true);
+                        // Restore the pasted content from the saved pastedState, preserving all field values
+                        restoreSectionContent(action.pastedElement, action.pastedState);
+                        // Reinitialize the element
+                        attachPreviews(action.pastedElement);
+                        applyFontSettings(action.pastedElement);
+                        attachBboxValidation(action.pastedElement);
+                        // Reattach event listeners
+                        const questionTypeSelect = action.pastedElement.querySelector('select[onchange*="toggleQuestionType"]');
+                        if (questionTypeSelect) {
+                            toggleQuestionType(questionTypeSelect);
+                        }
+                        // Update oldElement for future undo (current state becomes the old state)
+                        action.oldElement = currentState;
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.PASTE_SECTION:
+                case ACTION_TYPES.PASTE_QUESTION:
+                    // Redo paste = paste again
+                    if (action.pastedElement && action.parent && action.nextSibling) {
+                        // Clone the element since it may have been removed during undo
+                        const cloned = action.pastedElement.cloneNode(true);
+                        action.parent.insertBefore(cloned, action.nextSibling);
+                        attachPreviews(cloned);
+                        applyFontSettings(cloned);
+                        attachBboxValidation(cloned);
+                        // Update the action to reference the new cloned element
+                        action.pastedElement = cloned;
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    } else if (action.pastedElement && action.parent) {
+                        // Clone the element since it may have been removed during undo
+                        const cloned = action.pastedElement.cloneNode(true);
+                        action.parent.appendChild(cloned);
+                        attachPreviews(cloned);
+                        applyFontSettings(cloned);
+                        attachBboxValidation(cloned);
+                        // Update the action to reference the new cloned element
+                        action.pastedElement = cloned;
+                        if (action.updateNumbers) {
+                            updateNumbersForContainer(action.containerId);
+                        }
+                    }
+                    break;
+                    
+                case ACTION_TYPES.PASTE_BBOX:
+                    // Redo bbox paste = restore pasted values
+                    if (action.targetRow && action.pastedState) {
+                        // Save current state as new oldState for future undo
+                        const currentState = {
+                            page: action.targetRow.querySelector('.bbox-page')?.value || '',
+                            x0: action.targetRow.querySelector('.bbox-x0')?.value || '',
+                            y0: action.targetRow.querySelector('.bbox-y0')?.value || '',
+                            x1: action.targetRow.querySelector('.bbox-x1')?.value || '',
+                            y1: action.targetRow.querySelector('.bbox-y1')?.value || ''
+                        };
+                        
+                        const pageInput = action.targetRow.querySelector('.bbox-page');
+                        const x0Input = action.targetRow.querySelector('.bbox-x0');
+                        const y0Input = action.targetRow.querySelector('.bbox-y0');
+                        const x1Input = action.targetRow.querySelector('.bbox-x1');
+                        const y1Input = action.targetRow.querySelector('.bbox-y1');
+                        
+                        if (pageInput) pageInput.value = action.pastedState.page || '';
+                        if (x0Input) x0Input.value = action.pastedState.x0 || '';
+                        if (y0Input) y0Input.value = action.pastedState.y0 || '';
+                        if (x1Input) x1Input.value = action.pastedState.x1 || '';
+                        if (y1Input) y1Input.value = action.pastedState.y1 || '';
+                        
+                        // Update oldState for future undo
+                        action.oldState = currentState;
+                        
+                        // Trigger validation
+                        validateAndNormalizeBbox(action.targetRow);
+                    }
+                    break;
+            }
+        }
+        
+        // Helper to update numbers for a container (content sections, questions, etc.)
+        function updateNumbersForContainer(containerId) {
+            if (containerId === 'content_sections_container') {
+                updateContentSectionNumbers();
+            } else if (containerId === 'questions_container') {
+                updateQuestionNumbers();
+            }
+        }
+        
+        // Helper to update choice UI if the element is a choice item
+        function updateChoiceUIIfNeeded(element) {
+            if (!element) return;
+            
+            // Check if this is a choice item - choice items have class 'choice-item'
+            // or are inside a choices-list container
+            const isChoiceItem = element.classList.contains('choice-item') || 
+                                 (element.closest && element.closest('[id^="choices-list-"]') !== null);
+            
+            if (isChoiceItem) {
+                // Find the parent question element
+                // Choices are inside choices-list which is inside a question
+                const choicesList = element.closest('[id^="choices-list-"]');
+                const questionEl = choicesList ? choicesList.closest('.array-item') : 
+                                  (element.closest('.array-item[data-type="question"]') || 
+                                   element.closest('.array-item'));
+                
+                if (questionEl) {
+                    // Use setTimeout to ensure DOM is fully updated before updating UI
+                    setTimeout(() => {
+                        // Update correct answer UI
+                        updateCorrectAnswerRadios(questionEl);
+                        updateCheckboxSummary(questionEl);
+                    }, 0);
+                }
+            }
+        }
+        
+        // Helper to update matching relationship UI if the element is a matching item
+        function updateMatchingUIIfNeeded(element, action) {
+            if (!element) return;
+            
+            // Check if this is a matching item or if action has the flag
+            const isMatchingItem = element.classList.contains('matching-item') || 
+                                  (action && action.isMatchingItem === true);
+            
+            if (isMatchingItem) {
+                // Get question element from action if available, otherwise find it
+                let questionEl = null;
+                if (action && action.questionEl) {
+                    questionEl = action.questionEl;
+                } else {
+                    const matchingContainer = element.closest('#matching-container');
+                    questionEl = matchingContainer ? matchingContainer.closest('.array-item') : 
+                                element.closest('.array-item');
+                }
+                
+                if (questionEl) {
+                    // Use setTimeout to ensure DOM is fully updated before updating UI
+                    setTimeout(() => {
+                        // Update matching item numbers if we have the side
+                        if (action && action.side) {
+                            updateMatchingItemNumbers(questionEl, action.side);
+                        }
+                        // Update relationship UI to refresh dropdown options
+                        updateRelationshipUI(questionEl);
+                    }, 0);
+                }
+            }
+        }
+        
+        // Helper function to restore section content from a cloned element
+        function restoreSectionContent(targetElement, sourceElement) {
+            // Replace innerHTML to restore structure
+            targetElement.innerHTML = sourceElement.innerHTML;
+            
+            // Restore all input, textarea, and select values
+            // We need to match them carefully since structure might be the same
+            const sourceInputs = Array.from(sourceElement.querySelectorAll('input, textarea, select'));
+            const targetInputs = Array.from(targetElement.querySelectorAll('input, textarea, select'));
+            
+            // Match inputs by their position in the DOM tree
+            sourceInputs.forEach((sourceInput, index) => {
+                if (index < targetInputs.length) {
+                    const targetInput = targetInputs[index];
+                    const sourceType = sourceInput.type || '';
+                    const sourceTag = sourceInput.tagName.toLowerCase();
+                    
+                    // Restore value based on input type
+                    if (sourceType === 'checkbox' || sourceType === 'radio') {
+                        targetInput.checked = sourceInput.checked;
+                        // Trigger change event
+                        targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else if (sourceTag === 'select') {
+                        targetInput.value = sourceInput.value;
+                        // Trigger change event for selects (important for question type toggles)
+                        targetInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    } else {
+                        // For text inputs and textareas
+                        targetInput.value = sourceInput.value;
+                        // Trigger input event to update previews
+                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                }
+            });
+        }
+        
+        // Initialize undo/redo buttons on page load
+        updateUndoRedoButtons();
+        
         // Session tracking
         let sessionStartTime = Date.now();
         
@@ -1745,6 +2402,25 @@
         #saveBtn:active {
             transform: scale(0.95);
         }
+        
+        /* Undo/Redo button styling - match save button style */
+        #undo-btn:disabled,
+        #redo-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #undo-btn:not(:disabled):hover,
+        #redo-btn:not(:disabled):hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.1);
+        }
+        
+        #undo-btn:not(:disabled):active,
+        #redo-btn:not(:disabled):active {
+            transform: scale(0.95);
+        }
 
         /* Form Header and Navigation Styles */
         .form-header {
@@ -1765,6 +2441,95 @@
 
 
         /* Quick Jump Menu */
+        /* Search Results Dropdown */
+        /* Search input placeholder styling */
+        #searchFilter {
+            text-align: left !important;
+            direction: ltr !important;
+        }
+        
+        #searchFilter::placeholder {
+            text-align: left !important;
+            direction: ltr !important;
+        }
+        
+        .search-results-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 4px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 10000;
+            font-size: 0.9rem;
+        }
+        
+        .search-result-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-item:hover,
+        .search-result-item.highlighted {
+            background-color: var(--bg-secondary);
+        }
+        
+        .search-result-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .search-result-type {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--accent);
+            color: white;
+            font-weight: 500;
+        }
+        
+        .search-result-preview {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            margin-top: 4px;
+        }
+        
+        .search-result-preview .highlight {
+            background-color: #ffd700;
+            color: #000;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        
+        .search-result-empty {
+            padding: 16px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        
+        [data-theme="dark"] .search-result-preview .highlight {
+            background-color: #ffd700;
+            color: #000;
+        }
+        
         .quick-jump select {
             padding: 4px 8px;
             border: 1px solid #dee2e6;
@@ -2308,7 +3073,7 @@
                             <h1>Math Textbook Transcription</h1>
                         </div>
                         <div class="header-meta">
-                            <span>v6.5</span>
+                            <span id="version-display">v<span id="version-number"></span></span>
                             <span>•</span>
                             <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.65rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
                                 <i class="fas fa-sparkles"></i> What's New
@@ -2318,6 +3083,13 @@
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
+                        <!-- Undo/Redo Buttons -->
+                        <button id="undo-btn" onclick="undoAction()" title="Undo (Ctrl+Z)" class="dark-mode-toggle" disabled>
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button id="redo-btn" onclick="redoAction()" title="Redo (Ctrl+Y)" class="dark-mode-toggle" disabled>
+                            <i class="fas fa-redo"></i>
+                        </button>
                         <!-- Font Settings -->
                         <div class="font-settings" style="display: flex; gap: 6px; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 4px 8px; border-radius: 6px;">
                             <label style="font-size: 0.7rem; opacity: 0.9;">Font:</label>
@@ -2342,8 +3114,14 @@
                         <div id="saveIndicator" class="auto-save-indicator">
                             <span>No changes</span>
                         </div>
-                        <div class="quick-jump" style="display: flex; gap: 8px; align-items: center;">
-                            <input type="text" id="searchFilter" placeholder="Search content & questions..." title="Search across all content sections and questions" style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; width: 200px; outline: none;" oninput="performSearch(this.value)">
+                        <div class="quick-jump" style="display: flex; gap: 8px; align-items: center; position: relative;">
+                            <div style="position: relative; width: 400px;">
+                                <div style="position: relative;">
+                                    <input type="text" id="searchFilter" placeholder="Search content & questions..." title="Search across all content sections and questions" style="padding: 6px 12px; padding-right: 80px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; width: 100%; outline: none; text-align: left; direction: ltr;" oninput="performSearch(this.value)" onfocus="handleSearchFocus()" onblur="handleSearchBlur()" onkeydown="handleSearchKeydown(event)">
+                                    <span id="searchResultsCount" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 0.85rem; pointer-events: none; display: none;"></span>
+                                </div>
+                                <div id="searchResultsDropdown" class="search-results-dropdown" style="display: none;"></div>
+                            </div>
                             <button id="clearSearchBtn" onclick="clearSearch()" title="Clear search" style="display: none; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 0.9rem;">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -2879,10 +3657,19 @@
             tabs.forEach(tab => tab.classList.remove('active'));
             
             // Show selected tab content
-            document.getElementById(tabName).classList.add('active');
+            const targetTabContent = document.getElementById(tabName);
+            if (targetTabContent) {
+                targetTabContent.classList.add('active');
+            }
             
-            // Add active class to clicked tab
-            event.target.classList.add('active');
+            // Add active class to corresponding tab button
+            const tabButtons = document.querySelectorAll('.tab');
+            tabButtons.forEach(tab => {
+                if (tab.getAttribute('onclick')?.includes(`'${tabName}'`) || 
+                    tab.getAttribute('onclick')?.includes(`"${tabName}"`)) {
+                    tab.classList.add('active');
+                }
+            });
             
             // Track tab navigation
             trackEvent('tab_navigation', {
@@ -2930,9 +3717,128 @@
 
 
         // Search/Filter functionality
+        // Helper function to get context around a match
+        function getContextPreview(text, searchTerm, maxLength = 100) {
+            const lowerText = text.toLowerCase();
+            const lowerTerm = searchTerm.toLowerCase();
+            const index = lowerText.indexOf(lowerTerm);
+            
+            if (index === -1) {
+                // If exact match not found, return first part of text
+                return text.substring(0, maxLength) + (text.length > maxLength ? '...' : '');
+            }
+            
+            // Get context around the match
+            const start = Math.max(0, index - 30);
+            const end = Math.min(text.length, index + searchTerm.length + 30);
+            let preview = text.substring(start, end);
+            
+            // Highlight the match
+            const matchIndex = preview.toLowerCase().indexOf(lowerTerm);
+            if (matchIndex !== -1) {
+                const before = preview.substring(0, matchIndex);
+                const match = preview.substring(matchIndex, matchIndex + searchTerm.length);
+                const after = preview.substring(matchIndex + searchTerm.length);
+                preview = before + '<span class="highlight">' + escapeHtml(match) + '</span>' + after;
+            }
+            
+            // Add ellipsis if needed
+            if (start > 0) preview = '...' + preview;
+            if (end < text.length) preview = preview + '...';
+            
+            return preview;
+        }
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Helper function to clear search highlights without clearing the input
+        function clearSearchHighlights() {
+            const contentSections = document.querySelectorAll('#content_sections_container .array-item');
+            const questions = document.querySelectorAll('#questions_container .array-item');
+            
+            // Remove highlighting from content sections
+            contentSections.forEach(section => {
+                section.style.display = '';
+                section.style.border = '';
+                section.style.borderRadius = '';
+                section.style.padding = '';
+                section.style.marginBottom = '';
+                section.style.backgroundColor = '';
+            });
+            
+            // Remove highlighting from questions
+            questions.forEach(question => {
+                question.style.display = '';
+                question.style.border = '';
+                question.style.borderRadius = '';
+                question.style.padding = '';
+                question.style.marginBottom = '';
+                question.style.backgroundColor = '';
+            });
+        }
+        
+        // Helper function to jump to an element
+        function jumpToElement(element) {
+            if (!element) return;
+            
+            // Determine which tab the element belongs to and switch if needed
+            const contentContainer = document.getElementById('content_sections_container');
+            const questionsContainer = document.getElementById('questions_container');
+            
+            if (contentContainer && contentContainer.contains(element)) {
+                // Element is in content sections - switch to content tab
+                showTab('content');
+            } else if (questionsContainer && questionsContainer.contains(element)) {
+                // Element is in questions - switch to questions tab
+                showTab('questions');
+            }
+            
+            // Remove any existing highlights (but keep search input)
+            clearSearchHighlights();
+            
+            // Show the element if it's hidden
+            element.style.display = '';
+            
+            // Wait a moment for tab switch to complete, then scroll
+            setTimeout(() => {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Highlight briefly
+                const originalBorder = element.style.border;
+                const originalBg = element.style.backgroundColor;
+                element.style.border = '3px solid var(--accent)';
+                element.style.borderRadius = '8px';
+                element.style.padding = '15px';
+                element.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                element.style.transition = 'all 0.3s';
+                
+                setTimeout(() => {
+                    element.style.border = originalBorder;
+                    element.style.borderRadius = '';
+                    element.style.padding = '';
+                    element.style.backgroundColor = originalBg;
+                }, 2000);
+            }, 100);
+            
+            // Close dropdown
+            const dropdown = document.getElementById('searchResultsDropdown');
+            if (dropdown) {
+                dropdown.style.display = 'none';
+            }
+        }
+        
+        let searchDropdownSelectedIndex = -1;
+        
         function performSearch(searchTerm) {
-            const term = searchTerm.trim().toLowerCase();
+            const term = searchTerm.trim();
             const clearBtn = document.getElementById('clearSearchBtn');
+            const dropdown = document.getElementById('searchResultsDropdown');
+            const resultsCount = document.getElementById('searchResultsCount');
             
             // Show/hide clear button
             if (term.length > 0) {
@@ -2944,26 +3850,43 @@
             if (term.length === 0) {
                 // Clear search - show all items
                 clearSearch();
+                if (dropdown) dropdown.style.display = 'none';
+                if (resultsCount) resultsCount.style.display = 'none';
                 trackEvent('search_performed', { search_term_length: 0 });
                 return;
             }
+            
+            const results = [];
+            const lowerTerm = term.toLowerCase();
             
             // Search content sections
             const contentSections = document.querySelectorAll('#content_sections_container .array-item');
             contentSections.forEach((section, index) => {
                 const sectionTitle = section.querySelector('input[placeholder*="Section title"]')?.value || '';
                 const sectionContent = section.querySelector('textarea[placeholder*="Enter content"]')?.value || '';
-                const searchableText = (sectionTitle + ' ' + sectionContent).toLowerCase();
-                const matches = searchableText.includes(term);
                 
-                if (matches) {
-                    section.style.display = '';
-                    section.style.border = '2px solid var(--accent)';
-                    section.style.borderRadius = '8px';
-                    section.style.padding = '15px';
-                    section.style.marginBottom = '20px';
-                } else {
-                    section.style.display = 'none';
+                const sectionNumber = index + 1;
+                
+                // Check section title separately
+                if (sectionTitle.toLowerCase().includes(lowerTerm)) {
+                    results.push({
+                        type: 'Content Title',
+                        title: `Content Section ${sectionNumber}`,
+                        preview: getContextPreview(sectionTitle, term),
+                        element: section,
+                        index: sectionNumber
+                    });
+                }
+                
+                // Check section content separately
+                if (sectionContent.toLowerCase().includes(lowerTerm)) {
+                    results.push({
+                        type: 'Content Text',
+                        title: `Content Section ${sectionNumber}`,
+                        preview: getContextPreview(sectionContent, term),
+                        element: section,
+                        index: sectionNumber
+                    });
                 }
             });
             
@@ -2972,49 +3895,346 @@
             if (questionsContainer) {
                 const questions = questionsContainer.querySelectorAll('.array-item');
                 questions.forEach((question, index) => {
-                    const questionId = question.querySelector('input[placeholder*="e.g., 1"]')?.value || '';
+                    const questionIdInput = question.querySelector('input[placeholder*="e.g., 1"]');
+                    const questionId = questionIdInput?.value || '';
                     const questionText = question.querySelector('textarea[placeholder*="Enter question text"]')?.value || '';
                     const setupText = question.querySelector('textarea[placeholder*="Text shared across"]')?.value || '';
                     const guideAnswer = question.querySelector('textarea[placeholder*="Enter guide answer"]')?.value || '';
                     const guideAnswerNotes = question.querySelector('.guide-answer-notes')?.value || '';
-                    const choiceTexts = Array.from(question.querySelectorAll('.choice-text')).map(ta => ta.value).join(' ');
-                    const searchableText = (questionId + ' ' + questionText + ' ' + setupText + ' ' + guideAnswer + ' ' + guideAnswerNotes + ' ' + choiceTexts).toLowerCase();
-                    const matches = searchableText.includes(term);
                     
-                    if (matches) {
-                        question.style.display = '';
-                        question.style.border = '2px solid var(--accent)';
-                        question.style.borderRadius = '8px';
-                        question.style.padding = '15px';
-                        question.style.marginBottom = '20px';
-                    } else {
-                        question.style.display = 'none';
+                    const qType = question.querySelector('select[onchange*="toggleQuestionType"]')?.value || '';
+                    const typeLabel = qType === 'multiple_choice' ? 'MCQ' : qType === 'checkbox' ? 'Checkbox' : qType === 'fill_in_the_blanks' ? 'Fill-in-Blanks' : qType === 'matching' ? 'Matching' : 'Question';
+                    
+                    // Get question number - use ID if available, otherwise use index + 1
+                    const questionNumber = questionId || String(index + 1);
+                    const questionTitle = `Question ${questionNumber}`;
+                    
+                    // Check each field separately and create results for each match
+                    // Priority order: Question ID, Question Text, Setup Text, Guide Answer, Choices
+                    
+                    if (questionId.toLowerCase().includes(lowerTerm)) {
+                        results.push({
+                            type: typeLabel,
+                            title: questionTitle + ' (ID)',
+                            preview: getContextPreview(questionId, term),
+                            element: question,
+                            index: index + 1
+                        });
+                    }
+                    
+                    if (questionText.toLowerCase().includes(lowerTerm)) {
+                        results.push({
+                            type: typeLabel,
+                            title: questionTitle + ' (Question)',
+                            preview: getContextPreview(questionText, term),
+                            element: question,
+                            index: index + 1
+                        });
+                    }
+                    
+                    if (setupText.toLowerCase().includes(lowerTerm)) {
+                        results.push({
+                            type: typeLabel,
+                            title: questionTitle + ' (Setup)',
+                            preview: getContextPreview(setupText, term),
+                            element: question,
+                            index: index + 1
+                        });
+                    }
+                    
+                    if (guideAnswer.toLowerCase().includes(lowerTerm)) {
+                        results.push({
+                            type: typeLabel,
+                            title: questionTitle + ' (Answer)',
+                            preview: getContextPreview(guideAnswer, term),
+                            element: question,
+                            index: index + 1
+                        });
+                    }
+                    
+                    if (guideAnswerNotes && guideAnswerNotes.toLowerCase().includes(lowerTerm)) {
+                        results.push({
+                            type: typeLabel,
+                            title: questionTitle + ' (Answer Notes)',
+                            preview: getContextPreview(guideAnswerNotes, term),
+                            element: question,
+                            index: index + 1
+                        });
+                    }
+                    
+                    // Check each choice individually - only for MCQ and Checkbox questions
+                    if (qType === 'multiple_choice' || qType === 'checkbox') {
+                        const choiceTextareas = question.querySelectorAll('.choice-text');
+                        choiceTextareas.forEach((choiceTextarea, choiceIndex) => {
+                            const choiceText = choiceTextarea.value || '';
+                            if (choiceText.toLowerCase().includes(lowerTerm)) {
+                                // Get choice ID if available
+                                const choiceItem = choiceTextarea.closest('.choice-item');
+                                const choiceIdInput = choiceItem?.querySelector('.choice-id');
+                                const choiceId = choiceIdInput?.value || String.fromCharCode(65 + choiceIndex); // A, B, C, etc.
+                                
+                                results.push({
+                                    type: typeLabel,
+                                    title: questionTitle + ` (Choice ${choiceId})`,
+                                    preview: getContextPreview(choiceText, term),
+                                    element: question,
+                                    index: index + 1
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Check blank answers for fill-in-the-blanks questions
+                    if (qType === 'fill_in_the_blanks') {
+                        // Check guide answer (optional) for fill-in-the-blanks
+                        const blanksContainer = question.querySelector('#blanks-container');
+                        const blanksGuideAnswer = blanksContainer?.querySelector('.guide-answer-notes');
+                        if (blanksGuideAnswer) {
+                            const blanksGuideAnswerText = blanksGuideAnswer.value || '';
+                            if (blanksGuideAnswerText.toLowerCase().includes(lowerTerm)) {
+                                results.push({
+                                    type: typeLabel,
+                                    title: questionTitle + ' (Answer Notes)',
+                                    preview: getContextPreview(blanksGuideAnswerText, term),
+                                    element: question,
+                                    index: index + 1
+                                });
+                            }
+                        }
+                        
+                        // Check individual blank answers
+                        const blankItems = question.querySelectorAll('.blank-answer-item');
+                        blankItems.forEach((blankItem, blankIndex) => {
+                            const blankInput = blankItem.querySelector('.blank-answer-input');
+                            if (blankInput) {
+                                const blankText = blankInput.value || '';
+                                if (blankText.toLowerCase().includes(lowerTerm)) {
+                                    results.push({
+                                        type: typeLabel,
+                                        title: questionTitle + ` (Blank ${blankIndex + 1})`,
+                                        preview: getContextPreview(blankText, term),
+                                        element: question,
+                                        index: index + 1
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Check matching left and right items
+                    if (qType === 'matching') {
+                        // Check guide answer (optional) for matching questions
+                        const matchingContainer = question.querySelector('#matching-container');
+                        const matchingGuideAnswer = matchingContainer?.querySelector('.guide-answer-notes');
+                        if (matchingGuideAnswer) {
+                            const matchingGuideAnswerText = matchingGuideAnswer.value || '';
+                            if (matchingGuideAnswerText.toLowerCase().includes(lowerTerm)) {
+                                results.push({
+                                    type: typeLabel,
+                                    title: questionTitle + ' (Answer Notes)',
+                                    preview: getContextPreview(matchingGuideAnswerText, term),
+                                    element: question,
+                                    index: index + 1
+                                });
+                            }
+                        }
+                        
+                        const leftList = question.querySelector('[id^="matching-left-list-"]');
+                        const rightList = question.querySelector('[id^="matching-right-list-"]');
+                        
+                        // Check left items
+                        if (leftList) {
+                            const leftItems = leftList.querySelectorAll('.matching-item');
+                            leftItems.forEach((leftItem, leftIndex) => {
+                                const leftTextarea = leftItem.querySelector('.matching-item-text');
+                                if (leftTextarea) {
+                                    const leftText = leftTextarea.value || '';
+                                    if (leftText.toLowerCase().includes(lowerTerm)) {
+                                        results.push({
+                                            type: typeLabel,
+                                            title: questionTitle + ` (Left ${leftIndex + 1})`,
+                                            preview: getContextPreview(leftText, term),
+                                            element: question,
+                                            index: index + 1
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                        
+                        // Check right items
+                        if (rightList) {
+                            const rightItems = rightList.querySelectorAll('.matching-item');
+                            rightItems.forEach((rightItem, rightIndex) => {
+                                const rightTextarea = rightItem.querySelector('.matching-item-text');
+                                if (rightTextarea) {
+                                    const rightText = rightTextarea.value || '';
+                                    if (rightText.toLowerCase().includes(lowerTerm)) {
+                                        results.push({
+                                            type: typeLabel,
+                                            title: questionTitle + ` (Right ${rightIndex + 1})`,
+                                            preview: getContextPreview(rightText, term),
+                                            element: question,
+                                            index: index + 1
+                                        });
+                                    }
+                                }
+                            });
+                        }
                     }
                 });
             }
             
+            // Update results count
+            if (resultsCount) {
+                if (results.length > 0) {
+                    resultsCount.textContent = `${results.length} result${results.length !== 1 ? 's' : ''}`;
+                    resultsCount.style.display = 'block';
+                } else {
+                    resultsCount.style.display = 'none';
+                    }
+            }
+            
+            // Build dropdown HTML
+            if (dropdown) {
+                if (results.length === 0) {
+                    dropdown.innerHTML = '<div class="search-result-empty">No results found</div>';
+                    dropdown.style.display = 'block';
+                } else {
+                    dropdown.innerHTML = results.map((result, idx) => `
+                        <div class="search-result-item" data-index="${idx}" onmousedown="event.preventDefault(); jumpToSearchResult(${idx})" onmouseenter="highlightSearchResult(${idx})">
+                            <div class="search-result-header">
+                                <span class="search-result-type">${escapeHtml(result.type)}</span>
+                                <span>${escapeHtml(result.title)}</span>
+                            </div>
+                            <div class="search-result-preview">${result.preview}</div>
+                        </div>
+                    `).join('');
+                    dropdown.style.display = 'block';
+                    searchDropdownSelectedIndex = -1;
+                }
+            }
+            
+            // Store results globally for keyboard navigation
+            window.searchResults = results;
+            
             // Track search with results
-            const visibleSections = Array.from(document.querySelectorAll('#content_sections_container .array-item')).filter(el => 
-                el.style.display !== 'none' && !el.style.display.includes('none')
-            ).length;
-            const visibleQuestions = Array.from(document.querySelectorAll('#questions_container .array-item')).filter(el => 
-                el.style.display !== 'none' && !el.style.display.includes('none')
-            ).length;
             trackEvent('search_performed', { 
                 search_term_length: term.length,
-                visible_content_sections: visibleSections,
-                visible_questions: visibleQuestions
+                results_count: results.length,
+                content_sections: results.filter(r => r.type === 'Content Section').length,
+                questions: results.filter(r => r.type !== 'Content Section').length
             });
+        }
+        
+        function jumpToSearchResult(index) {
+            if (window.searchResults && window.searchResults[index]) {
+                const result = window.searchResults[index];
+                jumpToElement(result.element);
+                // Keep the search input focused, don't clear it, and keep dropdown open
+                const searchInput = document.getElementById('searchFilter');
+                const dropdown = document.getElementById('searchResultsDropdown');
+                if (searchInput) {
+                    // Use mousedown instead of click to prevent blur from firing first
+                    setTimeout(() => {
+                        searchInput.focus();
+                        if (dropdown && searchInput.value.trim().length > 0) {
+                            dropdown.style.display = 'block';
+                        }
+                    }, 100);
+                }
+            }
+        }
+        
+        function highlightSearchResult(index) {
+            const items = document.querySelectorAll('.search-result-item');
+            items.forEach((item, idx) => {
+                if (idx === index) {
+                    item.classList.add('highlighted');
+                } else {
+                    item.classList.remove('highlighted');
+                }
+            });
+            searchDropdownSelectedIndex = index;
+        }
+        
+        function handleSearchFocus() {
+            const searchInput = document.getElementById('searchFilter');
+            const dropdown = document.getElementById('searchResultsDropdown');
+            if (searchInput && searchInput.value.trim().length > 0 && dropdown) {
+                dropdown.style.display = 'block';
+            }
+        }
+        
+        function handleSearchBlur() {
+            // Delay hiding dropdown to allow clicks on results
+            // Don't hide if clicking on a result item
+            setTimeout(() => {
+                const dropdown = document.getElementById('searchResultsDropdown');
+                const searchInput = document.getElementById('searchFilter');
+                if (dropdown && searchInput && document.activeElement !== searchInput) {
+                    // Check if focus moved to a result item
+                    const activeElement = document.activeElement;
+                    if (!activeElement || !activeElement.closest('.search-results-dropdown')) {
+                        dropdown.style.display = 'none';
+                    }
+                }
+            }, 200);
+        }
+        
+        function handleSearchKeydown(event) {
+            const dropdown = document.getElementById('searchResultsDropdown');
+            if (!dropdown || dropdown.style.display === 'none' || !window.searchResults) {
+                return;
+            }
+            
+            const items = document.querySelectorAll('.search-result-item');
+            
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                searchDropdownSelectedIndex = Math.min(searchDropdownSelectedIndex + 1, items.length - 1);
+                highlightSearchResult(searchDropdownSelectedIndex);
+                items[searchDropdownSelectedIndex]?.scrollIntoView({ block: 'nearest' });
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                searchDropdownSelectedIndex = Math.max(searchDropdownSelectedIndex - 1, -1);
+                if (searchDropdownSelectedIndex >= 0) {
+                    highlightSearchResult(searchDropdownSelectedIndex);
+                    items[searchDropdownSelectedIndex]?.scrollIntoView({ block: 'nearest' });
+                } else {
+                    items.forEach(item => item.classList.remove('highlighted'));
+                }
+            } else if (event.key === 'Enter' && searchDropdownSelectedIndex >= 0) {
+                event.preventDefault();
+                jumpToSearchResult(searchDropdownSelectedIndex);
+            } else if (event.key === 'Escape') {
+                dropdown.style.display = 'none';
+                searchDropdownSelectedIndex = -1;
+            }
         }
 
         function clearSearch() {
             const searchInput = document.getElementById('searchFilter');
             const clearBtn = document.getElementById('clearSearchBtn');
+            const dropdown = document.getElementById('searchResultsDropdown');
+            const resultsCount = document.getElementById('searchResultsCount');
             
             if (searchInput) {
                 searchInput.value = '';
             }
             clearBtn.style.display = 'none';
+            
+            if (dropdown) {
+                dropdown.style.display = 'none';
+            }
+            
+            if (resultsCount) {
+                resultsCount.style.display = 'none';
+            }
+            
+            // Clear stored results
+            window.searchResults = [];
+            searchDropdownSelectedIndex = -1;
             
             // Remove highlighting and show all items
             const contentSections = document.querySelectorAll('#content_sections_container .array-item');
@@ -3024,6 +4244,7 @@
                 section.style.borderRadius = '';
                 section.style.padding = '';
                 section.style.marginBottom = '';
+                section.style.backgroundColor = '';
             });
             
             const questionsContainer = document.getElementById('questions_container');
@@ -3035,6 +4256,7 @@
                     question.style.borderRadius = '';
                     question.style.padding = '';
                     question.style.marginBottom = '';
+                    question.style.backgroundColor = '';
                 });
             }
         }
@@ -3156,6 +4378,9 @@
             
             // Attach validation listeners
             document.querySelectorAll('input, textarea, select').forEach(field => {
+                // Skip search input - it shouldn't trigger validation or auto-save
+                if (field.id === 'searchFilter') return;
+                
                 field.addEventListener('blur', () => validateField(field));
                 field.addEventListener('input', () => {
                     // Debounced validation for better performance
@@ -3294,7 +4519,18 @@
             const newQuestion = document.createElement('div');
             newQuestion.className = 'array-item';
             newQuestion.innerHTML = getQuestionHTML(questionCount);
+            
             container.appendChild(newQuestion);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newQuestion,
+                parent: container,
+                nextSibling: null,
+                containerId: 'questions_container',
+                updateNumbers: true
+            });
             // Ensure all textareas in the new question start with RTL (content is RTL)
             const newTextareas = newQuestion.querySelectorAll('textarea');
             newTextareas.forEach(ta => {
@@ -3683,6 +4919,17 @@
                     choicesList.appendChild(choiceItem);
                 }
             }
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            const nextSibling = choiceItem.nextSibling;
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: choiceItem,
+                parent: choicesList,
+                nextSibling: nextSibling,
+                containerId: null, // Choices don't have a container ID
+                updateNumbers: false
+            });
             
             // Attach previews and set RTL direction
             const textarea = choiceItem.querySelector('textarea');
@@ -4150,7 +5397,18 @@
                 const itemType = isQuestion ? 'question' : 'content section';
                 const itemTitle = parentArrayItem.querySelector('h4')?.textContent || itemType;
                 
-                if (confirm(`Are you sure you want to remove this ${itemType}?\n\n"${itemTitle}"\n\nThis action cannot be undone.`)) {
+                if (confirm(`Are you sure you want to remove this ${itemType}?\n\n"${itemTitle}"`)) {
+                    // Record action for undo/redo
+                    const container = isQuestion ? document.getElementById('questions_container') : document.getElementById('content_sections_container');
+                    recordFormAction({
+                        type: ACTION_TYPES.REMOVE_ITEM,
+                        element: parentArrayItem.cloneNode(true), // Clone for restoration
+                        parent: parentArrayItem.parentNode,
+                        nextSibling: parentArrayItem.nextSibling,
+                        containerId: isQuestion ? 'questions_container' : 'content_sections_container',
+                        updateNumbers: true
+                    });
+                    
                     parentArrayItem.remove();
                     
                     // Update numbering after removal
@@ -4203,15 +5461,51 @@
                     : `Are you sure you want to remove this ${itemType}?\n\nThis action cannot be undone.`;
                 
                 if (confirm(confirmMessage)) {
+                    // Determine container for undo tracking
+                    let containerId = null;
+                    const questionsContainer = button.closest('#questions_container');
+                    const contentContainer = button.closest('#content_sections_container');
+                    if (questionsContainer) containerId = 'questions_container';
+                    if (contentContainer) containerId = 'content_sections_container';
+                    
                     // Remove the entire array-item or list-item
+                    let elementToRemove = null;
                     if (parentArrayItem) {
+                        elementToRemove = parentArrayItem;
+                        // Record action for undo/redo
+                        recordFormAction({
+                            type: ACTION_TYPES.REMOVE_ITEM,
+                            element: parentArrayItem.cloneNode(true), // Clone for restoration
+                            parent: parentArrayItem.parentNode,
+                            nextSibling: parentArrayItem.nextSibling,
+                            containerId: containerId,
+                            updateNumbers: false
+                        });
                         parentArrayItem.remove();
                     } else {
                         // Fallback for items without .array-item class (like bbox-item)
                         const listItem = button.closest('.bbox-item, .choice-item');
                         if (listItem) {
+                            elementToRemove = listItem;
+                            recordFormAction({
+                                type: ACTION_TYPES.REMOVE_ITEM,
+                                element: listItem.cloneNode(true),
+                                parent: listItem.parentNode,
+                                nextSibling: listItem.nextSibling,
+                                containerId: containerId,
+                                updateNumbers: false
+                            });
                             listItem.remove();
                         } else {
+                            elementToRemove = button.parentElement;
+                            recordFormAction({
+                                type: ACTION_TYPES.REMOVE_ITEM,
+                                element: button.parentElement.cloneNode(true),
+                                parent: button.parentElement.parentNode,
+                                nextSibling: button.parentElement.nextSibling,
+                                containerId: containerId,
+                                updateNumbers: false
+                            });
                             button.parentElement.remove();
                         }
                     }
@@ -4226,7 +5520,26 @@
             const previousItem = item.previousElementSibling;
             
             if (previousItem) {
+                // Save old position before move
+                const oldParent = item.parentNode;
+                const oldNextSibling = item.nextSibling;
+                const container = item.closest('#questions_container') || item.closest('#content_sections_container');
+                const containerId = container ? container.id : null;
+                
+                // Perform the move
                 item.parentNode.insertBefore(item, previousItem);
+                
+                // Record action for undo/redo (after move, so we have correct newNextSibling)
+                recordFormAction({
+                    type: ACTION_TYPES.MOVE_ITEM,
+                    element: item,
+                    oldParent: oldParent,
+                    oldNextSibling: oldNextSibling,
+                    newParent: item.parentNode,
+                    newNextSibling: item.nextSibling,
+                    containerId: containerId,
+                    updateNumbers: true
+                });
                 
                 // Update numbering for sections/questions
                 if (item.closest('#questions_container') && item.querySelector('.array-item-header')) {
@@ -4246,7 +5559,26 @@
             const nextItem = item.nextElementSibling;
             
             if (nextItem) {
+                // Save old position before move
+                const oldParent = item.parentNode;
+                const oldNextSibling = item.nextSibling;
+                const container = item.closest('#questions_container') || item.closest('#content_sections_container');
+                const containerId = container ? container.id : null;
+                
+                // Perform the move
                 item.parentNode.insertBefore(nextItem, item);
+                
+                // Record action for undo/redo (after move, so we have correct newNextSibling)
+                recordFormAction({
+                    type: ACTION_TYPES.MOVE_ITEM,
+                    element: item,
+                    oldParent: oldParent,
+                    oldNextSibling: oldNextSibling,
+                    newParent: item.parentNode,
+                    newNextSibling: item.nextSibling,
+                    containerId: containerId,
+                    updateNumbers: true
+                });
                 
                 // Update numbering for sections/questions
                 if (item.closest('#questions_container') && item.querySelector('.array-item-header')) {
@@ -4597,6 +5929,18 @@
                     attachPreviews(newQuestion);
                     applyFontSettings(newQuestion);
                     attachBboxValidation(newQuestion);
+                    
+                    // Record action for undo/redo (after element is fully populated and added to DOM)
+                    recordFormAction({
+                        type: ACTION_TYPES.DUPLICATE_ITEM,
+                        originalElement: sectionEl,
+                        duplicatedElement: newQuestion,
+                        parent: container,
+                        nextSibling: newQuestion.nextSibling,
+                        containerId: 'questions_container',
+                        updateNumbers: true
+                    });
+                    
                     updateQuestionNumbers();
                     
                 } else {
@@ -4634,6 +5978,18 @@
                     attachPreviews(newSection);
                     applyFontSettings(newSection);
                     attachBboxValidation(newSection);
+                    
+                    // Record action for undo/redo (after element is fully populated and added to DOM)
+                    recordFormAction({
+                        type: ACTION_TYPES.DUPLICATE_ITEM,
+                        originalElement: sectionEl,
+                        duplicatedElement: newSection,
+                        parent: container,
+                        nextSibling: newSection.nextSibling,
+                        containerId: 'content_sections_container',
+                        updateNumbers: true
+                    });
+                    
                     updateContentSectionNumbers();
                 }
                 
@@ -4706,6 +6062,12 @@
                 if (!confirm('This will replace all content in this section. Continue?')) {
                     return;
                 }
+                
+                // Save old section state for undo
+                const oldSectionState = sectionEl.cloneNode(true);
+                const container = sectionEl.parentNode;
+                const nextSibling = sectionEl.nextSibling;
+                const containerId = isQuestion ? 'questions_container' : 'content_sections_container';
                 
                 if (sectionData.type === 'question') {
                     // Replace question data - use label-based selectors
@@ -4954,6 +6316,21 @@
                     }, 100);
                 }
                 
+                // Record action for undo/redo (after section is replaced)
+                // Save the pasted state (current state after pasting) for redo
+                const pastedState = sectionEl.cloneNode(true);
+                // Record the actual sectionEl element, not a clone
+                recordFormAction({
+                    type: ACTION_TYPES.PASTE,
+                    pastedElement: sectionEl,
+                    pastedState: pastedState, // Save the pasted content state for redo
+                    oldElement: oldSectionState, // Save the old content state for undo
+                    parent: container,
+                    nextSibling: nextSibling,
+                    containerId: containerId,
+                    updateNumbers: false
+                });
+                
                 markFormAsChanged();
                 triggerAutoSave();
                 
@@ -5007,8 +6384,8 @@
                 
                 if (sectionData.type === 'question') {
                     // Create new question and populate it - use label-based selectors
-                    addQuestion();
                     const container = document.getElementById('questions_container');
+                    addQuestion();
                     const newQuestion = container.lastElementChild;
                     
                     // Fill in the data using label-based selectors
@@ -5119,6 +6496,16 @@
                         });
                     }, 100);
                     
+                    // Record action for undo/redo (after element is fully populated and added to DOM)
+                    recordFormAction({
+                        type: ACTION_TYPES.PASTE_QUESTION,
+                        pastedElement: newQuestion,
+                        parent: container,
+                        nextSibling: null,
+                        containerId: 'questions_container',
+                        updateNumbers: true
+                    });
+                    
                 } else if (sectionData.type === 'content') {
                     // Create new content section and populate it using label-based selectors
                     addContentSection();
@@ -5157,6 +6544,16 @@
                             }
                         });
                     }, 100);
+                    
+                    // Record action for undo/redo (after element is fully populated and added to DOM)
+                    recordFormAction({
+                        type: ACTION_TYPES.PASTE_SECTION,
+                        pastedElement: newSection,
+                        parent: container,
+                        nextSibling: null,
+                        containerId: 'content_sections_container',
+                        updateNumbers: true
+                    });
                 }
                 
                 markFormAsChanged();
@@ -5186,7 +6583,18 @@
                     <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this standard">×</button>
                 </div>
             `;
+            
             container.appendChild(newItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: 'lesson_standards',
+                updateNumbers: false
+            });
             // Ensure the new lesson standard field starts with LTR (English text)
             const newInput = newItem.querySelector('input');
             if (newInput) {
@@ -5214,7 +6622,18 @@
                     <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this term">×</button>
                 </div>
             `;
+            
             container.appendChild(newItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: 'terminology',
+                updateNumbers: false
+            });
             // Ensure the new terminology field starts with RTL
             const newInput = newItem.querySelector('input');
             if (newInput) {
@@ -5248,7 +6667,19 @@
                     <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this standard">×</button>
                 </div>
             `;
+            
             container.insertBefore(newItem, currentItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newItem.nextSibling (what comes after the new item) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: 'lesson_standards',
+                updateNumbers: false
+            });
             // Ensure the new lesson standard field starts with LTR (English text)
             const newInput = newItem.querySelector('input');
             if (newInput) {
@@ -5277,7 +6708,19 @@
                     <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this standard">×</button>
                 </div>
             `;
+            
             container.insertBefore(newItem, currentItem.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newItem.nextSibling (what comes after the new item) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: 'lesson_standards',
+                updateNumbers: false
+            });
             // Ensure the new lesson standard field starts with LTR (English text)
             const newInput = newItem.querySelector('input');
             if (newInput) {
@@ -5308,7 +6751,19 @@
                     <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this term">×</button>
                 </div>
             `;
+            
             container.insertBefore(newItem, currentItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newItem.nextSibling (what comes after the new item) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: 'terminology',
+                updateNumbers: false
+            });
             // Ensure the new terminology field starts with RTL
             const newInput = newItem.querySelector('input');
             if (newInput) {
@@ -5341,7 +6796,19 @@
                     <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this term">×</button>
                 </div>
             `;
+            
             container.insertBefore(newItem, currentItem.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newItem.nextSibling (what comes after the new item) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: 'terminology',
+                updateNumbers: false
+            });
             // Ensure the new terminology field starts with RTL
             const newInput = newItem.querySelector('input');
             if (newInput) {
@@ -5362,7 +6829,18 @@
             const newSection = document.createElement('div');
             newSection.className = 'array-item';
             newSection.innerHTML = getContentSectionHTML(sectionCount);
+            
             container.appendChild(newSection);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newSection,
+                parent: container,
+                nextSibling: null,
+                containerId: 'content_sections_container',
+                updateNumbers: true
+            });
             // Ensure the new section textarea starts with RTL (content is RTL)
             const newTextarea = newSection.querySelector('textarea');
             if (newTextarea) {
@@ -5432,6 +6910,16 @@
             `;
             container.appendChild(newItem);
             
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             // Attach bbox validation to the new item
             const coordinateInputs = newItem.querySelectorAll('.bbox-x0, .bbox-y0, .bbox-x1, .bbox-y1');
             coordinateInputs.forEach(input => {
@@ -5478,6 +6966,16 @@
             `;
             container.appendChild(newItem);
             
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             // Attach bbox validation to the new item
             const coordinateInputs = newItem.querySelectorAll('.bbox-x0, .bbox-y0, .bbox-x1, .bbox-y1');
             coordinateInputs.forEach(input => {
@@ -5519,6 +7017,16 @@
                 </div>
             `;
             container.appendChild(newItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: null,
+                updateNumbers: false
+            });
             
             // Attach bbox validation to the new item
             const coordinateInputs = newItem.querySelectorAll('.bbox-x0, .bbox-y0, .bbox-x1, .bbox-y1');
@@ -5566,6 +7074,16 @@
             `;
             container.appendChild(newItem);
             
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             // Attach bbox validation to the new item
             const coordinateInputs = newItem.querySelectorAll('.bbox-x0, .bbox-y0, .bbox-x1, .bbox-y1');
             coordinateInputs.forEach(input => {
@@ -5612,6 +7130,16 @@
             `;
             container.appendChild(newItem);
             
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: null,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             // Attach bbox validation to the new item
             const coordinateInputs = newItem.querySelectorAll('.bbox-x0, .bbox-y0, .bbox-x1, .bbox-y1');
             coordinateInputs.forEach(input => {
@@ -5638,7 +7166,19 @@
             const newSection = document.createElement('div');
             newSection.className = 'array-item';
             newSection.innerHTML = getContentSectionHTML(sectionCount);
+            
             container.insertBefore(newSection, currentSection);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newSection.nextSibling (what comes after the new section) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newSection,
+                parent: container,
+                nextSibling: newSection.nextSibling,
+                containerId: 'content_sections_container',
+                updateNumbers: true
+            });
             
             // Initialize the new section
             attachPreviews(newSection);
@@ -5656,7 +7196,19 @@
             const newSection = document.createElement('div');
             newSection.className = 'array-item';
             newSection.innerHTML = getContentSectionHTML(sectionCount);
+            
             container.insertBefore(newSection, currentSection.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newSection.nextSibling (what comes after the new section) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newSection,
+                parent: container,
+                nextSibling: newSection.nextSibling,
+                containerId: 'content_sections_container',
+                updateNumbers: true
+            });
             
             // Initialize the new section
             attachPreviews(newSection);
@@ -5674,7 +7226,19 @@
             const newQuestion = document.createElement('div');
             newQuestion.className = 'array-item';
             newQuestion.innerHTML = getQuestionHTML(questionCount);
+            
             container.insertBefore(newQuestion, currentQuestion);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newQuestion.nextSibling (what comes after the new question) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newQuestion,
+                parent: container,
+                nextSibling: newQuestion.nextSibling,
+                containerId: 'questions_container',
+                updateNumbers: true
+            });
             
             // Initialize the new question
             attachPreviews(newQuestion);
@@ -5692,7 +7256,19 @@
             const newQuestion = document.createElement('div');
             newQuestion.className = 'array-item';
             newQuestion.innerHTML = getQuestionHTML(questionCount);
+            
             container.insertBefore(newQuestion, currentQuestion.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            // Record newQuestion.nextSibling (what comes after the new question) for correct redo placement
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newQuestion,
+                parent: container,
+                nextSibling: newQuestion.nextSibling,
+                containerId: 'questions_container',
+                updateNumbers: true
+            });
             
             // Initialize the new question
             attachPreviews(newQuestion);
@@ -6282,6 +7858,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6317,6 +7904,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6352,6 +7950,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6387,6 +7996,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6423,6 +8043,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6458,6 +8089,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6494,6 +8136,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -6529,6 +8182,17 @@
                 </div>
             `;
             container.insertBefore(newItem, currentItem.nextSibling);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                containerId: null,
+                updateNumbers: false
+            });
+            
             attachBboxValidationToItem(newItem);
         }
 
@@ -7804,9 +9468,11 @@
                 }
                 // Target row logic: overwrite current row if invoked from row; otherwise use first row or create one
                 let targetRow = (parentArrayItem && parentArrayItem.parentElement === arrContainer) ? parentArrayItem : null;
+                let wasNewRow = false;
                 if (!targetRow) {
                     targetRow = arrContainer.querySelector('.array-item');
                     if (!targetRow) {
+                        wasNewRow = true;
                         targetRow = document.createElement('div');
                         targetRow.className = 'array-item';
                         targetRow.innerHTML = `
@@ -7828,8 +9494,20 @@
                             </div>
                         `;
                         arrContainer.appendChild(targetRow);
+                        // Attach bbox validation to the new item
+                        attachBboxValidationToItem(targetRow);
                     }
                 }
+                
+                // Save old state before pasting (for undo)
+                const oldState = {
+                    page: targetRow.querySelector('.bbox-page')?.value || '',
+                    x0: targetRow.querySelector('.bbox-x0')?.value || '',
+                    y0: targetRow.querySelector('.bbox-y0')?.value || '',
+                    x1: targetRow.querySelector('.bbox-x1')?.value || '',
+                    y1: targetRow.querySelector('.bbox-y1')?.value || ''
+                };
+                
                 const inputs = targetRow.querySelectorAll('input');
                 if (inputs.length >= 5) {
                     inputs[0].value = Number.isFinite(pageVal) ? pageVal : '';
@@ -7838,6 +9516,24 @@
                     inputs[3].value = Math.round(xLeft) || 0;  // X1 (bottom-left x)
                     inputs[4].value = Math.round(yBottom) || 0;// Y1 (bottom-left y)
                 }
+                
+                // Save pasted state (for redo)
+                const pastedState = {
+                    page: inputs[0].value,
+                    x0: inputs[1].value,
+                    y0: inputs[2].value,
+                    x1: inputs[3].value,
+                    y1: inputs[4].value
+                };
+                
+                // Record action for undo/redo
+                recordFormAction({
+                    type: ACTION_TYPES.PASTE_BBOX,
+                    targetRow: targetRow,
+                    oldState: oldState,
+                    pastedState: pastedState,
+                    wasNewRow: wasNewRow
+                });
                 
                 // Mark form as changed and trigger auto-save after pasting coordinates
                 markFormAsChanged();
@@ -7958,6 +9654,17 @@
                 
                 // Insert after current item
                 container.insertBefore(newItem, parentArrayItem.nextSibling);
+                
+                // Record action for undo/redo (after adding to DOM so we have the actual element)
+                recordFormAction({
+                    type: ACTION_TYPES.DUPLICATE_ITEM,
+                    originalElement: parentArrayItem,
+                    duplicatedElement: newItem,
+                    parent: container,
+                    nextSibling: newItem.nextSibling,
+                    containerId: null,
+                    updateNumbers: false
+                });
                 
                 // Attach bbox validation to the new item
                 attachBboxValidationToItem(newItem);
@@ -11700,8 +13407,11 @@
                         <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
                             <i class="fas fa-square-root-alt"></i>
                         </button>
-                        <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Remove markdown formatting from selected text (bold, italic, LaTeX, lists)">
+                        <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
                             <i class="fas fa-undo"></i>
+                        </button>
+                        <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                            <i class="fas fa-redo"></i>
                         </button>
                         <button type="button" class="dir-btn" onclick="toggleDirection(this.parentElement.querySelector('textarea'))" title="Toggle text direction (LTR/RTL)">LTR</button>
                     </div>
@@ -11959,8 +13669,11 @@
                     <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
                         <i class="fas fa-square-root-alt"></i>
                     </button>
-                    <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Remove markdown formatting from selected text (bold, italic, LaTeX, lists)">
+                    <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
                         <i class="fas fa-undo"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                        <i class="fas fa-redo"></i>
                     </button>
                     <button type="button" class="table-btn" onclick="insertTable(this.parentElement.querySelector('textarea'))" title="Insert a markdown table template">
                         <i class="fas fa-table"></i> Insert Table
@@ -11973,6 +13686,19 @@
             `;
             
             listContainer.appendChild(itemDiv);
+            
+            // Record action for undo/redo (after adding to DOM so we have the actual element)
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: itemDiv,
+                parent: listContainer,
+                nextSibling: itemDiv.nextSibling,
+                containerId: null,
+                updateNumbers: false,
+                isMatchingItem: true, // Flag to identify matching items
+                questionEl: questionEl, // Store question element for UI updates
+                side: side // Store which side (left/right)
+            });
             
             // Attach previews and set RTL direction
             const textarea = itemDiv.querySelector('textarea');
@@ -12000,6 +13726,19 @@
             const questionEl = matchingContainer ? matchingContainer.closest('.array-item') : null;
             
             if (confirm(`Are you sure you want to remove this ${side} item?`)) {
+                // Record action for undo/redo (before removing)
+                recordFormAction({
+                    type: ACTION_TYPES.REMOVE_ITEM,
+                    element: item.cloneNode(true), // Clone for restoration
+                    parent: item.parentElement,
+                    nextSibling: item.nextSibling,
+                    containerId: null,
+                    updateNumbers: false,
+                    isMatchingItem: true, // Flag to identify matching items
+                    questionEl: questionEl, // Store question element for UI updates
+                    side: side // Store which side (left/right)
+                });
+                
                 item.remove();
                 if (questionEl) {
                     updateMatchingItemNumbers(questionEl, side);
@@ -12566,7 +14305,7 @@
             
             return errors;
         }
-        
+
         function validateBlockLatex(content) {
             const errors = [];
             if (!content || content.trim().length === 0) {
@@ -13287,6 +15026,64 @@
                 validation_warnings_count: validationWarnings.length
             });
             
+        }
+        
+        // Collect form data without validation (for undo/redo purposes)
+        function collectFormDataWithoutValidation() {
+            const textbookPage = document.getElementById('textbook_page').value;
+            const textbookPdfPage = document.getElementById('textbook_pdf_page').value;
+            const guidebookStart = document.getElementById('guidebook_start_page').value;
+            const guidebookEnd = document.getElementById('guidebook_end_page').value;
+            const pageType = document.getElementById('page_type').value;
+            
+            // Collect form data and generate JSON (without validation)
+            const jsonData = {
+                textbook_page: textbookPage ? parseInt(textbookPage) : null,
+                textbook_pdf_page: textbookPdfPage ? parseInt(textbookPdfPage) : null,
+                guidebook_pdf_pages: generateGuidebookPageArray(),
+                page_type: pageType || "content",
+                lesson_preamble: null,
+                instructional_content: [],
+                practice_questions: []
+            };
+
+            // Collect content sections - only get the main content sections (direct children)
+            const contentElements = document.querySelectorAll('#content_sections_container > .array-item');
+            contentElements.forEach((contentEl) => {
+                try {
+                    const contentData = collectContentData(contentEl);
+                    jsonData.instructional_content.push(contentData);
+                } catch (error) {
+                    // Skip sections that fail to collect
+                    console.warn('Failed to collect content section:', error);
+                }
+            });
+
+            // Add lesson preamble if provided
+            const lessonId = document.getElementById('lesson_id').value;
+            if (lessonId) {
+                jsonData.lesson_preamble = {
+                    id: lessonId.trim(),
+                    title: document.getElementById('lesson_title').value || "",
+                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards input')).map(input => input.value).filter(v => v),
+                    terminology: Array.from(document.querySelectorAll('#terminology input')).map(input => input.value).filter(v => v),
+                    text: document.getElementById('lesson_text').value || ""
+                };
+            }
+
+            // Collect questions - only get the main questions (direct children)
+            const questionElements = document.querySelectorAll('#questions_container > .array-item');
+            questionElements.forEach((questionEl) => {
+                try {
+                    const questionData = collectQuestionData(questionEl);
+                    jsonData.practice_questions.push(questionData);
+                } catch (error) {
+                    // Skip questions that fail to collect
+                    console.warn('Failed to collect question:', error);
+                }
+            });
+            
+            return jsonData;
         }
 
         // Helper function to escape HTML special characters
@@ -14236,8 +16033,16 @@
             }
             
             // Add confirmation popup for loading JSON
-            if (!confirm('⚠️ Warning: Loading new JSON will delete everything you\'ve entered in the form.\nThis cannot be undone!\n\nDo you want to continue?')) {
+            if (!confirm('⚠️ Warning: Loading new JSON will delete everything you\'ve entered in the form.\n\nDo you want to continue?')) {
                 return;
+            }
+            
+            // Save current form state for undo (without validation)
+            let previousState = null;
+            try {
+                previousState = collectFormDataWithoutValidation();
+            } catch (e) {
+                console.warn('Could not save form state for undo:', e);
             }
             
             let data;
@@ -14269,7 +16074,20 @@
                 // Clear saved data when loading new JSON
                 clearSavedData();
                 
+                // Record action for undo/redo BEFORE populating (so population actions aren't recorded)
+                recordFormAction({
+                    type: ACTION_TYPES.LOAD_JSON,
+                    jsonData: data,
+                    previousState: previousState
+                });
+                
+                // Set flag to prevent actions during population from being recorded
+                isFormUndoRedoInProgress = true;
+                try {
                 populateFormFromJSON(data);
+                } finally {
+                    isFormUndoRedoInProgress = false;
+                }
                 
                 // Start a new session when JSON is loaded (user is starting new work)
                 startNewSession('json_load');
@@ -14283,7 +16101,8 @@
                 hasUnsavedChanges = false;
                 updateSaveIndicator('none');
                 
-                // Track JSON import with statistics
+                // Track JSON import with statistics (only if not during undo/redo)
+                if (!isFormUndoRedoInProgress) {
                 setTimeout(() => {
                     // Track session duration on JSON import (will be 0 or very small since we just started)
                     trackSessionDuration('json_import');
@@ -14319,6 +16138,7 @@
                 }, 500);
                 
                 alert('✅ Success! Your form has been filled with the data from the JSON.');
+                }
             } catch (e) {
                 console.error(e);
                 trackEvent('json_import_failed', {
@@ -15072,14 +16892,36 @@
 
         // Confirm before clearing the form
         function confirmClearForm() {
-            if (confirm('⚠️ Warning: This will delete everything you\'ve entered in the form and clear your saved progress.\nThis cannot be undone!\n\nAre you sure you want to clear the form?')) {
+            if (confirm('⚠️ Warning: This will delete everything you\'ve entered in the form and clear your saved progress.\n\nAre you sure you want to clear the form?')) {
+                // Save current form state for undo (without validation)
+                let savedState = null;
+                try {
+                    savedState = collectFormDataWithoutValidation();
+                } catch (e) {
+                    console.warn('Could not save form state for undo:', e);
+                }
+                
+                // Record action for undo/redo BEFORE clearing (so clearing actions aren't recorded)
+                recordFormAction({
+                    type: ACTION_TYPES.CLEAR_FORM,
+                    savedState: savedState,
+                    clearFunction: resetForm
+                });
+                
                 // Track form clearing
                 const stats = getFormStats();
                 trackEvent('form_cleared', {
                     total_questions_before_clear: stats.totalQuestions,
                     total_content_sections_before_clear: stats.totalContentSections
                 });
+                
+                // Set flag to prevent actions during reset from being recorded
+                isFormUndoRedoInProgress = true;
+                try {
                 resetForm(false);
+                } finally {
+                    isFormUndoRedoInProgress = false;
+                }
             }
         }
 
@@ -15652,6 +17494,9 @@
             // Track initial values when fields get focus
             container.addEventListener('focusin', (e) => {
                 if (e.target.matches('input, textarea, select')) {
+                    // Skip search input - it shouldn't trigger auto-save
+                    if (e.target.id === 'searchFilter') return;
+                    
                     // Store the value when field gets focus
                     fieldValues.set(e.target, e.target.value);
                 }
@@ -15660,6 +17505,9 @@
             // Track changes and auto-save on blur
             container.addEventListener('focusout', (e) => {
                 if (e.target.matches('input, textarea, select')) {
+                    // Skip search input - it shouldn't trigger auto-save
+                    if (e.target.id === 'searchFilter') return;
+                    
                     const originalValue = fieldValues.get(e.target);
                     const currentValue = e.target.value;
                     
@@ -15678,6 +17526,9 @@
             // Also track input events for immediate feedback (but save on blur)
             container.addEventListener('input', (e) => {
                 if (e.target.matches('input, textarea, select')) {
+                    // Skip search input - it shouldn't trigger auto-save
+                    if (e.target.id === 'searchFilter') return;
+                    
                     // Mark as changed immediately for visual feedback
                     const originalValue = fieldValues.get(e.target);
                     const currentValue = e.target.value;
@@ -15936,6 +17787,19 @@
                 subtree: true
             });
             
+            // Check if we should auto-open What's New modal for new version
+            checkAndOpenWhatsNew();
+            
+            // Update version displays (use DISPLAY_VERSION for UI, CURRENT_VERSION for internal tracking)
+            const versionNumberEl = document.getElementById('version-number');
+            const whatsNewVersionEl = document.getElementById('whats-new-version-number');
+            if (versionNumberEl) {
+                versionNumberEl.textContent = DISPLAY_VERSION;
+            }
+            if (whatsNewVersionEl) {
+                whatsNewVersionEl.textContent = DISPLAY_VERSION;
+            }
+            
         };
         
         // Helper function to format time ago
@@ -15965,13 +17829,14 @@
         }
         
         // Check if user needs to reload for latest version
+        // Note: CURRENT_VERSION and VERSION_SEEN_KEY are defined at the top of the script (line ~10)
         function checkVersionReload() {
             try {
                 const PAGE_LOAD_TIME_KEY = 'transcription_tool_page_load_time';
                 const RELOAD_PROMPT_INTERVAL = 3 * 24 * 60 * 60 * 1000; // 3 days
                 const PROMPT_SHOWN_KEY = 'transcription_tool_reload_prompt_shown';
                 const CURRENT_VERSION_KEY = 'transcription_tool_current_version';
-                const CURRENT_VERSION = '6.5'; // Update this when version changes
+                // CURRENT_VERSION is defined above - use that
                 const PAGE_LOAD_ID_KEY = 'transcription_tool_page_load_id';
                 
                 const now = new Date().getTime();
@@ -18027,11 +19892,18 @@
             }
         }, 100);
         // ===== WHAT'S NEW MODAL =====
+        // Note: CURRENT_VERSION and VERSION_SEEN_KEY are defined above (see line ~16527)
         
         function openWhatsNew() {
             const modal = document.getElementById('whats-new-modal');
             if (modal) {
                 modal.style.display = 'flex';
+                // Mark this version as seen
+                try {
+                    localStorage.setItem(VERSION_SEEN_KEY, CURRENT_VERSION);
+                } catch (e) {
+                    console.error('Failed to save version seen:', e);
+                }
             }
         }
         
@@ -18039,6 +19911,39 @@
             const modal = document.getElementById('whats-new-modal');
             if (modal) {
                 modal.style.display = 'none';
+            }
+        }
+        
+        // Check if we should auto-open What's New modal on page load
+        function checkAndOpenWhatsNew() {
+            try {
+                const lastSeenVersion = localStorage.getItem(VERSION_SEEN_KEY);
+                console.log('[What\'s New] Checking version - Last seen:', lastSeenVersion, 'Current:', CURRENT_VERSION);
+                // If no version has been seen, or if current version is different, show the modal
+                if (!lastSeenVersion || lastSeenVersion !== CURRENT_VERSION) {
+                    console.log('[What\'s New] Version mismatch detected - will open modal');
+                    // Wait a bit for the page to fully load before showing
+                    setTimeout(() => {
+                        const modal = document.getElementById('whats-new-modal');
+                        if (modal) {
+                            console.log('[What\'s New] Opening modal');
+                            modal.style.display = 'flex';
+                            // Mark this version as seen immediately when auto-opening
+                            try {
+                                localStorage.setItem(VERSION_SEEN_KEY, CURRENT_VERSION);
+                                console.log('[What\'s New] Saved version', CURRENT_VERSION, 'to localStorage');
+                            } catch (e) {
+                                console.error('Failed to save version seen:', e);
+                            }
+                        } else {
+                            console.error('[What\'s New] Modal element not found!');
+                        }
+                    }, 500);
+                } else {
+                    console.log('[What\'s New] Version already seen - skipping auto-open');
+                }
+            } catch (e) {
+                console.error('[What\'s New] Failed to check version:', e);
             }
         }
         
@@ -18062,18 +19967,37 @@
                     </h2>
                     <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 0.95rem;">Latest updates and improvements</p>
                 </div>
-                <button onclick="closeWhatsNew()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">
-                    <i class="fas fa-times"></i>
+                <button onclick="closeWhatsNew()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.3s; padding: 0;">
+                    <i class="fas fa-times" style="line-height: 1; display: block; transform: translateY(2px);"></i>
                 </button>
             </div>
             
             <!-- Content -->
             <div class="whats-new-modal-body">
+                <!-- Version (dynamically set) -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
+                        <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- New Features -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Form-Level Undo/Redo Buttons:</strong> New undo and redo buttons at the top of the page let you reverse or redo actions throughout the form. These buttons affect structural changes like adding or removing sections, questions, terminology, choices, matching items, bounding boxes, and images. They can save your work if you accidentally remove a section or even if you clear the entire form using the "Clear Form" button or load a JSON file. <strong>Important:</strong> This is completely different from the undo/redo buttons in each text field (which only affect markdown formatting operations like bold, italic, lists, etc.). The form-level undo/redo buttons work independently and track all major form actions, giving you a safety net for your work.</li>
+                            <li><strong>Smart Search:</strong> Find anything instantly across all your content sections and questions. As you type, a dropdown shows matching results with a preview of the text and highlights your search term. Each result clearly shows whether it's a section title, content text, question answer, choice, or other field. Click any result to jump directly to it, or use arrow keys to navigate. The search bar shows how many results were found and keeps your search term so you can easily check multiple matches.</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <!-- Version 6.5 -->
                 <div style="margin-bottom: 40px;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.5</span>
-                        <span class="whats-new-version-badge">Current Version</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- New Features -->
