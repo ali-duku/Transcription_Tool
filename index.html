@@ -4066,6 +4066,12 @@
                 targetTab = 'preamble';
             }
             
+            // Find the closest array-item (section/question) and expand it if collapsed
+            const arrayItem = element.closest('.array-item');
+            if (arrayItem && arrayItem.classList.contains('collapsed')) {
+                arrayItem.classList.remove('collapsed');
+            }
+            
             // Switch to input form main tab first
             showMainTab('input-form');
             
