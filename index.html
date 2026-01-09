@@ -4258,7 +4258,7 @@
                 // First, check if we can attach preview to the textarea temporarily
                 // But we don't want to modify the DOM, so we'll do a simplified render
                 
-                // Use a simplified rendering approach for preview
+                // Use the same math extraction approach as renderLivePreview
                 let md = (textarea.value || '').replace(/\r\n?/g, '\n');
                 const isLTR = textarea.hasAttribute('data-ltr');
                 const direction = isLTR ? 'ltr' : 'rtl';
@@ -4267,14 +4267,78 @@
                 targetElement.setAttribute('dir', direction);
                 targetElement.style.textAlign = textAlign;
                 
-                // Don't replace images yet - let markdown render them as <img> tags, then we'll process them
+                // Extract math expressions BEFORE markdown parsing (same as renderLivePreview)
+                const mathBlocks = [];
+                const inlineMath = [];
+                
+                // Extract block math ($$\n...\n$$)
+                md = md.replace(/\$\$\s*\\n([\s\S]*?)\\n\s*\$\$/g, (m, inner) => {
+                    let fixed = inner.replace(/\\n/g, '\n').trim();
+                    // Escape < and > symbols to prevent HTML interpretation issues
+                    fixed = fixed.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const hasEnv = /\\begin\{(aligned|align\*?|gather\*?)\}/.test(fixed);
+                    const hasLineBreaks = /\\\\/.test(fixed); // contains \\
+                    if (hasLineBreaks && !hasEnv) {
+                        fixed = `\\begin{aligned}\n${fixed}\n\\end{aligned}`;
+                    }
+                    const idx = mathBlocks.push(fixed) - 1;
+                    return `@@MATH_BLOCK_${idx}@@`;
+                });
+                
+                // Extract inline math ($...$) - increased limit to handle long expressions like arrays
+                md = md.replace(/(^|[^$])\$\s*([^$\n]{1,5000}?)\s*\$(?!\$)/g, (m, pre, inner) => {
+                    // Only process if we have a valid closing $ and reasonable content length
+                    if (inner.trim().length === 0) return m; // Don't process empty math
+                    // Escape < and > symbols to prevent HTML interpretation issues
+                    const escapedInner = inner.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return `${pre}@@INLINE_MATH_${inlineMath.push(escapedInner)-1}@@`;
+                });
+                
                 // Render markdown
                 if (window.marked && typeof window.marked.parse === 'function') {
                     if (window.marked.setOptions) {
                         window.marked.setOptions({ gfm: true, breaks: true });
                     }
                     let html = window.marked.parse(md);
+                    
+                    // Re-inject math placeholders as elements for KaTeX to render (block math first)
+                    mathBlocks.forEach((content, i) => {
+                        const token = `@@MATH_BLOCK_${i}@@`;
+                        const holder = `<div class="__math_block" data-math-idx="${i}" style="text-align: center; margin: 1em auto; display: block;"></div>`;
+                        html = html.split(token).join(holder);
+                    });
+                    
+                    // Unescape HTML entities that were escaped during math processing
+                    html = html.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                    
                     targetElement.innerHTML = html;
+                    
+                    // Replace inline math placeholders in text nodes
+                    const walker = document.createTreeWalker(targetElement, NodeFilter.SHOW_TEXT, null);
+                    const textNodes = [];
+                    while (walker.nextNode()) textNodes.push(walker.currentNode);
+                    const inlineRe = /@@INLINE_MATH_(\d+)@@/g;
+                    textNodes.forEach(node => {
+                        const text = node.nodeValue;
+                        if (!inlineRe.test(text)) return;
+                        inlineRe.lastIndex = 0;
+                        const frag = document.createDocumentFragment();
+                        let lastIndex = 0;
+                        let match;
+                        while ((match = inlineRe.exec(text)) !== null) {
+                            const before = text.slice(lastIndex, match.index);
+                            if (before) frag.appendChild(document.createTextNode(before));
+                            const idx = parseInt(match[1], 10);
+                            const span = document.createElement('span');
+                            span.className = '__math_inline';
+                            span.setAttribute('data-im', String(idx));
+                            frag.appendChild(span);
+                            lastIndex = match.index + match[0].length;
+                        }
+                        const after = text.slice(lastIndex);
+                        if (after) frag.appendChild(document.createTextNode(after));
+                        node.parentNode.replaceChild(frag, node);
+                    });
                     
                     // Process images to match original rendering exactly
                     // Create a temporary container to hold all images before processing
@@ -4349,32 +4413,72 @@
                     // Update targetElement with processed HTML
                     targetElement.innerHTML = tempContainer.innerHTML;
                     
-                    // Render math with KaTeX if available
-                    if (window.renderMathInElement) {
-                        window.renderMathInElement(targetElement, {
-                            delimiters: [
-                                {left: '$$', right: '$$', display: true},
-                                {left: '$', right: '$', display: false}
-                            ],
-                            throwOnError: false
-                        });
-                    } else if (window.katex) {
-                        // Fallback: manual KaTeX rendering
-                        targetElement.querySelectorAll('.__math_block').forEach(el => {
-                            try {
-                                window.katex.render(el.textContent, el, { displayMode: true, throwOnError: false });
+                    // Render math with KaTeX directly (same approach as renderLivePreview)
+                    if (window.katex) {
+                        // Render block math
+                        const blockNodes = targetElement.querySelectorAll('.__math_block');
+                        blockNodes.forEach(node => {
+                            const i = parseInt(node.getAttribute('data-math-idx'), 10);
+                            const originalTex = mathBlocks[i] || '';
+                            const isBold = !!(node.closest('strong, b'));
+                            const isItalic = !!(node.closest('em, i'));
+                            let texToRender = originalTex;
+                            // Avoid wrapping environments like aligned/align in macros
+                            if (texToRender && !/\\begin\{[\s\S]*?\}/.test(texToRender)) {
+                                if (isBold && isItalic) texToRender = `\\boldsymbol{\\mathit{${texToRender}}}`;
+                                else if (isBold) texToRender = `\\boldsymbol{${texToRender}}`;
+                                else if (isItalic) texToRender = `\\mathit{${texToRender}}`;
+                            }
+                            try { 
+                                // Unescape HTML entities back to original symbols for KaTeX
+                                texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                                window.katex.render(texToRender, node, { 
+                                    displayMode: true,
+                                    throwOnError: false,
+                                    output: 'html'
+                                }); 
+                                // Force centering after rendering
+                                node.style.textAlign = 'center';
+                                node.style.margin = '1em auto';
                             } catch (e) {
-                                console.error('KaTeX error:', e);
+                                console.error('KaTeX block error:', e);
                             }
                         });
-                        targetElement.querySelectorAll('.__math_inline').forEach(el => {
-                            try {
-                                window.katex.render(el.textContent, el, { displayMode: false, throwOnError: false });
+                        
+                        // Render inline math
+                        const inlineNodes = targetElement.querySelectorAll('.__math_inline');
+                        inlineNodes.forEach(node => {
+                            const i = parseInt(node.getAttribute('data-im'), 10);
+                            const originalTex = inlineMath[i] || '';
+                            const isBold = !!(node.closest('strong, b'));
+                            const isItalic = !!(node.closest('em, i'));
+                            let texToRender = originalTex;
+                            if (texToRender) {
+                                if (isBold && isItalic) texToRender = `\\boldsymbol{\\mathit{${texToRender}}}`;
+                                else if (isBold) texToRender = `\\boldsymbol{${texToRender}}`;
+                                else if (isItalic) texToRender = `\\mathit{${texToRender}}`;
+                            }
+                            try { 
+                                // Unescape HTML entities back to original symbols for KaTeX
+                                texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                                window.katex.render(texToRender, node, { 
+                                    displayMode: false,
+                                    throwOnError: false,
+                                    output: 'html'
+                                }); 
                             } catch (e) {
-                                console.error('KaTeX error:', e);
+                                console.error('KaTeX inline error:', e);
                             }
                         });
                     }
+                    
+                    // Force all LaTeX elements to be LTR regardless of parent direction
+                    const allMathElements = targetElement.querySelectorAll('.__math_block, .__math_inline, .katex, .katex-display, .katex-html, .katex *');
+                    allMathElements.forEach(mathEl => {
+                        mathEl.setAttribute('dir', 'ltr');
+                        mathEl.style.direction = 'ltr';
+                        mathEl.style.unicodeBidi = 'isolate';
+                    });
                 } else {
                     // Fallback: plain text
                     targetElement.textContent = md;
@@ -9681,8 +9785,9 @@
                     window.marked.setOptions({ gfm: true, breaks: true });
                 }
                 // Protect inline math $...$ before markdown parsing to avoid backslash escapes like \, turning into commas
+                // Increased limit to handle long expressions like arrays (was 200, now 5000)
                 const inlineMath = [];
-                md = md.replace(/(^|[^$])\$\s*([^$\n]{1,200}?)\s*\$(?!\$)/g, (m, pre, inner) => {
+                md = md.replace(/(^|[^$])\$\s*([^$\n]{1,5000}?)\s*\$(?!\$)/g, (m, pre, inner) => {
                     // Only process if we have a valid closing $ and reasonable content length
                     if (inner.trim().length === 0) return m; // Don't process empty math
                     // Escape < and > symbols to prevent HTML interpretation issues
