@@ -22,7 +22,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '6.6';
+        const DISPLAY_VERSION = '6.7';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -30,7 +30,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.6' to '6.7' when releasing version 6.7
-        const CURRENT_VERSION = '6.6.1';
+        const CURRENT_VERSION = '6.7';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -1218,6 +1218,33 @@
             align-items: center;
         }
 
+        .collapse-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .collapse-btn:hover {
+            background: #5a6268;
+        }
+
+        .array-item.collapsed .section-content {
+            display: none;
+        }
+
+        .array-item.collapsed .collapse-btn i {
+            transform: rotate(-90deg);
+        }
+
         .copy-section-btn {
             background: #17a2b8;
             color: white;
@@ -1425,6 +1452,14 @@
             unicode-bidi: isolate !important;
         }
         .live-preview[dir="rtl"] .katex-display { direction: ltr !important; }
+        /* Force image descriptions to always be LTR regardless of parent direction */
+        .live-preview .image-description-math,
+        .live-preview[dir="rtl"] .image-description-math,
+        .choice-preview-mini .image-description-math,
+        .choice-preview-mini[dir="rtl"] .image-description-math {
+            direction: ltr !important;
+            unicode-bidi: isolate !important;
+        }
         /* Center LaTeX block math */
         .live-preview .__math_block {
             text-align: center !important;
@@ -1803,6 +1838,10 @@
             margin-bottom: 20px;
             border-bottom: 2px solid #e9ecef;
         }
+        .tabs.main-tabs {
+            border-bottom: 3px solid #667eea;
+            margin-bottom: 20px;
+        }
 
         .tab {
             padding: 6px 14px;
@@ -1827,6 +1866,278 @@
 
         .tab-content.active {
             display: block;
+        }
+        .main-tab-content {
+            display: none;
+        }
+        .main-tab-content.active {
+            display: block;
+        }
+        .final-preview-container {
+            max-height: calc(100vh - 300px);
+            overflow-y: auto;
+            padding: 16px;
+            background: var(--bg-primary);
+        }
+        .final-preview-section {
+            margin-bottom: 32px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        [data-theme="dark"] .final-preview-section {
+            border: 2px solid #4a5568;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            background: #2d3748;
+        }
+        .final-preview-section h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: var(--accent);
+            font-size: 1.2rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+        .final-preview-section h4 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+        }
+        .final-preview-question {
+            margin-bottom: 24px;
+            padding: 16px;
+            background: white;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }
+        .final-preview-question h4 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: var(--accent);
+        }
+        .final-preview-question .question-type-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: var(--accent);
+            color: white;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 4px;
+            margin-bottom: 12px;
+        }
+        .final-preview-question .preview-section {
+            margin-bottom: 16px;
+        }
+        .final-preview-question .preview-section-label {
+            margin: 0 0 8px 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .final-preview-section .preview-section-label {
+            margin: 0 0 8px 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .final-preview-section .preview-section {
+            margin-bottom: 16px;
+        }
+        .final-preview-section .setup-text {
+            margin-bottom: 0;
+            padding: 0;
+            background: none;
+            border-radius: 0;
+            border: none;
+        }
+        .final-preview-question .setup-text {
+            margin-bottom: 0;
+            padding: 0;
+            background: none;
+            border-radius: 0;
+            border: none;
+        }
+        .final-preview-question .question-text {
+            margin-bottom: 0;
+            padding: 0;
+            font-weight: normal;
+            color: var(--text-primary);
+        }
+        .final-preview-question .choices-container {
+            margin: 0;
+        }
+        .final-preview-question .choice-item {
+            padding: 8px 12px;
+            margin: 8px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #dee2e6;
+        }
+        .final-preview-question .choice-item.correct {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+        .final-preview-question .choice-item .choice-id {
+            font-weight: 600;
+            color: var(--accent);
+            margin-right: 8px;
+        }
+        .final-preview-question .blanks-container {
+            margin: 0;
+        }
+        .final-preview-question .choices-container {
+            margin: 0;
+        }
+        .final-preview-question .blank-answer {
+            padding: 8px 12px;
+            margin: 8px 0;
+            background: #fff3cd;
+            border-radius: 4px;
+            border-left: 3px solid #ffc107;
+        }
+        .final-preview-question .blank-answer .blank-number {
+            font-weight: 600;
+            color: #856404;
+            margin-right: 8px;
+        }
+        .final-preview-question .blank-answer {
+            text-decoration: none;
+        }
+        .final-preview-question .blank-answer * {
+            text-decoration: none;
+        }
+        .final-preview-question .matching-container {
+            margin: 16px 0;
+        }
+        .final-preview-question .matching-items {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .final-preview-question .matching-side {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .final-preview-question .matching-side h5 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .final-preview-question .matching-item {
+            padding: 8px;
+            margin: 6px 0;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .final-preview-question .matching-item .live-preview {
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+        .final-preview-question .matching-side {
+            min-width: 0;
+            overflow: hidden;
+        }
+        .final-preview-question .matching-items {
+            overflow: hidden;
+        }
+        .final-preview-question .matching-relationships {
+            margin-top: 16px;
+            padding: 12px;
+            background: #e7f3ff;
+            border-radius: 4px;
+        }
+        .final-preview-question .matching-relationships h5 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #0056b3;
+        }
+        .final-preview-question .relationship-item {
+            padding: 6px;
+            margin: 4px 0;
+            background: white;
+            border-radius: 4px;
+        }
+        .final-preview-question .guide-answer {
+            margin-top: 0;
+            margin-bottom: 0;
+            padding: 0;
+            background: none;
+            border-radius: 0;
+            border: none;
+        }
+        .final-preview-question .guide-answer .preview-section-label {
+            margin: 0 0 8px 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        [data-theme="dark"] .final-preview-question {
+            background: #2d3748;
+            color: var(--text-primary);
+            border: 2px solid #4a5568;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
+        [data-theme="dark"] .final-preview-question .setup-text {
+            background: none;
+            border: none;
+        }
+        [data-theme="dark"] .final-preview-question .preview-section-label {
+            color: #a0aec0;
+        }
+        [data-theme="dark"] .final-preview-question .choice-item {
+            background: #2d3238;
+            border-left-color: #6c757d;
+        }
+        [data-theme="dark"] .final-preview-question .choice-item.correct {
+            background: #1e4620;
+            border-left-color: #28a745;
+        }
+        [data-theme="dark"] .final-preview-question .blank-answer {
+            background: #3d3520;
+            border-left-color: #ffc107;
+        }
+        [data-theme="dark"] .final-preview-question .matching-side {
+            background: #2d3238;
+        }
+        [data-theme="dark"] .final-preview-question .matching-item {
+            background: #1e1e1e;
+            border-color: #6c757d;
+        }
+        [data-theme="dark"] .final-preview-question .matching-relationships {
+            background: #1a3d52;
+        }
+        [data-theme="dark"] .final-preview-question .relationship-item {
+            background: #1e1e1e;
+        }
+        [data-theme="dark"] .final-preview-question .guide-answer {
+            background: none;
+            border: none;
         }
 
         .highlight {
@@ -3166,10 +3477,14 @@
         <div class="workflow-container">
             <!-- Form Section -->
             <div class="form-section">
-                <div class="form-header">
-                    <h2><i class="fas fa-edit"></i> Input Form</h2>
+                <!-- Main Tab Navigation: Input Form / Final Preview -->
+                <div class="tabs main-tabs">
+                    <button class="tab active" id="main-tab-input" onclick="showMainTab('input-form')" title="Edit the form data">Input Form</button>
+                    <button class="tab" id="main-tab-preview" onclick="showMainTab('final-preview')" title="Preview all sections and questions">Final Preview</button>
                 </div>
                 
+                <!-- Input Form Tab Content -->
+                <div id="input-form" class="main-tab-content active">
                 <div class="tabs">
                     <button class="tab active" onclick="showTab('basic')" title="Basic page information (page numbers, page type)">Basic Info</button>
                     <button class="tab" onclick="showTab('preamble')" title="Lesson metadata (ID, title, standards, terminology)">Lesson Preamble</button>
@@ -3380,6 +3695,16 @@
                         <p>• <strong>Copy/Paste:</strong> Use <i class="fas fa-copy"></i> to copy a question. Yellow <i class="fas fa-paste"></i> replaces current question, blue Paste button adds new question</p>
                     </div>
                 </div>
+                </div>
+                <!-- End Input Form Tab Content -->
+
+                <!-- Final Preview Tab Content -->
+                <div id="final-preview" class="main-tab-content">
+                    <div id="final-preview-content" class="final-preview-container">
+                        <!-- Preview content will be generated dynamically -->
+                    </div>
+                </div>
+                <!-- End Final Preview Tab Content -->
 
                 
             </div>
@@ -3654,13 +3979,16 @@
         };
 
         function showTab(tabName) {
-            // Hide all tab contents
-            const tabContents = document.querySelectorAll('.tab-content');
+            // Hide all tab contents (only within the input-form main tab)
+            const inputFormTab = document.getElementById('input-form');
+            if (inputFormTab) {
+                const tabContents = inputFormTab.querySelectorAll('.tab-content');
             tabContents.forEach(content => content.classList.remove('active'));
             
-            // Remove active class from all tabs
-            const tabs = document.querySelectorAll('.tab');
+                // Remove active class from all tabs within input-form
+                const tabs = inputFormTab.querySelectorAll('.tabs:not(.main-tabs) .tab');
             tabs.forEach(tab => tab.classList.remove('active'));
+            }
             
             // Show selected tab content
             const targetTabContent = document.getElementById(tabName);
@@ -3668,18 +3996,920 @@
                 targetTabContent.classList.add('active');
             }
             
-            // Add active class to corresponding tab button
-            const tabButtons = document.querySelectorAll('.tab');
+            // Add active class to corresponding tab button (only within input-form)
+            if (inputFormTab) {
+                const tabButtons = inputFormTab.querySelectorAll('.tabs:not(.main-tabs) .tab');
             tabButtons.forEach(tab => {
                 if (tab.getAttribute('onclick')?.includes(`'${tabName}'`) || 
                     tab.getAttribute('onclick')?.includes(`"${tabName}"`)) {
                     tab.classList.add('active');
                 }
             });
+            }
             
             // Track tab navigation
             trackEvent('tab_navigation', {
                 tab_name: tabName
+            });
+        }
+
+        function showMainTab(tabName) {
+            // Hide all main tab contents
+            const mainTabContents = document.querySelectorAll('.main-tab-content');
+            mainTabContents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all main tabs
+            const mainTabs = document.querySelectorAll('.main-tabs .tab');
+            mainTabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected main tab content
+            const targetMainTabContent = document.getElementById(tabName);
+            if (targetMainTabContent) {
+                targetMainTabContent.classList.add('active');
+                
+                // If showing final preview, generate it
+                if (tabName === 'final-preview') {
+                    generateFinalPreview();
+                }
+            }
+            
+            // Add active class to corresponding main tab button
+            mainTabs.forEach(tab => {
+                if (tab.id === `main-tab-${tabName === 'input-form' ? 'input' : 'preview'}`) {
+                    tab.classList.add('active');
+                }
+            });
+            
+            // Track main tab navigation
+            trackEvent('main_tab_navigation', {
+                tab_name: tabName
+            });
+        }
+
+        // Navigate to input field from preview
+        function navigateToInput(element) {
+            if (!element) return;
+            
+            // Determine which inner tab to switch to based on the element's location
+            let targetTab = 'basic'; // default
+            
+            // Check if element is in content sections
+            if (element.closest('#content_sections_container')) {
+                targetTab = 'content';
+            }
+            // Check if element is in questions
+            else if (element.closest('#questions_container')) {
+                targetTab = 'questions';
+            }
+            // Check if element is in preamble
+            else if (element.closest('#preamble')) {
+                targetTab = 'preamble';
+            }
+            
+            // Switch to input form main tab first
+            showMainTab('input-form');
+            
+            // Wait a bit, then switch to the correct inner tab
+            setTimeout(function() {
+                showTab(targetTab);
+                
+                // Wait for tab switch, then scroll to element
+                setTimeout(function() {
+                    if (element && element.scrollIntoView) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Highlight the element briefly
+                        const originalBg = element.style.backgroundColor;
+                        element.style.backgroundColor = '#fff3cd';
+                        element.style.transition = 'background-color 0.3s ease';
+                        setTimeout(function() {
+                            element.style.backgroundColor = originalBg;
+                            setTimeout(function() {
+                                element.style.transition = '';
+                            }, 300);
+                        }, 2000);
+                        // Focus the input if it's an input or textarea
+                        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+                            element.focus();
+                        } else {
+                            // Try to find and focus the input/textarea within
+                            const input = element.querySelector('input, textarea');
+                            if (input) input.focus();
+                        }
+                    }
+                }, 100);
+            }, 50);
+        }
+
+        // Generate Final Preview
+        function generateFinalPreview() {
+            const previewContainer = document.getElementById('final-preview-content');
+            if (!previewContainer) return;
+            
+            let html = '';
+            
+            // First, render all content sections
+            const contentSections = document.querySelectorAll('#content_sections_container > .array-item');
+            if (contentSections.length > 0) {
+                html += '<div class="final-preview-section"><h3>Content Sections</h3>';
+                contentSections.forEach((sectionEl, index) => {
+                    const titleInput = sectionEl.querySelector('input[placeholder="Section title"]');
+                    const textarea = sectionEl.querySelector('.text-field-container textarea');
+                    const title = titleInput ? titleInput.value || '' : '';
+                    const text = textarea ? textarea.value || '' : '';
+                    
+                    html += `<div class="final-preview-section">`;
+                    
+                    // Section Title Preview (separate box)
+                    if (title && titleInput) {
+                        // Find existing preview for title
+                        let titlePreview = null;
+                        let sibling = titleInput.nextElementSibling;
+                        while (sibling) {
+                            if (sibling.classList && sibling.classList.contains('live-preview')) {
+                                titlePreview = sibling;
+                                break;
+                            }
+                            sibling = sibling.nextElementSibling;
+                        }
+                        
+                        if (titlePreview && titlePreview.innerHTML) {
+                            // Use existing preview exactly as it is, but always RTL in final preview
+                            const sectionId = 'content-section-' + index;
+                            sectionEl.setAttribute('data-preview-id', sectionId);
+                            html += `<div class="preview-section" data-navigate-to="${sectionId}" data-target-element="title" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) input[placeholder=\\'Section title\\']'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Section Title</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${titlePreview.innerHTML}</div></div></div>`;
+                        } else {
+                            // Render title preview if it doesn't exist, but always RTL in final preview
+                            const tempTitlePreview = document.createElement('div');
+                            tempTitlePreview.className = 'live-preview';
+                            tempTitlePreview.setAttribute('dir', 'rtl');
+                            tempTitlePreview.style.textAlign = 'right';
+                            renderLivePreviewToElement(titleInput, tempTitlePreview);
+                            const sectionId = 'content-section-' + index;
+                            sectionEl.setAttribute('data-preview-id', sectionId);
+                            html += `<div class="preview-section" data-navigate-to="${sectionId}" data-target-element="title" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) input[placeholder=\\'Section title\\']'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Section Title</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${tempTitlePreview.innerHTML}</div></div></div>`;
+                        }
+                    }
+                    
+                    // Content Preview (separate box)
+                    if (text && textarea) {
+                        // Find existing preview for content
+                        let contentPreview = null;
+                        let sibling = textarea.nextElementSibling;
+                        while (sibling) {
+                            if (sibling.classList && sibling.classList.contains('live-preview')) {
+                                contentPreview = sibling;
+                                break;
+                            }
+                            sibling = sibling.nextElementSibling;
+                        }
+                        
+                        if (contentPreview && contentPreview.innerHTML) {
+                            // Use existing preview exactly as it is, but always RTL in final preview
+                            const sectionId = 'content-section-' + index;
+                            html += `<div class="preview-section" data-navigate-to="${sectionId}" data-target-element="content" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) .text-field-container textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Content</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${contentPreview.innerHTML}</div></div></div>`;
+                        } else {
+                            // Render content preview if it doesn't exist, but always RTL in final preview
+                            const tempContentPreview = document.createElement('div');
+                            tempContentPreview.className = 'live-preview';
+                            tempContentPreview.setAttribute('dir', 'rtl');
+                            tempContentPreview.style.textAlign = 'right';
+                            renderLivePreviewToElement(textarea, tempContentPreview);
+                            const sectionId = 'content-section-' + index;
+                            html += `<div class="preview-section" data-navigate-to="${sectionId}" data-target-element="content" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) .text-field-container textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Content</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${tempContentPreview.innerHTML}</div></div></div>`;
+                        }
+                    }
+                    
+                    // If neither title nor content exists
+                    if (!title && !text) {
+                        html += '<p style="color: #6c757d; font-style: italic;">(No content)</p>';
+                    }
+                    
+                    html += `</div>`;
+                });
+                html += '</div>';
+            }
+            
+            // Then, render all questions
+            const questions = document.querySelectorAll('#questions_container > .array-item');
+            if (questions.length > 0) {
+                html += '<div class="final-preview-section"><h3>Questions</h3>';
+                questions.forEach((questionEl, index) => {
+                    html += renderQuestionPreview(questionEl, index);
+                });
+                html += '</div>';
+            }
+            
+            // If no content, show message
+            if (contentSections.length === 0 && questions.length === 0) {
+                html = '<div class="final-preview-section"><p style="color: #6c757d; font-style: italic;">No content sections or questions to preview. Add some content in the Input Form tab.</p></div>';
+            }
+            
+            previewContainer.innerHTML = html;
+            
+            // Draw matching lines after DOM is ready
+            setTimeout(function() {
+                drawMatchingLines();
+            }, 300);
+            
+            // Also try again after a longer delay in case rendering takes time
+            setTimeout(function() {
+                drawMatchingLines();
+            }, 1000);
+            
+            // Re-render any LaTeX or markdown in the preview
+            previewContainer.querySelectorAll('.live-preview').forEach(preview => {
+                // Math rendering will be handled by existing KaTeX setup
+                if (window.renderMathInElement) {
+                    window.renderMathInElement(preview, {
+                        delimiters: [
+                            {left: '$$', right: '$$', display: true},
+                            {left: '$', right: '$', display: false}
+                        ]
+                    });
+                }
+            });
+        }
+
+        // Helper function to render markdown to an element (similar to renderLivePreview but for a target element)
+        function renderLivePreviewToElement(textarea, targetElement) {
+            if (!targetElement || !textarea) return;
+            
+            try {
+                // Check if textarea already has a rendered preview - if so, use that
+                let existingPreview = null;
+                let sibling = textarea.nextElementSibling;
+                while (sibling) {
+                    if (sibling.classList && sibling.classList.contains('live-preview')) {
+                        existingPreview = sibling;
+                        break;
+                    }
+                    sibling = sibling.nextElementSibling;
+                }
+                
+                // If preview exists and has content, copy it
+                if (existingPreview && existingPreview.innerHTML) {
+                    targetElement.innerHTML = existingPreview.innerHTML;
+                    targetElement.setAttribute('dir', existingPreview.getAttribute('dir') || 'rtl');
+                    targetElement.style.textAlign = existingPreview.style.textAlign || 'right';
+                    return;
+                }
+                
+                // Otherwise, trigger a render by calling renderLivePreview if the preview element exists
+                // First, check if we can attach preview to the textarea temporarily
+                // But we don't want to modify the DOM, so we'll do a simplified render
+                
+                // Use a simplified rendering approach for preview
+                let md = (textarea.value || '').replace(/\r\n?/g, '\n');
+                const isLTR = textarea.hasAttribute('data-ltr');
+                const direction = isLTR ? 'ltr' : 'rtl';
+                const textAlign = isLTR ? 'left' : 'right';
+                
+                targetElement.setAttribute('dir', direction);
+                targetElement.style.textAlign = textAlign;
+                
+                // Don't replace images yet - let markdown render them as <img> tags, then we'll process them
+                // Render markdown
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    if (window.marked.setOptions) {
+                        window.marked.setOptions({ gfm: true, breaks: true });
+                    }
+                    let html = window.marked.parse(md);
+                    targetElement.innerHTML = html;
+                    
+                    // Process images to match original rendering exactly
+                    // Create a temporary container to hold all images before processing
+                    const tempContainer = document.createElement('div');
+                    tempContainer.innerHTML = targetElement.innerHTML;
+                    const imgs = tempContainer.querySelectorAll('img[alt]');
+                    
+                    imgs.forEach(img => {
+                        const alt = img.getAttribute('alt') || '';
+                        const src = img.getAttribute('src') || '';
+                        
+                        // Description is in alt, index is in src (from markdown ![desc](index))
+                        let description = alt;
+                        
+                        // Create container matching original format
+                        const container = document.createElement('div');
+                        container.style.display = 'block';
+                        container.style.textAlign = 'center';
+                        container.style.margin = '12px auto';
+                        
+                        // Create placeholder matching original
+                        const placeholder = document.createElement('div');
+                        placeholder.style.width = '200px';
+                        placeholder.style.height = '150px';
+                        placeholder.style.backgroundColor = '#f0f0f0';
+                        placeholder.style.border = '2px dashed #ccc';
+                        placeholder.style.borderRadius = '4px';
+                        placeholder.style.display = 'flex';
+                        placeholder.style.alignItems = 'center';
+                        placeholder.style.justifyContent = 'center';
+                        placeholder.style.margin = '0 auto';
+                        placeholder.innerHTML = '<span style="color: #999; font-size: 14px;">📷 Image</span>';
+                        
+                        // Create caption span
+                        const captionSpan = document.createElement('span');
+                        captionSpan.className = 'image-description-math';
+                        captionSpan.style.display = 'block';
+                        captionSpan.style.marginTop = '4px';
+                        captionSpan.style.direction = 'ltr';
+                        captionSpan.style.unicodeBidi = 'isolate';
+                        
+                        // Add description if it exists
+                        if (description) {
+                            // Check for LaTeX in description (from original renderLivePreview processing)
+                            if (description.includes('@@INLINE_MATH_')) {
+                                const parts = description.split(/@@INLINE_MATH_(\d+)@@/);
+                                parts.forEach((part, idx) => {
+                                    if (idx % 2 === 0) {
+                                        if (part) captionSpan.appendChild(document.createTextNode(part));
+                                    } else {
+                                        const mathSpan = document.createElement('span');
+                                        mathSpan.className = '__math_inline';
+                                        mathSpan.setAttribute('data-im', part);
+                                        captionSpan.appendChild(mathSpan);
+                                    }
+                                });
+                            } else {
+                                captionSpan.appendChild(document.createTextNode(description));
+                            }
+                            container.appendChild(placeholder);
+                            if (captionSpan.firstChild) {
+                                container.appendChild(captionSpan);
+                            }
+                        } else {
+                            container.appendChild(placeholder);
+                        }
+                        
+                        // Replace img with container
+                        img.parentElement.replaceChild(container, img);
+                    });
+                    
+                    // Update targetElement with processed HTML
+                    targetElement.innerHTML = tempContainer.innerHTML;
+                    
+                    // Render math with KaTeX if available
+                    if (window.renderMathInElement) {
+                        window.renderMathInElement(targetElement, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false}
+                            ],
+                            throwOnError: false
+                        });
+                    } else if (window.katex) {
+                        // Fallback: manual KaTeX rendering
+                        targetElement.querySelectorAll('.__math_block').forEach(el => {
+                            try {
+                                window.katex.render(el.textContent, el, { displayMode: true, throwOnError: false });
+                            } catch (e) {
+                                console.error('KaTeX error:', e);
+                            }
+                        });
+                        targetElement.querySelectorAll('.__math_inline').forEach(el => {
+                            try {
+                                window.katex.render(el.textContent, el, { displayMode: false, throwOnError: false });
+                            } catch (e) {
+                                console.error('KaTeX error:', e);
+                            }
+                        });
+                    }
+                } else {
+                    // Fallback: plain text
+                    targetElement.textContent = md;
+                }
+                
+            } catch (e) {
+                console.error('Error rendering preview:', e);
+                // Fallback: simple text display
+                targetElement.textContent = textarea ? textarea.value || '' : '';
+            }
+        }
+
+        // Render a question preview based on its type
+        function renderQuestionPreview(questionEl, index) {
+            const questionIdInput = findFieldByLabel(questionEl, 'Question ID', 'input');
+            const questionId = questionIdInput ? questionIdInput.value || `${index + 1}` : `${index + 1}`;
+            
+            const questionTypeSelect = questionEl.querySelector('select[onchange*="toggleQuestionType"]');
+            const questionType = questionTypeSelect ? questionTypeSelect.value : 'free_form';
+            
+            const setupTextarea = findFieldByLabel(questionEl, 'Set-up Text', 'textarea');
+            const setupText = setupTextarea ? setupTextarea.value || '' : '';
+            
+            const questionTextarea = questionEl.querySelector('textarea[placeholder*="Enter question text"]');
+            const questionText = questionTextarea ? questionTextarea.value || '' : '';
+            
+            const questionTypeLabels = {
+                'free_form': 'Free Form',
+                'multiple_choice': 'Multiple Choice',
+                'checkbox': 'Checkbox',
+                'fill_in_the_blanks': 'Fill in the Blanks',
+                'matching': 'Matching',
+                'annotate': 'Annotate',
+                'create_table': 'Create Table'
+            };
+            
+            let html = `<div class="final-preview-question">`;
+            html += `<h4>Question ${questionId}</h4>`;
+            html += `<span class="question-type-badge">${questionTypeLabels[questionType] || 'Question'}</span>`;
+            
+            // Setup text - show if not empty (check both value and trimmed value)
+            // Always RTL in final preview
+            if (setupTextarea && setupText && setupText.trim()) {
+                const setupPreview = document.createElement('div');
+                setupPreview.className = 'live-preview setup-text';
+                setupPreview.setAttribute('dir', 'rtl');
+                setupPreview.style.textAlign = 'right';
+                renderLivePreviewToElement(setupTextarea, setupPreview);
+                const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+                // Store the setup textarea reference for navigation
+                const setupTextareaId = setupTextarea.id || `setup-textarea-${Date.now()}-${questionIndex}`;
+                if (!setupTextarea.id) {
+                    setupTextarea.id = setupTextareaId;
+                }
+                html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('${setupTextareaId}'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Setup Text</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${setupPreview.innerHTML}</div></div></div>`;
+            }
+            
+            // Question text - always RTL in final preview
+            if (questionText) {
+                const questionPreview = document.createElement('div');
+                questionPreview.className = 'live-preview question-text';
+                questionPreview.setAttribute('dir', 'rtl');
+                questionPreview.style.textAlign = 'right';
+                renderLivePreviewToElement(questionTextarea, questionPreview);
+                const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+                html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('textarea[placeholder*=\\'Enter question text\\']'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Question Text</h5><div class="question-text"><div class="live-preview" dir="rtl" style="text-align: right;">${questionPreview.innerHTML}</div></div></div>`;
+            }
+            
+            // Render based on question type
+            if (questionType === 'multiple_choice' || questionType === 'checkbox') {
+                html += renderMultipleChoicePreview(questionEl, questionType);
+                // Guide answer is already included in renderMultipleChoicePreview
+            } else if (questionType === 'fill_in_the_blanks') {
+                html += renderFillInBlanksPreview(questionEl);
+                // Guide answer is already included in renderFillInBlanksPreview
+            } else if (questionType === 'matching') {
+                html += renderMatchingPreview(questionEl);
+                // Guide answer is already included in renderMatchingPreview
+            } else if (questionType === 'annotate' || questionType === 'create_table' || questionType === 'free_form') {
+                html += renderGuideAnswerPreview(questionEl, questionType);
+            }
+            
+            html += `</div>`;
+            return html;
+        }
+
+        // Render multiple choice or checkbox preview
+        function renderMultipleChoicePreview(questionEl, questionType) {
+            const choicesList = questionEl.querySelector('[id^="choices-list-"]');
+            if (!choicesList) return '';
+            
+            const choices = choicesList.querySelectorAll('.choice-item');
+            if (choices.length === 0) return '';
+            
+            const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+            let html = '<div class="preview-section"><div class="choices-container"><h5 class="preview-section-label">Choices</h5>';
+            
+            choices.forEach((choiceEl, index) => {
+                const choiceIdInput = choiceEl.querySelector('input[placeholder*="Choice ID"]');
+                const choiceId = choiceIdInput ? choiceIdInput.value || String.fromCharCode(65 + index) : String.fromCharCode(65 + index);
+                
+                const choiceTextarea = choiceEl.querySelector('textarea');
+                const choiceText = choiceTextarea ? choiceTextarea.value || '' : '';
+                
+                // For multiple_choice, check if this choice position is selected in the correct answer radios
+                let isCorrect = false;
+                if (questionType === 'multiple_choice') {
+                    const radiosContainer = questionEl.querySelector('[id^="correct-answer-radios-"]');
+                    if (radiosContainer) {
+                        const checkedRadio = radiosContainer.querySelector('.choice-correct-radio:checked');
+                        if (checkedRadio && parseInt(checkedRadio.value) === index + 1) {
+                            isCorrect = true;
+                        }
+                    }
+                } else if (questionType === 'checkbox') {
+                    isCorrect = choiceEl.querySelector('input[type="checkbox"].choice-correct:checked') !== null;
+                }
+                
+                html += `<div class="choice-item ${isCorrect ? 'correct' : ''}" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelectorAll('.choice-item')[${index}].querySelector('textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`;
+                html += `<span class="choice-id">${escapeHtml(choiceId)}.</span>`;
+                
+                if (choiceText) {
+                    const choicePreview = document.createElement('div');
+                    choicePreview.className = 'live-preview';
+                    // Always RTL in final preview
+                    choicePreview.setAttribute('dir', 'rtl');
+                    choicePreview.style.textAlign = 'right';
+                    renderLivePreviewToElement(choiceTextarea, choicePreview);
+                    html += `<div class="live-preview" dir="rtl" style="text-align: right;">${choicePreview.innerHTML}</div>`;
+                } else {
+                    html += '<span style="color: #6c757d; font-style: italic;">(No choice text)</span>';
+                }
+                
+                if (isCorrect) {
+                    html += ' <span style="color: #28a745; font-weight: 600;">✓ Correct</span>';
+                }
+                
+                html += `</div>`;
+            });
+            
+            html += '</div></div>';
+            
+            // Guide answer (same approach as fill_in_the_blanks and matching)
+            // For multiple_choice and checkbox, guide answer is inside the choices container
+            const choicesContainer = questionEl.querySelector('#choices-container');
+            if (choicesContainer) {
+                const guideAnswerTextarea = choicesContainer.querySelector('.guide-answer-notes');
+                if (guideAnswerTextarea && guideAnswerTextarea.value && guideAnswerTextarea.value.trim()) {
+                    const guidePreview = document.createElement('div');
+                    guidePreview.className = 'live-preview';
+                    // Always RTL in final preview
+                    guidePreview.setAttribute('dir', 'rtl');
+                    guidePreview.style.textAlign = 'right';
+                    renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('#choices-container .guide-answer-notes'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><div class="guide-answer"><h5 class="preview-section-label">Guide Answer</h5><div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div></div></div>`;
+                }
+            }
+            
+            return html;
+        }
+
+        // Render fill in the blanks preview
+        function renderFillInBlanksPreview(questionEl) {
+            const blanksContainer = questionEl.querySelector('#blanks-container');
+            if (!blanksContainer) return '';
+            
+            const blanksAnswersContainer = questionEl.querySelector('#blanks-answers-container');
+            const questionTextarea = questionEl.querySelector('textarea[placeholder*="Enter question text"]');
+            const questionText = questionTextarea ? questionTextarea.value || '' : '';
+            
+            const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+            let html = '';
+            
+            // Blank answers list (comes first)
+            const blankAnswers = blanksContainer.querySelectorAll('.blank-answer-item');
+            if (blankAnswers.length > 0) {
+                html += '<div class="preview-section"><div class="blanks-container"><h5 class="preview-section-label">Answers</h5>';
+                
+                blankAnswers.forEach((blankEl, index) => {
+                    const blankNumber = index + 1;
+                    const blankTextarea = blankEl.querySelector('textarea');
+                    const blankText = blankTextarea ? blankTextarea.value || '' : '';
+                    
+                    html += `<div class="blank-answer" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelectorAll('#blanks-container .blank-answer-item')[${index}].querySelector('textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`;
+                    html += `<span class="blank-number">Blank ${blankNumber}:</span>`;
+                    
+                    if (blankText) {
+                        const blankPreview = document.createElement('div');
+                        blankPreview.className = 'live-preview';
+                        // Always RTL in final preview
+                        blankPreview.setAttribute('dir', 'rtl');
+                        blankPreview.style.textAlign = 'right';
+                        renderLivePreviewToElement(blankTextarea, blankPreview);
+                        html += `<div class="live-preview" dir="rtl" style="text-align: right;">${blankPreview.innerHTML}</div>`;
+                    } else {
+                        html += '<span style="color: #6c757d; font-style: italic;">(No answer)</span>';
+                    }
+                    
+                    html += `</div>`;
+                });
+                
+                html += '</div></div>';
+            }
+            
+            // Add filled blanks preview (question text with answers inserted) - comes after Answers
+            if (questionText && blanksAnswersContainer && typeof parseBlanksFromText === 'function') {
+                const blankItems = blanksAnswersContainer.querySelectorAll('.blank-answer-item');
+                const blankAnswersMap = {};
+                
+                blankItems.forEach(item => {
+                    const blankNum = item.dataset.blankNumber;
+                    const textarea = item.querySelector('.blank-answer-input');
+                    if (textarea && blankNum) {
+                        blankAnswersMap[blankNum] = textarea.value.trim();
+                    }
+                });
+                
+                const blanks = parseBlanksFromText(questionText);
+                const allFilled = blanks.length > 0 && blanks.every(num => blankAnswersMap[num] && blankAnswersMap[num].trim());
+                
+                if (allFilled) {
+                    // Replace blanks with answers
+                    let filledText = questionText;
+                    blanks.forEach(num => {
+                        const answer = blankAnswersMap[num] || '';
+                        const regex = new RegExp(`___${num}___`, 'g');
+                        // Use the same styling as the input form preview
+                        filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">${escapeHtml(answer)}</span>`);
+                    });
+                    
+                    const filledPreview = document.createElement('div');
+                    filledPreview.className = 'live-preview';
+                    // Always RTL in final preview
+                    filledPreview.setAttribute('dir', 'rtl');
+                    filledPreview.style.textAlign = 'right';
+                    
+                    // Create temporary textarea to use renderLivePreviewToElement
+                    const tempTextarea = document.createElement('textarea');
+                    tempTextarea.value = filledText;
+                    tempTextarea.setAttribute('dir', 'rtl');
+                    renderLivePreviewToElement(tempTextarea, filledPreview);
+                    
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('textarea[placeholder*=\\'Enter question text\\']'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Preview with Answers</h5><div class="live-preview" dir="rtl" style="text-align: right;">${filledPreview.innerHTML}</div></div>`;
+                }
+            }
+            
+            // Guide answer - always RTL in final preview
+            const guideAnswerTextarea = blanksContainer.querySelector('.guide-answer-notes');
+            if (guideAnswerTextarea && guideAnswerTextarea.value && guideAnswerTextarea.value.trim()) {
+                const guidePreview = document.createElement('div');
+                guidePreview.className = 'live-preview';
+                guidePreview.setAttribute('dir', 'rtl');
+                guidePreview.style.textAlign = 'right';
+                renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('#blanks-container .guide-answer-notes'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><div class="guide-answer"><h5 class="preview-section-label">Guide Answer</h5><div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div></div></div>`;
+            }
+            
+            return html;
+        }
+
+        // Render matching preview
+        function renderMatchingPreview(questionEl) {
+            const matchingContainer = questionEl.querySelector('#matching-container');
+            if (!matchingContainer) return '';
+            
+            const leftList = matchingContainer.querySelector('[id^="matching-left-list-"]');
+            const rightList = matchingContainer.querySelector('[id^="matching-right-list-"]');
+            const relationships = matchingContainer.querySelectorAll('.relationship-item');
+            
+            // Collect relationships data
+            const relationshipsMap = [];
+            relationships.forEach((relEl, index) => {
+                // Find all select elements in this relationship item
+                const selects = relEl.querySelectorAll('select');
+                if (selects.length >= 2) {
+                    const leftSelect = selects[0];
+                    const rightSelect = selects[1];
+                    const leftVal = leftSelect ? parseInt(leftSelect.value) : null;
+                    const rightVal = rightSelect ? parseInt(rightSelect.value) : null;
+                    if (leftVal && rightVal && !isNaN(leftVal) && !isNaN(rightVal)) {
+                        relationshipsMap.push({ left: leftVal - 1, right: rightVal - 1 }); // Convert to 0-indexed
+                    }
+                }
+            });
+            
+            // Collect left and right items with their textareas for proper rendering
+            const leftItems = [];
+            const rightItems = [];
+            
+            if (leftList) {
+                const leftItemEls = leftList.querySelectorAll('.matching-item');
+                leftItemEls.forEach((itemEl, index) => {
+                    const textarea = itemEl.querySelector('textarea');
+                    leftItems.push({ index: index, textarea: textarea, text: textarea ? textarea.value || '' : '' });
+                });
+            }
+            
+            if (rightList) {
+                const rightItemEls = rightList.querySelectorAll('.matching-item');
+                rightItemEls.forEach((itemEl, index) => {
+                    const textarea = itemEl.querySelector('textarea');
+                    rightItems.push({ index: index, textarea: textarea, text: textarea ? textarea.value || '' : '' });
+                });
+            }
+            
+            const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+            let html = '<div class="preview-section"><div class="matching-container">';
+            html += '<h5 class="preview-section-label">Matching Items</h5>';
+            
+            // Create a container with relative positioning for SVG lines
+            // Use a simpler grid layout: left items | spacer for lines | right items
+            html += `<div class="matching-items" id="matching-items-${Date.now()}" style="position: relative; display: grid; grid-template-columns: 1fr 120px 1fr; gap: 20px; align-items: start; margin: 16px 0; overflow: hidden;">`;
+            
+            // Left items with unique IDs for positioning
+            html += '<div class="matching-side" id="left-side-container" style="position: relative; min-width: 0; overflow: hidden;">';
+            html += '<h5 style="font-size: 0.85rem; margin: 0 0 8px 0; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Left Items</h5>';
+            leftItems.forEach((item, index) => {
+                const itemId = `left-item-${Date.now()}-${index}`;
+                html += `<div id="${itemId}" class="matching-item" data-left-index="${index}" style="margin-bottom: 12px; padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 100%; box-sizing: border-box; position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelectorAll('[id^=\\'matching-left-list-\\'] .matching-item')[${index}].querySelector('textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`;
+                html += `<strong>L${index + 1}:</strong> `;
+                if (item.textarea && item.text) {
+                    const itemPreview = document.createElement('div');
+                    itemPreview.className = 'live-preview';
+                    // Always RTL in final preview
+                    itemPreview.setAttribute('dir', 'rtl');
+                    itemPreview.style.textAlign = 'right';
+                    renderLivePreviewToElement(item.textarea, itemPreview);
+                    html += `<div class="live-preview" dir="rtl" style="text-align: right; display: inline-block; margin-left: 4px; max-width: 100%; overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; box-sizing: border-box;">${itemPreview.innerHTML}</div>`;
+                } else {
+                    html += '<span style="color: #6c757d; font-style: italic;">(Empty)</span>';
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+            
+            // SVG container - will be positioned after items render
+            const svgContainerId = `svg-container-${Date.now()}`;
+            html += `<div id="${svgContainerId}" style="position: relative; width: 120px; min-height: 200px; flex-shrink: 0;"></div>`;
+            
+            // Right items with unique IDs for positioning
+            html += '<div class="matching-side" id="right-side-container" style="position: relative; min-width: 0; overflow: hidden;">';
+            html += '<h5 style="font-size: 0.85rem; margin: 0 0 8px 0; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Right Items</h5>';
+            rightItems.forEach((item, index) => {
+                const itemId = `right-item-${Date.now()}-${index}`;
+                html += `<div id="${itemId}" class="matching-item" data-right-index="${index}" style="margin-bottom: 12px; padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 4px; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; max-width: 100%; box-sizing: border-box; position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelectorAll('[id^=\\'matching-right-list-\\'] .matching-item')[${index}].querySelector('textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`;
+                html += `<strong>R${index + 1}:</strong> `;
+                if (item.textarea && item.text) {
+                    const itemPreview = document.createElement('div');
+                    itemPreview.className = 'live-preview';
+                    // Always RTL in final preview
+                    itemPreview.setAttribute('dir', 'rtl');
+                    itemPreview.style.textAlign = 'right';
+                    renderLivePreviewToElement(item.textarea, itemPreview);
+                    html += `<div class="live-preview" dir="rtl" style="text-align: right; display: inline-block; margin-left: 4px; max-width: 100%; overflow-wrap: break-word; word-wrap: break-word; word-break: break-word; box-sizing: border-box;">${itemPreview.innerHTML}</div>`;
+                } else {
+                    html += '<span style="color: #6c757d; font-style: italic;">(Empty)</span>';
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+            
+            html += '</div>'; // Close grid container
+            
+            // Store relationship data in data attributes for JavaScript to process later
+            if (relationshipsMap.length > 0) {
+                // Store as JSON string, properly escaped for HTML attribute
+                const relationshipsJson = JSON.stringify(relationshipsMap).replace(/"/g, '&quot;');
+                html += '<div data-relationships="' + relationshipsJson + '" data-svg-container-id="' + svgContainerId + '" style="display: none;"></div>';
+            }
+            html += '</div></div>'; // Close matching-container and preview-section
+            
+            // Guide answer - separate preview section - always RTL in final preview
+            const guideAnswerTextarea = matchingContainer.querySelector('.guide-answer-notes');
+            if (guideAnswerTextarea && guideAnswerTextarea.value && guideAnswerTextarea.value.trim()) {
+                const guidePreview = document.createElement('div');
+                guidePreview.className = 'live-preview';
+                guidePreview.setAttribute('dir', 'rtl');
+                guidePreview.style.textAlign = 'right';
+                renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
+                html += `<div class="preview-section"><div class="guide-answer"><h5 class="preview-section-label">Guide Answer</h5><div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div></div></div>`;
+            }
+            
+            return html;
+        }
+
+        // Render guide answer preview (for free_form, annotate, create_table)
+        function renderGuideAnswerPreview(questionEl, questionType) {
+            // Check all possible locations for guide answer
+            let guideAnswerTextarea = null;
+            
+            // First, check in #guide-answer-container (for multiple_choice, checkbox, free_form, annotate, create_table)
+            const guideAnswerContainer = questionEl.querySelector('#guide-answer-container');
+            if (guideAnswerContainer) {
+                guideAnswerTextarea = guideAnswerContainer.querySelector('textarea');
+            }
+            
+            // If not found, check in blanks container (for fill_in_the_blanks)
+            if (!guideAnswerTextarea) {
+                const blanksContainer = questionEl.querySelector('#blanks-container');
+                if (blanksContainer) {
+                    guideAnswerTextarea = blanksContainer.querySelector('.guide-answer-notes');
+                }
+            }
+            
+            // If not found, check in matching container (for matching)
+            if (!guideAnswerTextarea) {
+                const matchingContainer = questionEl.querySelector('#matching-container');
+                if (matchingContainer) {
+                    guideAnswerTextarea = matchingContainer.querySelector('.guide-answer-notes');
+                }
+            }
+            
+            if (!guideAnswerTextarea || !guideAnswerTextarea.value || !guideAnswerTextarea.value.trim()) {
+                return '';
+            }
+            
+            const guidePreview = document.createElement('div');
+            guidePreview.className = 'live-preview';
+            // Always RTL in final preview
+            guidePreview.setAttribute('dir', 'rtl');
+            guidePreview.style.textAlign = 'right';
+            renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
+            
+            // Always use "Guide Answer" as the label
+            const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+            // Find the selector for the guide answer textarea
+            let guideSelector = '';
+            if (questionEl.querySelector('#guide-answer-container textarea')) {
+                guideSelector = '#guide-answer-container textarea';
+            } else if (questionEl.querySelector('#blanks-container .guide-answer-notes')) {
+                guideSelector = '#blanks-container .guide-answer-notes';
+            } else if (questionEl.querySelector('#matching-container .guide-answer-notes')) {
+                guideSelector = '#matching-container .guide-answer-notes';
+            }
+            
+            return `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('${guideSelector}'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><div class="guide-answer"><h5 class="preview-section-label">Guide Answer</h5><div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div></div></div>`;
+        }
+
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Draw matching lines after DOM is rendered
+        function drawMatchingLines() {
+            const previewContainer = document.getElementById('final-preview-content');
+            if (!previewContainer) {
+                console.log('drawMatchingLines: previewContainer not found');
+                return;
+            }
+            
+            // Find all matching containers with relationship data
+            const relationshipDataEls = previewContainer.querySelectorAll('[data-relationships]');
+            console.log('drawMatchingLines: found', relationshipDataEls.length, 'relationship data elements');
+            
+            relationshipDataEls.forEach(function(dataEl) {
+                try {
+                    const relationshipsJson = dataEl.getAttribute('data-relationships');
+                    if (!relationshipsJson) {
+                        console.log('drawMatchingLines: no relationships data');
+                        return;
+                    }
+                    
+                    // Unescape HTML entities
+                    const relationshipsStr = relationshipsJson.replace(/&quot;/g, '"');
+                    const relationships = JSON.parse(relationshipsStr);
+                    const svgContainerId = dataEl.getAttribute('data-svg-container-id');
+                    
+                    console.log('drawMatchingLines: relationships', relationships, 'svgContainerId', svgContainerId);
+                    
+                    const svgContainer = document.getElementById(svgContainerId);
+                    const matchingContainer = dataEl.closest('.matching-container');
+                    
+                    if (!svgContainer) {
+                        console.log('drawMatchingLines: svgContainer not found for id', svgContainerId);
+                        return;
+                    }
+                    if (!matchingContainer) {
+                        console.log('drawMatchingLines: matchingContainer not found');
+                        return;
+                    }
+                    
+                    const leftContainer = matchingContainer.querySelector('#left-side-container');
+                    const rightContainer = matchingContainer.querySelector('#right-side-container');
+                    
+                    if (!leftContainer) {
+                        console.log('drawMatchingLines: leftContainer not found');
+                        return;
+                    }
+                    if (!rightContainer) {
+                        console.log('drawMatchingLines: rightContainer not found');
+                        return;
+                    }
+                    
+                    const leftItems = leftContainer.querySelectorAll('.matching-item');
+                    const rightItems = rightContainer.querySelectorAll('.matching-item');
+                    
+                    console.log('drawMatchingLines: leftItems', leftItems.length, 'rightItems', rightItems.length);
+                    
+                    // Calculate container height
+                    const leftHeight = leftContainer.offsetHeight;
+                    const rightHeight = rightContainer.offsetHeight;
+                    const svgHeight = Math.max(leftHeight, rightHeight, 200);
+                    svgContainer.style.height = svgHeight + 'px';
+                    
+                    const markerId = 'arrowhead-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                    let svg = '<svg width="120" height="' + svgHeight + '" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;" xmlns="http://www.w3.org/2000/svg">';
+                    svg += '<defs><marker id="' + markerId + '" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><polygon points="0 0, 10 3, 0 6" fill="#28a745" /></marker></defs>';
+                    
+                    relationships.forEach(function(rel) {
+                        if (rel.left >= 0 && rel.left < leftItems.length && rel.right >= 0 && rel.right < rightItems.length) {
+                            const leftItem = leftItems[rel.left];
+                            const rightItem = rightItems[rel.right];
+                            
+                            const leftRect = leftItem.getBoundingClientRect();
+                            const rightRect = rightItem.getBoundingClientRect();
+                            const containerRect = svgContainer.getBoundingClientRect();
+                            
+                            const leftY = leftRect.top - containerRect.top + (leftRect.height / 2);
+                            const rightY = rightRect.top - containerRect.top + (rightRect.height / 2);
+                            
+                            console.log('drawMatchingLines: drawing line from L' + (rel.left + 1) + ' to R' + (rel.right + 1), 'leftY:', leftY, 'rightY:', rightY);
+                            
+                            svg += '<line x1="0" y1="' + leftY + '" x2="120" y2="' + rightY + '" stroke="#28a745" stroke-width="2" marker-end="url(#' + markerId + ')" />';
+                        }
+                    });
+                    
+                    svg += '</svg>';
+                    svgContainer.innerHTML = svg;
+                    console.log('drawMatchingLines: SVG drawn');
+                } catch (e) {
+                    console.error('Error drawing matching lines:', e);
+                }
             });
         }
 
@@ -3689,9 +4919,15 @@
             
             // Check if it's a main tab
             if (['basic', 'preamble', 'content', 'questions'].includes(value)) {
+                // Switch to input form tab first
+                showMainTab('input-form');
+                setTimeout(() => {
                 showTab(value);
+                }, 100);
             } else if (value.startsWith('content-')) {
                 // Jump to specific content section
+                showMainTab('input-form');
+                setTimeout(() => {
                 showTab('content');
                 setTimeout(() => {
                     const sectionId = value.replace('content-', '');
@@ -3701,6 +4937,7 @@
                         element.style.backgroundColor = '#fff3cd';
                         setTimeout(() => element.style.backgroundColor = '', 2000);
                     }
+                    }, 100);
                 }, 100);
             } else if (value.startsWith('question-')) {
                 // Jump to specific question
@@ -5520,6 +6757,14 @@
             }
         }
 
+        // Toggle section collapse/expand
+        function toggleSectionCollapse(button) {
+            const section = button.closest('.array-item');
+            if (section) {
+                section.classList.toggle('collapsed');
+            }
+        }
+
         // Move item up in the list
         function moveItemUp(button) {
             const item = button.closest('.array-item');
@@ -7310,10 +8555,14 @@
                         <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down">
                             <i class="fas fa-arrow-down"></i>
                         </button>
+                        <button class="collapse-btn" onclick="toggleSectionCollapse(this)" title="Collapse/Expand Section">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
                         <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove Section">×</button>
                     </div>
                 </div>
                 
+                <div class="section-content">
                 <div class="form-group">
                     <label>Section Title</label>
                     <span class="input-label">Input Markdown</span>
@@ -7411,6 +8660,7 @@
                         <i class="fas fa-plus"></i> Add Image
                     </button>
                 </div>
+                </div>
             `;
         }
 
@@ -7441,10 +8691,14 @@
                         <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down">
                             <i class="fas fa-arrow-down"></i>
                         </button>
+                        <button class="collapse-btn" onclick="toggleSectionCollapse(this)" title="Collapse/Expand Question">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
                         <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove Question">×</button>
                     </div>
                 </div>
                 
+                <div class="section-content">
                 <div class="form-group required-field required">
                     <label>Question ID</label>
                     <input type="text" placeholder="e.g., 1" data-ltr="true" title="Unique identifier for this question (e.g., 1, 2, 3)">
@@ -7827,6 +9081,7 @@
                 <div class="form-group">
                     <label>Related Question</label>
                     <input type="text" placeholder="Leave empty if no related questions" data-ltr="true" title="Optional reference to related questions (e.g., 3)">
+                </div>
                 </div>
             `;
         }
@@ -8861,6 +10116,7 @@
                     captionSpan.className = 'image-description-math';
                     captionSpan.style.display = 'block';
                     captionSpan.style.marginTop = '4px';
+                    captionSpan.style.direction = 'ltr';
                     
                     // Replace the broken image with a styled placeholder div
                     const placeholder = document.createElement('div');
@@ -15869,6 +17125,15 @@
                     btn.textContent = isLTR ? 'RTL' : 'LTR';
                 }
             });
+            
+            // If final preview tab is active, regenerate it after loading JSON
+            const finalPreviewTab = document.getElementById('final-preview');
+            if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                // Use setTimeout to ensure DOM is fully updated before generating preview
+                setTimeout(() => {
+                    generateFinalPreview();
+                }, 100);
+            }
         }
 
         // Try to repair and parse malformed JSON inputs commonly encountered
@@ -20033,6 +21298,26 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
                         <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- New Features -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Final Preview Tab:</strong> A new "Final Preview" tab provides a comprehensive preview of all your content sections and questions in one place. This consolidated view shows everything exactly as it will appear in the final output, making it easy to review your work. Each preview box includes an edit button that takes you directly to the corresponding input field for quick editing.</li>
+                            <li><strong>Collapsible Sections:</strong> You can now collapse and expand content and question sections to manage your workspace more easily. Click the <i class="fas fa-chevron-down"></i> button in the section header to hide or show its content. The button rotates when collapsed to indicate its state.</li>
+                            <li><strong>Image Description Text Direction:</strong> All image descriptions in the preview now always display from left to right, regardless of the preview's text direction setting. This ensures consistent and readable image descriptions for all users.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 6.6 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.6</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- New Features -->
