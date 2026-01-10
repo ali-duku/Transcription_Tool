@@ -22,15 +22,15 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '6.7';
+        const DISPLAY_VERSION = '6.8';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
         //   - Auto-open of What's New modal (only if user hasn't seen this version)
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
-        // Example: Change '6.6' to '6.7' when releasing version 6.7
-        const CURRENT_VERSION = '6.7';
+        // Example: Change '6.7' to '6.8' when releasing version 6.8
+        const CURRENT_VERSION = '6.8';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -865,12 +865,21 @@
             box-sizing: border-box;
         }
 
+        html {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden; /* Prevent horizontal scrollbar */
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg-primary);
             min-height: 100vh;
             padding: 0;
             margin: 0;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden; /* Prevent horizontal scrollbar */
         }
 
         .container {
@@ -896,10 +905,25 @@
             justify-content: space-between;
             align-items: center;
             width: 100%;
-            padding: 0 10px;
+            padding: 0 min(10px, 1vw); /* Responsive padding */
             max-width: 100%;
             margin: 0;
-            gap: 15px;
+            gap: min(15px, 1.5vw); /* Responsive gap */
+        }
+        
+        /* Optimize header spacing for zoomed states */
+        @media (max-width: 1400px) {
+            .header-content {
+                padding: 0 8px;
+                gap: 10px;
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .header-content {
+                padding: 0 6px;
+                gap: 8px;
+            }
         }
 
         .header-text {
@@ -1007,8 +1031,8 @@
         .workflow-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            padding: 15px;
+            gap: min(15px, 1.5vw); /* Responsive gap that scales with viewport */
+            padding: min(15px, 1.5vw); /* Responsive padding */
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
@@ -1034,7 +1058,7 @@
         /* Right column - sticky and independently scrollable */
         .workflow-container > .form-section.toggle-section {
             position: sticky;
-            top: 15px;
+            top: min(15px, 1.5vw); /* Responsive top offset */
             align-self: start;
             max-height: calc(200vh - 75px); /* Increased to 2x viewport for more expansion */
             height: calc(100vh - 75px);
@@ -1043,28 +1067,63 @@
             flex-direction: column;
         }
         
-        /* Limit max width on very large screens for readability, but still use most space */
+        /* Use full width at all zoom levels - remove max-width restrictions */
         @media (min-width: 1920px) {
             .workflow-container {
-                max-width: 95%;
-                margin: 0 auto;
+                max-width: 100%; /* Use full width instead of 95% */
+                margin: 0;
+                padding: min(20px, 2vw); /* Slightly more padding on very large screens */
             }
             
             .header-content {
-                max-width: 95%;
-                margin: 0 auto;
-                padding: 0 30px;
+                max-width: 100%; /* Use full width instead of 95% */
+                margin: 0;
+                padding: 0 min(30px, 3vw); /* Responsive padding */
             }
         }
+        
+        /* Optimize for zoomed-in states (smaller effective viewport) */
+        @media (max-width: 1400px) {
+            .workflow-container {
+                gap: 10px;
+                padding: 10px;
+            }
+            
+            .workflow-container > .form-section.toggle-section {
+                top: 10px;
+            }
+        }
+        
+        /* Further optimize for highly zoomed states */
+        @media (max-width: 1200px) {
+            .workflow-container {
+                gap: 8px;
+                padding: 8px;
+            }
+        }
+        
 
         .form-section {
             background: #f8f9fa;
             border-radius: 12px;
-            padding: 15px;
+            padding: min(15px, 1.5vw); /* Responsive padding */
             border: 2px solid #e9ecef;
             min-width: 0; /* Allow flex/grid children to shrink */
             max-width: 100%; /* Prevent expansion beyond column */
             box-sizing: border-box;
+        }
+        
+        /* Reduce padding on smaller viewports (zoomed in) */
+        @media (max-width: 1400px) {
+            .form-section {
+                padding: 10px;
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .form-section {
+                padding: 8px;
+            }
         }
 
         .form-section h2 {
@@ -1873,8 +1932,15 @@
         .main-tab-content.active {
             display: block;
         }
+        .main-tab-content#final-preview.active {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 135px); /* 75px (header) + 60px (main tabs + margin) */
+            min-height: 0;
+        }
         .final-preview-container {
-            max-height: calc(100vh - 300px);
+            flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 16px;
             background: var(--bg-primary);
@@ -2762,6 +2828,21 @@
         #searchFilter::placeholder {
             text-align: left !important;
             direction: ltr !important;
+            font-size: 0.9rem !important; /* Fixed font size for placeholder */
+        }
+        
+        /* Fix font size for search input (not affected by font size selector) */
+        #searchFilter {
+            font-size: 0.9rem !important; /* Fixed font size to match default */
+        }
+        
+        /* Fix font size for JSON input and its placeholder */
+        #json_input {
+            font-size: 14px !important; /* Fixed font size to match default */
+        }
+        
+        #json_input::placeholder {
+            font-size: 14px !important; /* Fixed font size for placeholder */
         }
         
         .search-results-dropdown {
@@ -3200,6 +3281,11 @@
             background: #f8f9fa;
             border-radius: 6px;
             padding: 8px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0; /* Allow flex child to shrink */
+            overflow: hidden; /* Prevent panel from scrolling, let canvas container handle it */
         }
 
         .pdf-viewer-controls {
@@ -3212,6 +3298,7 @@
             background: white;
             border-radius: 6px;
             border: 1px solid #dee2e6;
+            flex-shrink: 0; /* Prevent controls from shrinking */
         }
 
         .pdf-source-toggle {
@@ -3248,8 +3335,8 @@
             background: #e9ecef;
             border-radius: 6px;
             overflow: auto;
-            max-height: calc(100vh - 250px);
-            min-height: 600px;
+            flex: 1; /* Fill remaining vertical space */
+            min-height: 0; /* Allow flex child to shrink below content size */
             width: 100%;
             max-width: 100%;
             display: flex;
@@ -3340,7 +3427,7 @@
                 </div>
                 <div class="group">
                     <button id="em-zoom-out" class="bbox-btn" title="Zoom out">-</button>
-                    <div class="muted">Zoom</div>
+                    <span id="em-zoom-display" style="color: var(--text-secondary); font-size: 0.9rem; padding: 0 8px;">100%</span>
                     <button id="em-zoom-in" class="bbox-btn" title="Zoom in">+</button>
                     <button id="em-zoom-reset" class="bbox-btn" title="Reset zoom to default">Reset</button>
                 </div>
@@ -3411,6 +3498,14 @@
                                 <option value="20">20px</option>
                                 <option value="22">22px</option>
                                 <option value="24">24px</option>
+                                <option value="26">26px</option>
+                                <option value="28">28px</option>
+                                <option value="30">30px</option>
+                                <option value="32">32px</option>
+                                <option value="36">36px</option>
+                                <option value="40">40px</option>
+                                <option value="44">44px</option>
+                                <option value="48">48px</option>
                             </select>
                             <label style="font-size: 0.7rem; opacity: 0.9; margin-left: 4px;">Line:</label>
                             <select id="lineHeightSelect" onchange="changeLineHeight(this.value)" title="Change line height" class="header-select" style="padding: 2px 6px; font-size: 0.7rem; cursor: pointer; outline: none;">
@@ -4211,6 +4306,18 @@
             }
             
             previewContainer.innerHTML = html;
+            
+            // Apply current font size and line height to all live-preview elements in final preview
+            const savedFontSize = localStorage.getItem('fontSize') || '14';
+            const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
+            const fontSize = savedFontSize + 'px';
+            const lineHeight = savedLineHeight;
+            
+            // Apply to all live-preview elements in the final preview container
+            previewContainer.querySelectorAll('.live-preview').forEach(el => {
+                el.style.fontSize = fontSize;
+                el.style.lineHeight = lineHeight;
+            });
             
             // Draw matching lines after DOM is ready
             setTimeout(function() {
@@ -10692,8 +10799,12 @@
             // Get elements from container or entire document
             const scope = container || document;
             
-            // Apply to all textareas and inputs in scope
+            // Apply to all textareas and inputs in scope, but exclude search bar and JSON input
             scope.querySelectorAll('.form-group textarea, .form-group input[type="text"], textarea, input[type="text"]').forEach(el => {
+                // Exclude search bar and JSON input from font settings
+                if (el.id === 'searchFilter' || el.id === 'json_input') {
+                    return; // Skip these elements
+                }
                 el.style.fontSize = fontSize;
                 el.style.lineHeight = lineHeight;
             });
@@ -10706,31 +10817,59 @@
         }
         
         function changeFontSize(size) {
-            const fontSize = size + 'px';
-            // Apply to all textareas and inputs
+            // Ensure size is a string
+            const sizeStr = String(size);
+            const fontSize = sizeStr + 'px';
+            
+            // Apply to all textareas and inputs, but exclude search bar and JSON input
             document.querySelectorAll('.form-group textarea, .form-group input[type="text"], textarea, input[type="text"]').forEach(el => {
+                // Exclude search bar and JSON input from font size changes
+                if (el.id === 'searchFilter' || el.id === 'json_input') {
+                    return; // Skip these elements
+                }
                 el.style.fontSize = fontSize;
             });
             // Apply to all preview boxes
             document.querySelectorAll('.live-preview').forEach(el => {
                 el.style.fontSize = fontSize;
             });
-            // Save to localStorage
-            localStorage.setItem('fontSize', size);
+            
+            // If final preview tab is active, regenerate it to apply font size
+            const finalPreviewTab = document.getElementById('final-preview');
+            if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                generateFinalPreview();
+            }
+            
+            // Save to localStorage (save as string)
+            localStorage.setItem('fontSize', sizeStr);
         }
         
         function changeLineHeight(height) {
-            const lineHeight = height;
-            // Apply to all textareas and inputs
+            // Ensure height is a string
+            const heightStr = String(height);
+            const lineHeight = heightStr;
+            
+            // Apply to all textareas and inputs, but exclude search bar and JSON input
             document.querySelectorAll('.form-group textarea, .form-group input[type="text"], textarea, input[type="text"]').forEach(el => {
+                // Exclude search bar and JSON input from line height changes
+                if (el.id === 'searchFilter' || el.id === 'json_input') {
+                    return; // Skip these elements
+                }
                 el.style.lineHeight = lineHeight;
             });
             // Apply to all preview boxes
             document.querySelectorAll('.live-preview').forEach(el => {
                 el.style.lineHeight = lineHeight;
             });
-            // Save to localStorage
-            localStorage.setItem('lineHeight', height);
+            
+            // If final preview tab is active, regenerate it to apply line height
+            const finalPreviewTab = document.getElementById('final-preview');
+            if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                generateFinalPreview();
+            }
+            
+            // Save to localStorage (save as string)
+            localStorage.setItem('lineHeight', heightStr);
         }
         
         // Initialize font settings from localStorage
@@ -10738,23 +10877,27 @@
             const savedFontSize = localStorage.getItem('fontSize');
             const savedLineHeight = localStorage.getItem('lineHeight');
             
-            if (savedFontSize) {
-                const fontSizeSelect = document.getElementById('fontSizeSelect');
-                if (fontSizeSelect) {
-                    fontSizeSelect.value = savedFontSize;
-                    changeFontSize(savedFontSize);
-                }
+            // Set and apply font size (use saved value or default)
+            const fontSizeToApply = savedFontSize || '14'; // Default to 14px if not saved
+            const fontSizeSelect = document.getElementById('fontSizeSelect');
+            if (fontSizeSelect) {
+                fontSizeSelect.value = fontSizeToApply;
+                // Use setTimeout to ensure all elements are loaded
+                setTimeout(() => {
+                    changeFontSize(fontSizeToApply);
+                }, 0);
             }
             
-            if (savedLineHeight) {
-                const lineHeightSelect = document.getElementById('lineHeightSelect');
-                if (lineHeightSelect) {
-                    lineHeightSelect.value = savedLineHeight;
-                }
+            // Set and apply line height (use saved value or default)
+            const lineHeightToApply = savedLineHeight || '1.5'; // Default to 1.5 if not saved
+            const lineHeightSelect = document.getElementById('lineHeightSelect');
+            if (lineHeightSelect) {
+                lineHeightSelect.value = lineHeightToApply;
+                // Use setTimeout to ensure all elements are loaded
+                setTimeout(() => {
+                    changeLineHeight(lineHeightToApply);
+                }, 0);
             }
-            
-            // Apply font settings to all existing elements
-            applyFontSettings();
         }
 
         function toggleDarkMode() {
@@ -11255,6 +11398,7 @@
             const zoomInBtn = document.getElementById('em-zoom-in');
             const zoomOutBtn = document.getElementById('em-zoom-out');
             const zoomResetBtn = document.getElementById('em-zoom-reset');
+            const zoomDisplay = document.getElementById('em-zoom-display');
             const gotoInput = document.getElementById('em-goto');
             const gotoBtn = document.getElementById('em-goto-btn');
             const clearBtn = document.getElementById('em-clear');
@@ -11538,6 +11682,7 @@
                 // Always use the saved values from the store for the target PDF
                 currentPage=store.docs.text.currentPage || 1; 
                 scale=store.docs.text.scale || 1.2; 
+                if (zoomDisplay) zoomDisplay.textContent = `${Math.round(scale * 100)}%`;
                 await renderPage();
                 
                 // If this is a main form upload, ensure main viewer refreshes
@@ -11580,6 +11725,7 @@
                 // Always use the saved values from the store for the target PDF
                 currentPage=store.docs.guide.currentPage || 1; 
                 scale=store.docs.guide.scale || 1.2; 
+                updateZoomDisplay();
                 await renderPage();
                 
                 // If this is a main form upload, ensure main viewer refreshes
@@ -11664,6 +11810,7 @@
                     pageNumEl.textContent = String(currentPage);
                     pageCountEl.textContent = String(totalPages);
                     gotoInput.value = String(currentPage);
+                    if (zoomDisplay) zoomDisplay.textContent = `${Math.round(scale * 100)}%`;
                 // Clear using CSS-space dimensions since context is scaled by dpr
                 drawCtx.clearRect(0, 0, canvasCssWidth, canvasCssHeight);
                     listEl.innerHTML = '';
@@ -12011,8 +12158,11 @@
                     await renderPage(); 
                 } 
             };
-            zoomInBtn.onclick = async ()=>{ if(!pdfDoc) return; scale = Math.min(scale*1.1, 6); persistView(); await renderPage(); };
-            zoomOutBtn.onclick = async ()=>{ if(!pdfDoc) return; scale = Math.max(scale/1.1, 0.2); persistView(); await renderPage(); };
+            const updateZoomDisplay = () => {
+                if (zoomDisplay) zoomDisplay.textContent = `${Math.round(scale * 100)}%`;
+            };
+            zoomInBtn.onclick = async ()=>{ if(!pdfDoc) return; scale = Math.min(scale*1.1, 8); persistView(); updateZoomDisplay(); await renderPage(); };
+            zoomOutBtn.onclick = async ()=>{ if(!pdfDoc) return; scale = Math.max(scale/1.1, 0.2); persistView(); updateZoomDisplay(); await renderPage(); };
             zoomResetBtn.onclick = async ()=>{ 
                 if(!pdfDoc) return; 
                 if (lastDrawn && !confirm('You have an unsaved bounding box. Resetting zoom will clear it. Are you sure?')) {
@@ -12024,7 +12174,8 @@
                     listEl.innerHTML = '';
                 }
                 scale = 1.2;
-                persistView(); 
+                persistView();
+                updateZoomDisplay();
                 await renderPage(); 
             };
             function appendListItem(bbox){ const item=document.createElement('div'); item.className='bbox-item'; const code=document.createElement('code'); code.textContent=JSON.stringify(bbox); item.appendChild(code); listEl.appendChild(item); }
@@ -12539,7 +12690,7 @@
                         const scaleX = availableWidth / bboxWidth;
                         const scaleY = availableHeight / bboxHeight;
                         // Use the smaller scale to ensure bbox fits entirely
-                        const optimalScale = Math.min(scaleX, scaleY, 6.0); // Cap at 6x zoom
+                        const optimalScale = Math.min(scaleX, scaleY, 8.0); // Cap at 8x zoom
                         // Ensure minimum zoom level
                         scale = Math.max(optimalScale, 0.5);
                         
@@ -19394,6 +19545,7 @@
             currentPage: 1,
             totalPages: 0,
             scale: 1.0,
+            fitToCanvasScale: null, // Scale to fit canvas, calculated per source
             pdfDoc: null,
             canvas: null,
             context: null,
@@ -19406,6 +19558,28 @@
             renderTask: null, // Track ongoing render operation
             isRendering: false // Flag to prevent concurrent renders
         };
+        
+        // Calculate fit-to-canvas scale for a PDF page
+        function calculateFitToCanvasScale(page, container) {
+            if (!page || !container) return 1.0;
+            
+            // Get container dimensions (account for padding)
+            const containerWidth = container.clientWidth - 40; // 20px padding on each side
+            const containerHeight = container.clientHeight - 40; // 20px padding on each side
+            
+            // Get page viewport at scale 1.0 to get natural dimensions
+            const viewport = page.getViewport({ scale: 1.0 });
+            
+            if (!viewport || !viewport.width || !viewport.height) return 1.0;
+            
+            // Calculate scale to fit both width and height (use the smaller one to ensure it fits)
+            const scaleX = containerWidth / viewport.width;
+            const scaleY = containerHeight / viewport.height;
+            const fitScale = Math.min(scaleX, scaleY, 8.0); // Cap at 8x zoom max
+            
+            // Ensure minimum scale
+            return Math.max(fitScale, 0.1);
+        }
 
         // Toggle Functions
         function showPdfViewer() {
@@ -19504,7 +19678,7 @@
                         <button id="main-pdf-zoom-out" class="bbox-btn" type="button" title="Zoom out">−</button>
                         <span id="main-pdf-zoom-display">100%</span>
                         <button id="main-pdf-zoom-in" class="bbox-btn" type="button" title="Zoom in">+</button>
-                        <button id="main-pdf-zoom-reset" class="bbox-btn" type="button" title="Reset zoom to 100%">↺</button>
+                        <button id="main-pdf-zoom-reset" class="bbox-btn" type="button" title="Reset zoom to fit canvas">↺</button>
                     </div>
                     
                     <!-- Page Navigation -->
@@ -19749,18 +19923,25 @@
                 } else if (docData.scale && !isNaN(docData.scale) && docData.scale > 0) {
                     loadedScale = docData.scale;
                 } else {
-                    loadedScale = 1.0;
+                    // No saved scale - will be calculated as fit-to-canvas on first render
+                    loadedScale = null;
                 }
                 
                 // Final validation - should never be needed but just in case
-                if (!loadedScale || isNaN(loadedScale) || loadedScale <= 0) {
-                    console.warn('PDF Store: Invalid scale detected after checks, resetting to 1.0', { loadedScale, docData });
-                    loadedScale = 1.0;
+                if (loadedScale !== null && (!loadedScale || isNaN(loadedScale) || loadedScale <= 0)) {
+                    console.warn('PDF Store: Invalid scale detected after checks, will calculate fit-to-canvas', { loadedScale, docData });
+                    loadedScale = null;
                 }
                 
-                state.scale = loadedScale;
-                // Always save the validated scale to store to ensure it persists
+                // If no valid scale found, it will be calculated as fit-to-canvas during render
+                // For now, set a temporary value that will be replaced
+                state.scale = loadedScale || 1.0;
+                state.fitToCanvasScale = null; // Will be calculated on first render
+                
+                // Only save scale to store if we have a valid saved scale
+                if (loadedScale) {
                 docData.mainViewerScale = loadedScale;
+                }
                 
                 // Ensure currentPage is valid
                 if (state.currentPage < 1) state.currentPage = 1;
@@ -20002,17 +20183,50 @@
                 // Get container width to constrain canvas size (account for padding)
                 const containerWidth = container ? container.clientWidth - 40 : 800;
                 
+                // Calculate and store fit-to-canvas scale if not already set (do this first)
+                if (!state.fitToCanvasScale || state.fitToCanvasScale <= 0) {
+                    state.fitToCanvasScale = calculateFitToCanvasScale(page, container);
+                    console.log('PDF Render: Calculated fit-to-canvas scale', { 
+                        fitToCanvasScale: state.fitToCanvasScale,
+                        containerWidth: container ? container.clientWidth : 0,
+                        containerHeight: container ? container.clientHeight : 0
+                    });
+                }
+                
                 // CRITICAL: Final validation of scale right before creating viewport
                 // This prevents white page issues when scale is invalid (e.g., after JSON load)
                 if (!state.scale || isNaN(state.scale) || state.scale <= 0 || state.scale === 0) {
-                    console.warn('PDF Render: Invalid scale detected before viewport creation, resetting to 1.0', { scale: state.scale });
-                    state.scale = 1.0;
+                    console.warn('PDF Render: Invalid scale detected before viewport creation, resetting to fit-to-canvas', { scale: state.scale });
+                    state.scale = state.fitToCanvasScale || 1.0; // Use fit-to-canvas if available, else fallback to 1.0
                     // Save corrected scale to store
                     const store = window.__bboxStore = window.__bboxStore || {};
                     store.docs = store.docs || { text: {}, guide: {} };
                     const key = state.source === 'textbook' ? 'text' : 'guide';
                     if (store.docs[key]) {
-                        store.docs[key].mainViewerScale = 1.0;
+                        store.docs[key].mainViewerScale = state.scale;
+                    }
+                }
+                
+                // If scale is still 1.0 (default) and we haven't loaded a saved scale, use fit-to-canvas
+                // Check if this is a fresh load by checking if scale hasn't been set from store
+                if (state.scale === 1.0 && state.fitToCanvasScale && state.fitToCanvasScale > 0) {
+                    // Only use fit-to-canvas if we don't have a saved scale (indicated by checking store)
+                    const store = window.__bboxStore;
+                    const key = state.source === 'textbook' ? 'text' : 'guide';
+                    const hasSavedScale = store && store.docs && store.docs[key] && 
+                                        store.docs[key].mainViewerScale && 
+                                        store.docs[key].mainViewerScale !== 1.0 &&
+                                        store.docs[key].mainViewerScale > 0;
+                    
+                    if (!hasSavedScale) {
+                        state.scale = state.fitToCanvasScale;
+                        // Save the fit-to-canvas scale to store
+                        if (store && store.docs && store.docs[key]) {
+                            store.docs[key].mainViewerScale = state.fitToCanvasScale;
+                        }
+                        console.log('PDF Render: Using fit-to-canvas scale as default', { 
+                            fitToCanvasScale: state.fitToCanvasScale 
+                        });
                     }
                 }
                 
@@ -20021,19 +20235,20 @@
                 
                 // CRITICAL: Validate viewport dimensions - if they're zero or invalid, reset scale and recreate
                 if (!viewport || !viewport.width || !viewport.height || viewport.width <= 0 || viewport.height <= 0) {
-                    console.error('PDF Render: Invalid viewport dimensions, resetting scale to 1.0 and recreating viewport', {
+                    console.error('PDF Render: Invalid viewport dimensions, resetting scale to fit-to-canvas and recreating viewport', {
                         viewportWidth: viewport?.width,
                         viewportHeight: viewport?.height,
-                        scale: state.scale
+                        scale: state.scale,
+                        fitToCanvasScale: state.fitToCanvasScale
                     });
-                    state.scale = 1.0;
-                    viewport = page.getViewport({ scale: 1.0 });
+                    state.scale = state.fitToCanvasScale || 1.0; // Use fit-to-canvas if available
+                    viewport = page.getViewport({ scale: state.scale });
                     // Save corrected scale to store
                     const store = window.__bboxStore = window.__bboxStore || {};
                     store.docs = store.docs || { text: {}, guide: {} };
                     const key = state.source === 'textbook' ? 'text' : 'guide';
                     if (store.docs[key]) {
-                        store.docs[key].mainViewerScale = 1.0;
+                        store.docs[key].mainViewerScale = state.scale;
                     }
                 }
                 
@@ -20320,7 +20535,28 @@
                     state.scale = Math.max(state.scale / 1.2, 0.3);
                     break;
                 case 'reset':
-                    state.scale = 1.0;
+                    // Reset to fit-to-canvas scale, recalculate if needed
+                    if (state.pdfDoc && state.canvas && state.currentPage) {
+                        state.pdfDoc.getPage(state.currentPage).then(page => {
+                            const container = state.canvas.parentElement;
+                            if (container && page) {
+                                state.fitToCanvasScale = calculateFitToCanvasScale(page, container);
+                                state.scale = state.fitToCanvasScale;
+                            } else {
+                                state.scale = state.fitToCanvasScale || 1.0;
+                            }
+                            renderMainPdfPage();
+                        }).catch(err => {
+                            console.warn('PDF Viewer: Error calculating fit-to-canvas on reset', err);
+                            state.scale = state.fitToCanvasScale || 1.0;
+                            renderMainPdfPage();
+                        });
+                        return; // Early return, renderMainPdfPage will be called in the promise
+                    } else {
+                        // Fallback to stored fit-to-canvas scale or 1.0
+                        state.scale = state.fitToCanvasScale || 1.0;
+                        renderMainPdfPage();
+                    }
                     break;
             }
             
@@ -21410,6 +21646,38 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
                         <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Increased Maximum Zoom:</strong> The maximum zoom level has been increased to 8x (800%) for both the bounding box drawing modal and the PDF viewer. This allows for much more detailed work when drawing bounding boxes or examining PDF pages at high magnification.</li>
+                            <li><strong>Zoom Indicator in Bounding Box Modal:</strong> A zoom percentage display has been added to the bounding box drawing modal, matching the functionality in the main PDF viewer. You can now see the current zoom level at a glance while drawing bounding boxes.</li>
+                            <li><strong>Optimized Layout for Better Space Usage:</strong> The UI has been enhanced to make better use of available screen space. Both the left and right columns now utilize the full vertical and horizontal real estate, adapting responsively to different zoom levels and screen sizes. This makes the interface more efficient and provides more room for your work.</li>
+                            <li><strong>Expanded Font Size Options:</strong> Additional larger font sizes have been added to the font size selector. You can now choose from sizes up to 48px, giving you more flexibility to customize the text size for better readability.</li>
+                            <li><strong>Font Size Persistence:</strong> The tool now remembers and automatically applies your last selected font size when you reload or refresh the page. Your font size preference is saved and restored automatically, so you don't have to adjust it every time.</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bug Fixes -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Fixed Collapsed Section Navigation:</strong> Fixed an issue where clicking an edit button in the Final Preview tab to navigate to a collapsed section would not automatically expand that section. Now, when you click an edit button, the target section will automatically uncollapse so you can see and edit the field immediately.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 6.7 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.7</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- New Features -->
