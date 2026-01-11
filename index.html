@@ -30,7 +30,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '6.9';
+        const CURRENT_VERSION = '6.9.1';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -4326,7 +4326,153 @@
             
             let html = '';
             
-            // First, render all content sections
+            // First, render basic info
+            const textbookPage = document.getElementById('textbook_page') ? document.getElementById('textbook_page').value || '' : '';
+            const textbookPdfPage = document.getElementById('textbook_pdf_page') ? document.getElementById('textbook_pdf_page').value || '' : '';
+            const guidebookStartPage = document.getElementById('guidebook_start_page') ? document.getElementById('guidebook_start_page').value || '' : '';
+            const guidebookEndPage = document.getElementById('guidebook_end_page') ? document.getElementById('guidebook_end_page').value || '' : '';
+            const pageType = document.getElementById('page_type') ? document.getElementById('page_type').value || '' : '';
+            
+            let hasBasicInfo = textbookPage || textbookPdfPage || guidebookStartPage || guidebookEndPage || pageType;
+            if (hasBasicInfo) {
+                html += '<div class="final-preview-section"><h3>Basic Info</h3>';
+                html += '<div class="final-preview-section">';
+                
+                if (textbookPage) {
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('textbook_page'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Textbook Page Number</h5><div class="setup-text"><div style="padding: 8px; dir: ltr; text-align: left;">${textbookPage}</div></div></div>`;
+                }
+                
+                if (textbookPdfPage) {
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('textbook_pdf_page'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">PDF Page Number</h5><div class="setup-text"><div style="padding: 8px; dir: ltr; text-align: left;">${textbookPdfPage}</div></div></div>`;
+                }
+                
+                if (guidebookStartPage || guidebookEndPage) {
+                    const guidebookPages = guidebookStartPage && guidebookEndPage ? `${guidebookStartPage} - ${guidebookEndPage}` : (guidebookStartPage || guidebookEndPage);
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('guidebook_start_page'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Guidebook PDF Pages (Start - End)</h5><div class="setup-text"><div style="padding: 8px; dir: ltr; text-align: left;">${guidebookPages}</div></div></div>`;
+                }
+                
+                if (pageType) {
+                    const pageTypeOptions = {
+                        'content': 'Content',
+                        'project': 'Project',
+                        'vocabulary': 'Vocabulary',
+                        'unit_table_of_content': 'Unit Table of Content',
+                        'table_of_content': 'Table of Content',
+                        'other': 'Other'
+                    };
+                    const pageTypeLabel = pageTypeOptions[pageType] || pageType;
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('page_type'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Page Type</h5><div class="setup-text"><div style="padding: 8px; dir: ltr; text-align: left;">${pageTypeLabel}</div></div></div>`;
+                }
+                
+                html += '</div></div>';
+            }
+            
+            // Then, render lesson preamble
+            const lessonId = document.getElementById('lesson_id') ? document.getElementById('lesson_id').value || '' : '';
+            const lessonTitleInput = document.getElementById('lesson_title');
+            const lessonTitle = lessonTitleInput ? lessonTitleInput.value || '' : '';
+            const lessonStandardsContainer = document.getElementById('lesson_standards');
+            const lessonStandards = lessonStandardsContainer ? Array.from(lessonStandardsContainer.querySelectorAll('.array-item input')).map(input => input.value.trim()).filter(v => v) : [];
+            const terminologyContainer = document.getElementById('terminology');
+            const terminologyItems = terminologyContainer ? Array.from(terminologyContainer.querySelectorAll('.array-item input')) : [];
+            const lessonTextarea = document.getElementById('lesson_text');
+            const lessonText = lessonTextarea ? lessonTextarea.value || '' : '';
+            
+            let hasLessonPreamble = lessonId || lessonTitle || lessonStandards.length > 0 || terminologyItems.length > 0 || lessonText;
+            if (hasLessonPreamble) {
+                html += '<div class="final-preview-section"><h3>Lesson Preamble</h3>';
+                html += '<div class="final-preview-section">';
+                
+                if (lessonId) {
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_id'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson ID</h5><div class="setup-text"><div style="padding: 8px; dir: ltr; text-align: left;">${lessonId}</div></div></div>`;
+                }
+                
+                if (lessonTitle && lessonTitleInput) {
+                    // Find existing preview for lesson title
+                    let titlePreview = null;
+                    let sibling = lessonTitleInput.nextElementSibling;
+                    while (sibling) {
+                        if (sibling.classList && sibling.classList.contains('live-preview')) {
+                            titlePreview = sibling;
+                            break;
+                        }
+                        sibling = sibling.nextElementSibling;
+                    }
+                    
+                    if (titlePreview && titlePreview.innerHTML) {
+                        html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_title'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Title</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${titlePreview.innerHTML}</div></div></div>`;
+                    } else {
+                        const tempTitlePreview = document.createElement('div');
+                        tempTitlePreview.className = 'live-preview';
+                        tempTitlePreview.setAttribute('dir', 'rtl');
+                        tempTitlePreview.style.textAlign = 'right';
+                        renderLivePreviewToElement(lessonTitleInput, tempTitlePreview);
+                        html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_title'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Title</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${tempTitlePreview.innerHTML}</div></div></div>`;
+                    }
+                }
+                
+                if (lessonStandards.length > 0) {
+                    const standardsHtml = lessonStandards.map(standard => `<div style="padding: 4px 0; dir: ltr; text-align: left;">${standard}</div>`).join('');
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_standards').querySelector('.array-item input'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Standards</h5><div class="setup-text">${standardsHtml}</div></div>`;
+                }
+                
+                if (terminologyItems.length > 0) {
+                    terminologyItems.forEach((termInput, index) => {
+                        const termValue = termInput.value || '';
+                        if (termValue.trim()) {
+                            // Find existing preview for terminology
+                            let termPreview = null;
+                            let sibling = termInput.nextElementSibling;
+                            while (sibling) {
+                                if (sibling.classList && sibling.classList.contains('live-preview')) {
+                                    termPreview = sibling;
+                                    break;
+                                }
+                                sibling = sibling.nextElementSibling;
+                            }
+                            
+                            if (termPreview && termPreview.innerHTML) {
+                                html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('terminology').querySelectorAll('.array-item input')[${index}])" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Terminology</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${termPreview.innerHTML}</div></div></div>`;
+                            } else {
+                                const tempTermPreview = document.createElement('div');
+                                tempTermPreview.className = 'live-preview';
+                                tempTermPreview.setAttribute('dir', 'rtl');
+                                tempTermPreview.style.textAlign = 'right';
+                                renderLivePreviewToElement(termInput, tempTermPreview);
+                                html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('terminology').querySelectorAll('.array-item input')[${index}])" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Terminology</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${tempTermPreview.innerHTML}</div></div></div>`;
+                            }
+                        }
+                    });
+                }
+                
+                if (lessonText && lessonTextarea) {
+                    // Find existing preview for lesson text
+                    let textPreview = null;
+                    let sibling = lessonTextarea.nextElementSibling;
+                    while (sibling) {
+                        if (sibling.classList && sibling.classList.contains('live-preview')) {
+                            textPreview = sibling;
+                            break;
+                        }
+                        sibling = sibling.nextElementSibling;
+                    }
+                    
+                    if (textPreview && textPreview.innerHTML) {
+                        html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_text'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Text</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${textPreview.innerHTML}</div></div></div>`;
+                    } else {
+                        const tempTextPreview = document.createElement('div');
+                        tempTextPreview.className = 'live-preview';
+                        tempTextPreview.setAttribute('dir', 'rtl');
+                        tempTextPreview.style.textAlign = 'right';
+                        renderLivePreviewToElement(lessonTextarea, tempTextPreview);
+                        html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_text'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Text</h5><div class="setup-text"><div class="live-preview" dir="rtl" style="text-align: right;">${tempTextPreview.innerHTML}</div></div></div>`;
+                    }
+                }
+                
+                html += '</div></div>';
+            }
+            
+            // Then, render all content sections
             const contentSections = document.querySelectorAll('#content_sections_container > .array-item');
             if (contentSections.length > 0) {
                 html += '<div class="final-preview-section"><h3>Content Sections</h3>';
@@ -4419,7 +4565,7 @@
             }
             
             // If no content, show message
-            if (contentSections.length === 0 && questions.length === 0) {
+            if (!hasBasicInfo && !hasLessonPreamble && contentSections.length === 0 && questions.length === 0) {
                 html = '<div class="final-preview-section"><p style="color: #6c757d; font-style: italic;">No content sections or questions to preview. Add some content in the Input Form tab.</p></div>';
             }
             
@@ -22243,6 +22389,10 @@
                                     <li style="margin-bottom: 6px;"><strong>Empty lines:</strong> Empty lines are highlighted with a <span style="background-color: rgba(255, 193, 7, 0.15); border-left: 3px solid #ffc107; padding: 4px 8px; display: inline-block; min-width: 80px; margin: 2px 0;">yellow background and left border</span> with an "Empty line" label - these appear as yellow highlighted blocks for any blank lines.</li>
                                 </ul>
                                 <p style="margin: 8px 0;">This makes it easy to catch formatting problems before generating your final output. Simply click the toggle button to turn the feature on or off. <strong>Note:</strong> Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.</p>
+                            </li>
+                            <li>
+                                <strong>Basic Info and Lesson Preamble in Final Preview:</strong>
+                                <p style="margin: 8px 0;">The Final Preview tab now displays both Basic Info and Lesson Preamble sections before the Content Sections and Questions. This provides a complete preview of all your form data in one place. The Basic Info section shows textbook page numbers, PDF page numbers, guidebook page ranges, and page type. The Lesson Preamble section displays lesson ID, lesson title, lesson standards, terminology, and lesson text - all with proper markdown rendering and edit buttons, following the same design pattern as content sections.</p>
                             </li>
                         </ul>
                     </div>
