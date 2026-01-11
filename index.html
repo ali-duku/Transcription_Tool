@@ -22,15 +22,15 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '6.8';
+        const DISPLAY_VERSION = '6.9';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
         //   - Auto-open of What's New modal (only if user hasn't seen this version)
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
-        // Example: Change '6.7' to '6.8' when releasing version 6.8
-        const CURRENT_VERSION = '6.8';
+        // Example: Change '6.8' to '6.9' when releasing version 6.9
+        const CURRENT_VERSION = '6.9';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -870,7 +870,7 @@
             max-width: 100%;
             overflow-x: hidden; /* Prevent horizontal scrollbar */
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg-primary);
@@ -1449,6 +1449,83 @@
             overflow-x: hidden;
             font-feature-settings: "kern" 1, "liga" 1; /* Better character spacing */
             text-rendering: optimizeLegibility; /* Better diacritic rendering */
+        }
+        
+        /* Trailing spaces indicator */
+        .live-preview.has-trailing-spaces {
+            border: 2px solid #ffc107;
+            border-left: 4px solid #ffc107;
+            background: #fffbf0;
+        }
+        
+        .live-preview.has-trailing-spaces::before {
+            content: "⚠ Trailing/leading spaces/empty lines detected";
+            position: absolute;
+            top: 4px;
+            right: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #856404;
+            background: #ffc107;
+            padding: 2px 6px;
+            border-radius: 4px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .live-preview[dir="rtl"].has-trailing-spaces::before {
+            right: auto;
+            left: 8px;
+        }
+        
+        /* Highlighted trailing spaces */
+        .leading-space {
+            background-color: rgba(255, 0, 0, 0.25);
+            border-top: 2px dotted rgba(255, 0, 0, 0.6);
+            position: relative;
+            display: inline;
+            padding: 0 1px;
+        }
+        
+        .trailing-space {
+            background-color: rgba(255, 0, 0, 0.25);
+            border-bottom: 2px dotted rgba(255, 0, 0, 0.6);
+            position: relative;
+            display: inline;
+            padding: 0 1px;
+        }
+        
+        .consecutive-space {
+            background-color: rgba(255, 0, 0, 0.25);
+            border-top: 1px dotted rgba(255, 0, 0, 0.6);
+            border-bottom: 1px dotted rgba(255, 0, 0, 0.6);
+            position: relative;
+            display: inline;
+            padding: 0 1px;
+        }
+        
+        /* Trailing empty lines indicator */
+        .trailing-empty-line {
+            display: block;
+            min-height: 1.5em;
+            background-color: rgba(255, 193, 7, 0.15);
+            border-left: 3px solid #ffc107;
+            margin: 4px 0;
+            position: relative;
+        }
+        
+        .trailing-empty-line::before {
+            content: "Empty line";
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: #856404;
+            font-weight: 600;
+            background: rgba(255, 193, 7, 0.3);
+            padding: 2px 4px;
+            border-radius: 3px;
         }
         
         .preview-label {
@@ -2687,6 +2764,44 @@
             overflow-x: hidden;
         }
         
+        /* Trailing spaces indicator in dark mode */
+        [data-theme="dark"] .live-preview.has-trailing-spaces {
+            border: 2px solid #ffc107;
+            border-left: 4px solid #ffc107;
+            background: rgba(255, 193, 7, 0.1);
+        }
+        
+        [data-theme="dark"] .live-preview.has-trailing-spaces::before {
+            color: #ffc107;
+            background: rgba(255, 193, 7, 0.2);
+        }
+        
+        [data-theme="dark"] .leading-space {
+            background-color: rgba(255, 0, 0, 0.2);
+            border-top-color: rgba(255, 0, 0, 0.5);
+        }
+        
+        [data-theme="dark"] .trailing-space {
+            background-color: rgba(255, 0, 0, 0.2);
+            border-bottom-color: rgba(255, 0, 0, 0.5);
+        }
+        
+        [data-theme="dark"] .consecutive-space {
+            background-color: rgba(255, 0, 0, 0.2);
+            border-top-color: rgba(255, 0, 0, 0.5);
+            border-bottom-color: rgba(255, 0, 0, 0.5);
+        }
+        
+        [data-theme="dark"] .trailing-empty-line {
+            background-color: rgba(255, 193, 7, 0.1);
+            border-left-color: #ffc107;
+        }
+        
+        [data-theme="dark"] .trailing-empty-line::before {
+            color: #ffc107;
+            background: rgba(255, 193, 7, 0.25);
+        }
+        
         [data-theme="dark"] .preview-label {
             color: #818cf8 !important;
             opacity: 0.9;
@@ -3561,6 +3676,9 @@
                         <button id="autoResizeToggle" class="dark-mode-toggle" onclick="toggleAutoResize()" title="Toggle Auto-Resize Textareas">
                             <i class="fas fa-arrows-alt-v"></i>
                         </button>
+                        <button id="trailingSpacesToggle" class="dark-mode-toggle" onclick="toggleTrailingSpacesIndicator()" title="Show trailing spaces indicator in preview boxes">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </button>
                         <button id="darkModeToggle" class="dark-mode-toggle" onclick="toggleDarkMode()">
                             <i class="fas fa-moon"></i>
                         </button>
@@ -4317,6 +4435,49 @@
             previewContainer.querySelectorAll('.live-preview').forEach(el => {
                 el.style.fontSize = fontSize;
                 el.style.lineHeight = lineHeight;
+                
+                // Check for trailing spaces in final preview
+                // Find the associated textarea by looking for the data-navigate-to attribute
+                const previewSection = el.closest('.preview-section');
+                if (previewSection) {
+                    const navigateTo = previewSection.getAttribute('data-navigate-to');
+                    const targetElement = previewSection.getAttribute('data-target-element');
+                    
+                    if (navigateTo && targetElement) {
+                        // Try to find the original textarea
+                        let textarea = null;
+                        if (navigateTo.startsWith('content-section-')) {
+                            const index = parseInt(navigateTo.replace('content-section-', ''), 10);
+                            const sectionEl = document.querySelectorAll('#content_sections_container > .array-item')[index];
+                            if (sectionEl) {
+                                if (targetElement === 'title') {
+                                    textarea = sectionEl.querySelector('input[placeholder="Section title"]');
+                                } else if (targetElement === 'content') {
+                                    textarea = sectionEl.querySelector('.text-field-container textarea');
+                                }
+                            }
+                        } else if (navigateTo.startsWith('question-')) {
+                            const index = parseInt(navigateTo.replace('question-', ''), 10);
+                            const questionEl = document.querySelectorAll('#questions_container > .array-item')[index];
+                            if (questionEl) {
+                                // Find textarea based on the preview section label or structure
+                                const label = previewSection.querySelector('.preview-section-label');
+                                if (label) {
+                                    const labelText = label.textContent.trim();
+                                    if (labelText === 'Setup Text') {
+                                        textarea = questionEl.querySelector('textarea[placeholder*="setup"]');
+                                    } else if (labelText === 'Question Text') {
+                                        textarea = questionEl.querySelector('textarea[placeholder*="Enter question text"]');
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (textarea) {
+                            updateTrailingSpacesIndicator(textarea, el);
+                        }
+                    }
+                }
             });
             
             // Draw matching lines after DOM is ready
@@ -4412,7 +4573,11 @@
                     if (window.marked.setOptions) {
                         window.marked.setOptions({ gfm: true, breaks: true });
                     }
+                    // Mark trailing spaces before markdown parsing
+                    md = markTrailingSpaces(md);
                     let html = window.marked.parse(md);
+                    // Replace trailing space markers with HTML
+                    html = replaceTrailingSpaceMarkers(html);
                     
                     // Re-inject math placeholders as elements for KaTeX to render (block math first)
                     mathBlocks.forEach((content, i) => {
@@ -4597,10 +4762,15 @@
                     targetElement.textContent = md;
                 }
                 
+                // Update trailing spaces indicator
+                updateTrailingSpacesIndicator(textarea, targetElement);
+                
             } catch (e) {
                 console.error('Error rendering preview:', e);
                 // Fallback: simple text display
                 targetElement.textContent = textarea ? textarea.value || '' : '';
+                // Still check for trailing spaces even in fallback
+                updateTrailingSpacesIndicator(textarea, targetElement);
             }
         }
 
@@ -9729,6 +9899,9 @@
             preview.setAttribute('dir', direction);
             preview.style.textAlign = textAlign;
             
+            // Update trailing spaces indicator
+            updateTrailingSpacesIndicator(textarea, preview);
+            
             try {
                 // Normalize CRLF
                 let md = (textarea.value || '').replace(/\r\n?/g, '\n');
@@ -10210,6 +10383,15 @@
                 
                 md = markedMd.join('\n');
                 
+                // Mark trailing spaces BEFORE converting newlines (so we can detect empty lines correctly)
+                md = markTrailingSpaces(md);
+                
+                // Convert empty line markers to HTML divs before newline conversion to preserve them
+                // This ensures all empty lines are preserved even when multiple newlines are converted
+                md = md.replace(/@@LEADING_EMPTY_LINE@@/g, '<div class="trailing-empty-line"></div>');
+                md = md.replace(/@@TRAILING_EMPTY_LINE@@/g, '<div class="trailing-empty-line"></div>');
+                md = md.replace(/@@CONSECUTIVE_EMPTY_LINE@@/g, '<div class="trailing-empty-line"></div>');
+                
                 // Now convert 2+ newlines to <br> tags, but skip markdown boundary markers
                 md = md.replace(/\n{2,}/g, (match) => {
                     const count = match.length;
@@ -10221,6 +10403,8 @@
                 
                 // Preserve multiple consecutive spaces (2 or more) by converting to &nbsp;
                 md = md.replace(/ {2,}/g, (match) => {
+                    // Don't convert space markers (they're already marked)
+                    // This regex only matches spaces, not the markers themselves
                     return '&nbsp;'.repeat(match.length);
                 });
 
@@ -10232,6 +10416,9 @@
                 });
 
                 let html = window.marked?.parse ? window.marked.parse(md) : md;
+                
+                // Replace trailing space markers with HTML
+                html = replaceTrailingSpaceMarkers(html);
                 // Re-inject math placeholders as elements for KaTeX to render (block math first via string replace)
                 mathBlocks.forEach((content, i) => {
                     const token = `@@MATH_BLOCK_${i}@@`;
@@ -10583,9 +10770,13 @@
                 
                 // Initial render and event binding
                 renderLivePreview(ta);
+                // Update trailing spaces indicator after initial render
+                updateTrailingSpacesIndicator(ta, preview);
                 ta.removeEventListener('input', ta.__livePreviewHandler || (()=>{}));
                 const handler = () => {
                     renderLivePreview(ta);
+                    // Update trailing spaces indicator after rendering
+                    updateTrailingSpacesIndicator(ta, preview);
                     // Show validation errors for all types
                     showTableValidationErrors(ta);
                     showListValidationErrors(ta);
@@ -10879,8 +11070,8 @@
             
             // Set and apply font size (use saved value or default)
             const fontSizeToApply = savedFontSize || '14'; // Default to 14px if not saved
-            const fontSizeSelect = document.getElementById('fontSizeSelect');
-            if (fontSizeSelect) {
+                const fontSizeSelect = document.getElementById('fontSizeSelect');
+                if (fontSizeSelect) {
                 fontSizeSelect.value = fontSizeToApply;
                 // Use setTimeout to ensure all elements are loaded
                 setTimeout(() => {
@@ -10890,8 +11081,8 @@
             
             // Set and apply line height (use saved value or default)
             const lineHeightToApply = savedLineHeight || '1.5'; // Default to 1.5 if not saved
-            const lineHeightSelect = document.getElementById('lineHeightSelect');
-            if (lineHeightSelect) {
+                const lineHeightSelect = document.getElementById('lineHeightSelect');
+                if (lineHeightSelect) {
                 lineHeightSelect.value = lineHeightToApply;
                 // Use setTimeout to ensure all elements are loaded
                 setTimeout(() => {
@@ -10933,6 +11124,375 @@
             } else {
                 body.removeAttribute('data-theme');
                 icon.className = 'fas fa-moon';
+            }
+        }
+
+        // Check if a textarea has trailing spaces or empty lines
+        function hasTrailingSpaces(textarea) {
+            if (!textarea || !textarea.value) return false;
+            const text = textarea.value;
+            const lines = text.split('\n');
+            
+            // Check for trailing spaces on lines
+            const hasTrailingSpacesOnLines = lines.some(line => {
+                if (line.trim().length === 0) return false; // Skip empty lines
+                return line.trimEnd() !== line; // Line has trailing spaces
+            });
+            
+            // Check for leading spaces on lines
+            const hasLeadingSpacesOnLines = lines.some(line => {
+                if (line.trim().length === 0) return false; // Skip empty lines
+                return line.trimStart() !== line; // Line has leading spaces
+            });
+            
+            // Check for multiple consecutive spaces within text (2+ consecutive spaces)
+            const hasMultipleConsecutiveSpaces = lines.some(line => {
+                if (line.trim().length === 0) return false; // Skip empty lines
+                // Check for 2+ consecutive spaces that are not at the beginning or end
+                const trimmedStart = line.trimStart();
+                const trimmedEnd = trimmedStart.trimEnd();
+                // Check if the trimmed content (without leading/trailing spaces) has 2+ consecutive spaces
+                return / {2,}/.test(trimmedEnd);
+            });
+            
+            // Check for trailing empty lines (all consecutive empty lines at the end)
+            let trailingEmptyLineCount = 0;
+            for (let i = lines.length - 1; i >= 0; i--) {
+                if (lines[i].trim().length === 0) {
+                    trailingEmptyLineCount++;
+                } else {
+                    break; // Stop when we hit a non-empty line
+                }
+            }
+            const hasTrailingEmptyLines = trailingEmptyLineCount > 0 && text.trim().length > 0;
+            
+            // Check for leading empty lines (all consecutive empty lines at the beginning)
+            let leadingEmptyLineCount = 0;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim().length === 0) {
+                    leadingEmptyLineCount++;
+                } else {
+                    break; // Stop when we hit a non-empty line
+                }
+            }
+            const hasLeadingEmptyLines = leadingEmptyLineCount > 0 && text.trim().length > 0;
+            
+            // Check for consecutive empty lines in the middle (2+ consecutive empty lines)
+            let hasConsecutiveEmptyLines = false;
+            let consecutiveEmptyCount = 0;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim().length === 0) {
+                    consecutiveEmptyCount++;
+                    if (consecutiveEmptyCount >= 2) {
+                        // Check if this is not part of leading or trailing empty lines
+                        const isLeading = i < leadingEmptyLineCount;
+                        const isTrailing = i >= lines.length - trailingEmptyLineCount;
+                        if (!isLeading && !isTrailing) {
+                            hasConsecutiveEmptyLines = true;
+                            break;
+                        }
+                    }
+                } else {
+                    consecutiveEmptyCount = 0;
+                }
+            }
+            
+            return hasTrailingSpacesOnLines || hasLeadingSpacesOnLines || hasMultipleConsecutiveSpaces || hasTrailingEmptyLines || hasLeadingEmptyLines || hasConsecutiveEmptyLines;
+        }
+        
+        // Mark trailing spaces in markdown text before rendering
+        function markTrailingSpaces(md) {
+            const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
+            if (!isEnabled || !md) return md;
+            
+            // Split into lines and process each line
+            const lines = md.split('\n');
+            
+            // Find trailing empty lines count
+            let trailingEmptyLineCount = 0;
+            for (let i = lines.length - 1; i >= 0; i--) {
+                if (lines[i].trim().length === 0) {
+                    trailingEmptyLineCount++;
+                } else {
+                    break;
+                }
+            }
+            
+            // Find leading empty lines count
+            let leadingEmptyLineCount = 0;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim().length === 0) {
+                    leadingEmptyLineCount++;
+                } else {
+                    break;
+                }
+            }
+            
+            // Identify consecutive empty lines in the middle (2+ consecutive empty lines)
+            const consecutiveEmptyLineIndices = new Set();
+            let consecutiveStartIndex = -1;
+            let consecutiveEmptyCount = 0;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].trim().length === 0) {
+                    if (consecutiveStartIndex === -1) {
+                        consecutiveStartIndex = i;
+                    }
+                    consecutiveEmptyCount++;
+                } else {
+                    // End of consecutive empty lines group
+                    if (consecutiveEmptyCount >= 2) {
+                        // Check if this group is not part of leading or trailing empty lines
+                        const isLeading = consecutiveStartIndex < leadingEmptyLineCount;
+                        const isTrailing = consecutiveStartIndex >= lines.length - trailingEmptyLineCount;
+                        if (!isLeading && !isTrailing) {
+                            // Mark all consecutive empty lines in this group
+                            for (let j = consecutiveStartIndex; j < consecutiveStartIndex + consecutiveEmptyCount; j++) {
+                                consecutiveEmptyLineIndices.add(j);
+                            }
+                        }
+                    }
+                    consecutiveStartIndex = -1;
+                    consecutiveEmptyCount = 0;
+                }
+            }
+            // Handle case where consecutive empty lines are at the end (but not trailing)
+            if (consecutiveEmptyCount >= 2 && consecutiveStartIndex !== -1) {
+                const isLeading = consecutiveStartIndex < leadingEmptyLineCount;
+                const isTrailing = consecutiveStartIndex >= lines.length - trailingEmptyLineCount;
+                if (!isLeading && !isTrailing) {
+                    // Mark all consecutive empty lines in this group
+                    for (let j = consecutiveStartIndex; j < consecutiveStartIndex + consecutiveEmptyCount; j++) {
+                        consecutiveEmptyLineIndices.add(j);
+                    }
+                }
+            }
+            
+            // Process lines for trailing and leading spaces (only process non-empty lines and non-leading/trailing empty lines)
+            const processedLines = lines.map((line, index) => {
+                // Check if line has spaces (leading or trailing, but not if it's an empty line)
+                if (line.trim().length > 0) {
+                    let result = '';
+                    
+                    // Check for leading spaces
+                    const trimmedStart = line.trimStart();
+                    const leadingSpacesCount = line.length - trimmedStart.length;
+                    if (leadingSpacesCount > 0) {
+                        result += '@@LEADING_SPACES_' + leadingSpacesCount + '@@';
+                    }
+                    
+                    // Check for trailing spaces on the trimmed line (after removing leading spaces)
+                    const trimmedEnd = trimmedStart.trimEnd();
+                    const trailingSpacesCount = trimmedStart.length - trimmedEnd.length;
+                    
+                    // Process the content (without leading and trailing spaces) to mark multiple consecutive spaces
+                    // Replace 2+ consecutive spaces with a marker
+                    const processedContent = trimmedEnd.replace(/ {2,}/g, (match) => {
+                        return '@@CONSECUTIVE_SPACES_' + match.length + '@@';
+                    });
+                    
+                    // Add the processed content
+                    result += processedContent;
+                    
+                    // Add trailing spaces marker if present
+                    if (trailingSpacesCount > 0) {
+                        result += '@@TRAILING_SPACES_' + trailingSpacesCount + '@@';
+                    }
+                    
+                    return result;
+                }
+                // For empty lines, check if they're leading, trailing, or consecutive in the middle
+                if (line.trim().length === 0) {
+                    // Check leading first (most specific)
+                    if (index < leadingEmptyLineCount) {
+                        // Leading empty line - replace with marker
+                        return '@@LEADING_EMPTY_LINE@@';
+                    }
+                    // Check trailing next
+                    if (index >= lines.length - trailingEmptyLineCount && trailingEmptyLineCount > 0) {
+                        // Trailing empty line - replace with marker
+                        return '@@TRAILING_EMPTY_LINE@@';
+                    }
+                    // Check consecutive in the middle
+                    if (consecutiveEmptyLineIndices.has(index)) {
+                        // Consecutive empty line in the middle - replace with marker
+                        return '@@CONSECUTIVE_EMPTY_LINE@@';
+                    }
+                }
+                return line;
+            });
+            
+            return processedLines.join('\n');
+        }
+        
+        // Replace trailing space markers in HTML with styled spans
+        function replaceTrailingSpaceMarkers(html) {
+            const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
+            if (!isEnabled || !html) return html;
+            
+            // Replace leading space markers with styled spans
+            html = html.replace(/@@LEADING_SPACES_(\d+)@@/g, (match, count) => {
+                const numSpaces = parseInt(count, 10);
+                const spaces = '&nbsp;'.repeat(numSpaces);
+                return `<span class="leading-space">${spaces}</span>`;
+            });
+            
+            // Replace trailing space markers with styled spans
+            html = html.replace(/@@TRAILING_SPACES_(\d+)@@/g, (match, count) => {
+                const numSpaces = parseInt(count, 10);
+                const spaces = '&nbsp;'.repeat(numSpaces);
+                return `<span class="trailing-space">${spaces}</span>`;
+            });
+            
+            // Replace consecutive space markers (within text) with styled spans
+            html = html.replace(/@@CONSECUTIVE_SPACES_(\d+)@@/g, (match, count) => {
+                const numSpaces = parseInt(count, 10);
+                const spaces = '&nbsp;'.repeat(numSpaces);
+                return `<span class="consecutive-space">${spaces}</span>`;
+            });
+            
+            // Replace trailing empty line markers
+            html = html.replace(/@@TRAILING_EMPTY_LINE@@/g, '<div class="trailing-empty-line"></div>');
+            
+            // Replace leading empty line markers
+            html = html.replace(/@@LEADING_EMPTY_LINE@@/g, '<div class="trailing-empty-line"></div>');
+            
+            // Replace consecutive empty line markers (in the middle)
+            html = html.replace(/@@CONSECUTIVE_EMPTY_LINE@@/g, '<div class="trailing-empty-line"></div>');
+            
+            return html;
+        }
+        
+        // Update trailing spaces indicator for a preview box
+        function updateTrailingSpacesIndicator(textarea, preview) {
+            if (!preview) return;
+            const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
+            if (isEnabled && hasTrailingSpaces(textarea)) {
+                preview.classList.add('has-trailing-spaces');
+            } else {
+                preview.classList.remove('has-trailing-spaces');
+            }
+        }
+        
+        // Toggle trailing spaces indicator
+        function toggleTrailingSpacesIndicator() {
+            const toggle = document.getElementById('trailingSpacesToggle');
+            const icon = toggle.querySelector('i');
+            const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
+            
+            // Keep original icon, just change background color
+            if (isEnabled) {
+                localStorage.setItem('trailingSpacesIndicator', 'false');
+                // OFF state: Red background
+                toggle.title = 'Trailing Spaces Indicator: OFF (Click to enable)';
+                toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
+                toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                // Remove indicators from all previews and re-render them to remove marker HTML
+                document.querySelectorAll('textarea, input[type="text"]').forEach(textarea => {
+                    // Skip search bar and JSON input
+                    if (textarea.id === 'searchFilter' || textarea.id === 'json_input') return;
+                    // Re-render the preview to remove markers
+                    renderLivePreview(textarea);
+                });
+                // Also remove the class from all previews
+                document.querySelectorAll('.live-preview').forEach(preview => {
+                    preview.classList.remove('has-trailing-spaces');
+                });
+                // Regenerate final preview if it's active
+                const finalPreviewTab = document.getElementById('final-preview');
+                if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                    generateFinalPreview();
+                }
+            } else {
+                localStorage.setItem('trailingSpacesIndicator', 'true');
+                // ON state: Green background
+                toggle.title = 'Trailing Spaces Indicator: ON (Click to disable)';
+                toggle.style.background = 'rgba(40, 167, 69, 0.8)'; // Green background
+                toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                // Re-render all previews to add markers
+                document.querySelectorAll('textarea, input[type="text"]').forEach(textarea => {
+                    // Skip search bar and JSON input
+                    if (textarea.id === 'searchFilter' || textarea.id === 'json_input') return;
+                    // Re-render the preview to add markers
+                    renderLivePreview(textarea);
+                });
+                // Update all previews to show indicators (add class)
+                updateAllTrailingSpacesIndicators();
+                // Regenerate final preview if it's active
+                const finalPreviewTab = document.getElementById('final-preview');
+                if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                    generateFinalPreview();
+                }
+            }
+            
+            trackEvent('feature_toggled', { feature: 'trailing_spaces_indicator', enabled: !isEnabled });
+        }
+        
+        // Update trailing spaces indicators for all previews
+        function updateAllTrailingSpacesIndicators() {
+            const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
+            if (!isEnabled) return;
+            
+            // Find all textareas and their associated previews
+            document.querySelectorAll('textarea, input[type="text"]').forEach(textarea => {
+                // Skip search bar and JSON input
+                if (textarea.id === 'searchFilter' || textarea.id === 'json_input') return;
+                
+                // Find the associated preview
+                let preview = null;
+                let nextSibling = textarea.nextElementSibling;
+                
+                // Walk through siblings to find preview
+                while (nextSibling) {
+                    if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
+                        preview = nextSibling;
+                        break;
+                    }
+                    // Skip buttons, labels, and error divs
+                    if (nextSibling.tagName === 'BUTTON' || 
+                        nextSibling.classList.contains('preview-label') ||
+                        nextSibling.classList.contains('table-validation-errors') ||
+                        nextSibling.classList.contains('list-validation-errors') ||
+                        nextSibling.classList.contains('blockquote-validation-errors') ||
+                        nextSibling.classList.contains('latex-validation-errors') ||
+                        nextSibling.classList.contains('image-validation-errors') ||
+                        nextSibling.classList.contains('quote-validation-errors') ||
+                        nextSibling.classList.contains('br-validation-errors')) {
+                        nextSibling = nextSibling.nextElementSibling;
+                    } else {
+                        break;
+                    }
+                }
+                
+                if (preview) {
+                    updateTrailingSpacesIndicator(textarea, preview);
+                }
+            });
+        }
+        
+        // Initialize trailing spaces indicator from localStorage
+        function initializeTrailingSpacesIndicator() {
+            const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
+            const toggle = document.getElementById('trailingSpacesToggle');
+            if (toggle) {
+                const icon = toggle.querySelector('i');
+                // Keep original icon, just change background color
+                if (isEnabled) {
+                    // ON state: Green background
+                    toggle.title = 'Trailing Spaces Indicator: ON (Click to disable)';
+                    toggle.style.background = 'rgba(40, 167, 69, 0.8)'; // Green background
+                    toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                } else {
+                    // OFF state: Red background
+                    toggle.title = 'Trailing Spaces Indicator: OFF (Click to enable)';
+                    toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
+                    toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                }
+            }
+            if (isEnabled) {
+                // Update all previews after a short delay to ensure DOM is ready
+                setTimeout(() => {
+                    updateAllTrailingSpacesIndicators();
+                }, 100);
             }
         }
 
@@ -12174,7 +12734,7 @@
                     listEl.innerHTML = '';
                 }
                 scale = 1.2;
-                persistView();
+                persistView(); 
                 updateZoomDisplay();
                 await renderPage(); 
             };
@@ -17389,6 +17949,21 @@
                 }
             });
             
+            // Restore font size and line height settings after loading JSON
+            const savedFontSize = localStorage.getItem('fontSize');
+            const savedLineHeight = localStorage.getItem('lineHeight');
+            if (savedFontSize) {
+                // Use setTimeout to ensure DOM is fully updated before applying font settings
+                setTimeout(() => {
+                    changeFontSize(savedFontSize);
+                }, 0);
+            }
+            if (savedLineHeight) {
+                setTimeout(() => {
+                    changeLineHeight(savedLineHeight);
+                }, 0);
+            }
+            
             // If final preview tab is active, regenerate it after loading JSON
             const finalPreviewTab = document.getElementById('final-preview');
             if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
@@ -19270,6 +19845,9 @@
             
             // Initialize auto-resize toggle
             initializeAutoResize();
+            
+            // Initialize trailing spaces indicator
+            initializeTrailingSpacesIndicator();
             
             // Set direction based on data-ltr attribute
             const allTextareas = document.querySelectorAll('textarea, input[type="text"]');
@@ -21646,6 +22224,45 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
                         <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- New Features -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li>
+                                <strong>Extra Spaces and Empty Lines Indicator:</strong> 
+                                <p style="margin: 8px 0;">A new toggle button <span style="background: rgba(40, 167, 69, 0.8); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 4px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px; color: white; font-size: 0.85em; vertical-align: middle;"><i class="fas fa-exclamation-triangle"></i></span> in the header helps you spot formatting issues in your text. When enabled, the button turns <span style="background: rgba(40, 167, 69, 0.8); color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">green</span>, and when disabled, it turns <span style="background: rgba(220, 53, 69, 0.8); color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">red</span>. When enabled, preview boxes show a warning badge and highlight exactly where problems are located.</p>
+                                <p style="margin: 8px 0;"><strong>What gets detected and how it looks:</strong></p>
+                                <ul style="margin: 4px 0 8px 20px; padding-left: 0;">
+                                    <li style="margin-bottom: 6px;"><strong>Leading spaces:</strong> Spaces at the beginning of lines are highlighted with a <span style="background-color: rgba(255, 0, 0, 0.25); border-top: 2px dotted rgba(255, 0, 0, 0.6); padding: 1px 4px; display: inline-block; margin: 0 2px;">red background and top border</span> - you'll see the red highlight at the start of affected lines.</li>
+                                    <li style="margin-bottom: 6px;"><strong>Trailing spaces:</strong> Spaces at the end of lines are highlighted with a <span style="background-color: rgba(255, 0, 0, 0.25); border-bottom: 2px dotted rgba(255, 0, 0, 0.6); padding: 1px 4px; display: inline-block; margin: 0 2px;">red background and bottom border</span> - you'll see the red highlight at the end of affected lines.</li>
+                                    <li style="margin-bottom: 6px;"><strong>Multiple consecutive spaces:</strong> Two or more spaces in a row within text are highlighted with a <span style="background-color: rgba(255, 0, 0, 0.25); border-top: 1px dotted rgba(255, 0, 0, 0.6); border-bottom: 1px dotted rgba(255, 0, 0, 0.6); padding: 1px 4px; display: inline-block; margin: 0 2px;">red background with both top and bottom borders</span> - these appear in the middle of your text when you have multiple spaces together.</li>
+                                    <li style="margin-bottom: 6px;"><strong>Empty lines:</strong> Empty lines are highlighted with a <span style="background-color: rgba(255, 193, 7, 0.15); border-left: 3px solid #ffc107; padding: 4px 8px; display: inline-block; min-width: 80px; margin: 2px 0;">yellow background and left border</span> with an "Empty line" label - these appear as yellow highlighted blocks for any blank lines.</li>
+                                </ul>
+                                <p style="margin: 8px 0;">This makes it easy to catch formatting problems before generating your final output. Simply click the toggle button to turn the feature on or off. <strong>Note:</strong> Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.</p>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bug Fixes -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Fixed Font Size Reset on JSON Load:</strong> Fixed an issue where loading a JSON file using the Load button would reset the font size in the input form to the default value instead of preserving the user's previously selected font size setting. Now, when you load a JSON file, your saved font size preference is automatically restored and applied to all form elements.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 6.8 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.8</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- Enhancements -->
