@@ -3764,7 +3764,38 @@
                         <label>Lesson Standards</label>
                         <div id="lesson_standards">
                             <div class="array-item">
-                                <input type="text" placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" data-ltr="true" title="Educational standard code (e.g., Common Core State Standards)">
+                                <div class="text-field-container">
+                                    <span class="input-label">Input Markdown</span>
+                                    <textarea placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" title="Educational standard code (e.g., Common Core State Standards)"></textarea>
+                                    <button type="button" class="markdown-btn" onclick="insertBold(this.parentElement.querySelector('textarea'))" title="Make selected text bold (**text**)">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="insertItalic(this.parentElement.querySelector('textarea'))" title="Make selected text italic (*text*)">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="insertBulletList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to bullet list (- item)">
+                                        <i class="fas fa-list-ul"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
+                                        <i class="fas fa-list-ol"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                                        <i class="fas fa-quote-right"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
+                                        <i class="fas fa-square-root-alt"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
+                                        <i class="fas fa-undo"></i>
+                                    </button>
+                                    <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                                        <i class="fas fa-redo"></i>
+                                    </button>
+                                    <button type="button" class="dir-btn" onclick="toggleDirection(this.parentElement.querySelector('textarea'))" title="Toggle text direction (LTR/RTL)">LTR</button>
+                                </div>
                                 <div class="row-actions">
                                     <button class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
                                         <i class="fas fa-plus"></i> Before
@@ -4372,7 +4403,7 @@
             const lessonTitleInput = document.getElementById('lesson_title');
             const lessonTitle = lessonTitleInput ? lessonTitleInput.value || '' : '';
             const lessonStandardsContainer = document.getElementById('lesson_standards');
-            const lessonStandards = lessonStandardsContainer ? Array.from(lessonStandardsContainer.querySelectorAll('.array-item input')).map(input => input.value.trim()).filter(v => v) : [];
+            const lessonStandards = lessonStandardsContainer ? Array.from(lessonStandardsContainer.querySelectorAll('.array-item textarea')).map(textarea => textarea.value.trim()).filter(v => v) : [];
             const terminologyContainer = document.getElementById('terminology');
             const terminologyItems = terminologyContainer ? Array.from(terminologyContainer.querySelectorAll('.array-item input')) : [];
             const lessonTextarea = document.getElementById('lesson_text');
@@ -4412,8 +4443,36 @@
                 }
                 
                 if (lessonStandards.length > 0) {
-                    const standardsHtml = lessonStandards.map(standard => `<div style="padding: 4px 0; dir: ltr; text-align: left;">${standard}</div>`).join('');
-                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_standards').querySelector('.array-item input'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Standards</h5><div class="setup-text">${standardsHtml}</div></div>`;
+                    // Render each standard with markdown preview
+                    const standardsHtml = Array.from(lessonStandardsContainer.querySelectorAll('.array-item textarea')).map(textarea => {
+                        const value = textarea.value.trim();
+                        if (!value) return '';
+                        // Find existing preview for this textarea
+                        let preview = null;
+                        let sibling = textarea.nextElementSibling;
+                        while (sibling) {
+                            if (sibling.classList && sibling.classList.contains('live-preview')) {
+                                preview = sibling;
+                                break;
+                            }
+                            sibling = sibling.nextElementSibling;
+                        }
+                        if (preview && preview.innerHTML) {
+                            // Use the preview's actual direction (RTL by default)
+                            const previewDir = preview.getAttribute('dir') || 'rtl';
+                            const previewAlign = previewDir === 'ltr' ? 'left' : 'right';
+                            return `<div style="padding: 4px 0; dir: ${previewDir}; text-align: ${previewAlign};">${preview.innerHTML}</div>`;
+                        } else {
+                            // Create temporary preview element (RTL by default)
+                            const tempPreview = document.createElement('div');
+                            tempPreview.className = 'live-preview';
+                            tempPreview.setAttribute('dir', 'rtl');
+                            tempPreview.style.textAlign = 'right';
+                            renderLivePreviewToElement(textarea, tempPreview);
+                            return `<div style="padding: 4px 0; dir: rtl; text-align: right;">${tempPreview.innerHTML}</div>`;
+                        }
+                    }).filter(html => html).join('');
+                    html += `<div class="preview-section" style="position: relative;"><div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="navigateToInput(document.getElementById('lesson_standards').querySelector('.array-item textarea'))" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div><h5 class="preview-section-label">Lesson Standards</h5><div class="setup-text">${standardsHtml}</div></div>`;
                 }
                 
                 if (terminologyItems.length > 0) {
@@ -8355,7 +8414,38 @@
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
             newItem.innerHTML = `
-                <input type="text" placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" data-ltr="true">
+                <div class="text-field-container">
+                    <span class="input-label">Input Markdown</span>
+                    <textarea placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" title="Educational standard code (e.g., Common Core State Standards)"></textarea>
+                    <button type="button" class="markdown-btn" onclick="insertBold(this.parentElement.querySelector('textarea'))" title="Make selected text bold (**text**)">
+                        <i class="fas fa-bold"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertItalic(this.parentElement.querySelector('textarea'))" title="Make selected text italic (*text*)">
+                        <i class="fas fa-italic"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBulletList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to bullet list (- item)">
+                        <i class="fas fa-list-ul"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
+                        <i class="fas fa-list-ol"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                        <i class="fas fa-quote-right"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
+                        <i class="fas fa-dollar-sign"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
+                        <i class="fas fa-square-root-alt"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button type="button" class="dir-btn" onclick="toggleDirection(this.parentElement.querySelector('textarea'))" title="Toggle text direction (LTR/RTL)">LTR</button>
+                </div>
                 <div class="row-actions">
                     <button class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
                         <i class="fas fa-plus"></i> Before
@@ -8380,12 +8470,15 @@
                 containerId: 'lesson_standards',
                 updateNumbers: false
             });
-            // Ensure the new lesson standard field starts with LTR (English text)
-            const newInput = newItem.querySelector('input');
-            if (newInput) {
-                newInput.setAttribute('dir', 'ltr');
-                // CSS will handle the styling based on data-ltr attribute
+            // Ensure the new lesson standard field starts with RTL (default direction)
+            const newTextarea = newItem.querySelector('textarea');
+            if (newTextarea) {
+                newTextarea.setAttribute('dir', 'rtl');
+                // CSS will handle the styling (RTL by default)
             }
+            // Attach preview to the new lesson standard textarea
+            attachPreviews(newItem);
+            applyFontSettings(newItem);
         }
 
         function addTerminology() {
@@ -8439,7 +8532,38 @@
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
             newItem.innerHTML = `
-                <input type="text" placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" data-ltr="true">
+                <div class="text-field-container">
+                    <span class="input-label">Input Markdown</span>
+                    <textarea placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" title="Educational standard code (e.g., Common Core State Standards)"></textarea>
+                    <button type="button" class="markdown-btn" onclick="insertBold(this.parentElement.querySelector('textarea'))" title="Make selected text bold (**text**)">
+                        <i class="fas fa-bold"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertItalic(this.parentElement.querySelector('textarea'))" title="Make selected text italic (*text*)">
+                        <i class="fas fa-italic"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBulletList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to bullet list (- item)">
+                        <i class="fas fa-list-ul"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
+                        <i class="fas fa-list-ol"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                        <i class="fas fa-quote-right"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
+                        <i class="fas fa-dollar-sign"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
+                        <i class="fas fa-square-root-alt"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button type="button" class="dir-btn" onclick="toggleDirection(this.parentElement.querySelector('textarea'))" title="Toggle text direction (LTR/RTL)">LTR</button>
+                </div>
                 <div class="row-actions">
                     <button class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
                         <i class="fas fa-plus"></i> Before
@@ -8466,10 +8590,13 @@
                 updateNumbers: false
             });
             // Ensure the new lesson standard field starts with LTR (English text)
-            const newInput = newItem.querySelector('input');
-            if (newInput) {
-                newInput.setAttribute('dir', 'ltr');
+            const newTextarea = newItem.querySelector('textarea');
+            if (newTextarea) {
+                newTextarea.setAttribute('dir', 'ltr');
             }
+            // Attach preview to the new lesson standard textarea
+            attachPreviews(newItem);
+            applyFontSettings(newItem);
         }
 
         function addLessonStandardAfter(button) {
@@ -8480,7 +8607,38 @@
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
             newItem.innerHTML = `
-                <input type="text" placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" data-ltr="true">
+                <div class="text-field-container">
+                    <span class="input-label">Input Markdown</span>
+                    <textarea placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" title="Educational standard code (e.g., Common Core State Standards)"></textarea>
+                    <button type="button" class="markdown-btn" onclick="insertBold(this.parentElement.querySelector('textarea'))" title="Make selected text bold (**text**)">
+                        <i class="fas fa-bold"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertItalic(this.parentElement.querySelector('textarea'))" title="Make selected text italic (*text*)">
+                        <i class="fas fa-italic"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBulletList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to bullet list (- item)">
+                        <i class="fas fa-list-ul"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertNumberedList(this.parentElement.querySelector('textarea'))" title="Convert line(s) to numbered list (1. item)">
+                        <i class="fas fa-list-ol"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockquote(this.parentElement.querySelector('textarea'))" title="Convert line(s) to blockquote (> text)">
+                        <i class="fas fa-quote-right"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertInlineLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with $ or insert $$">
+                        <i class="fas fa-dollar-sign"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="insertBlockLatex(this.parentElement.querySelector('textarea'))" title="Wrap selection with block LaTeX ($$\\n...\\n$$) or insert $$\\n\\n$$">
+                        <i class="fas fa-square-root-alt"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="removeMarkdownFormatting(this)" title="Undo last markdown formatting operation">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button type="button" class="markdown-btn" onclick="redoMarkdownFormatting(this)" title="Redo last undone markdown formatting operation">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button type="button" class="dir-btn" onclick="toggleDirection(this.parentElement.querySelector('textarea'))" title="Toggle text direction (LTR/RTL)">LTR</button>
+                </div>
                 <div class="row-actions">
                     <button class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
                         <i class="fas fa-plus"></i> Before
@@ -8507,10 +8665,13 @@
                 updateNumbers: false
             });
             // Ensure the new lesson standard field starts with LTR (English text)
-            const newInput = newItem.querySelector('input');
-            if (newInput) {
-                newInput.setAttribute('dir', 'ltr');
+            const newTextarea = newItem.querySelector('textarea');
+            if (newTextarea) {
+                newTextarea.setAttribute('dir', 'ltr');
             }
+            // Attach preview to the new lesson standard textarea
+            attachPreviews(newItem);
+            applyFontSettings(newItem);
         }
 
         // Functions to add terminology before/after current item
@@ -10826,7 +10987,8 @@
                 ...root.querySelectorAll('.text-field-container textarea, #lesson_text'),
                 ...root.querySelectorAll('#lesson_title'),
                 ...root.querySelectorAll('.form-group input[placeholder="Section title"]'),
-                ...root.querySelectorAll('#terminology input[type="text"]')
+                ...root.querySelectorAll('#terminology input[type="text"]'),
+                ...root.querySelectorAll('#lesson_standards textarea')
             ];
             nodes.forEach(ta => {
                 // Find existing preview by looking through all siblings (skip buttons)
@@ -16993,7 +17155,7 @@
                 jsonData.lesson_preamble = {
                     id: lessonId.trim(),
                     title: document.getElementById('lesson_title').value || "",
-                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards input')).map(input => input.value).filter(v => v),
+                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
                     terminology: Array.from(document.querySelectorAll('#terminology input')).map(input => input.value).filter(v => v),
                     text: document.getElementById('lesson_text').value || ""
                 };
@@ -17344,7 +17506,7 @@
                 jsonData.lesson_preamble = {
                     id: lessonId.trim(),
                     title: document.getElementById('lesson_title').value || "",
-                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards input')).map(input => input.value).filter(v => v),
+                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
                     terminology: Array.from(document.querySelectorAll('#terminology input')).map(input => input.value).filter(v => v),
                     text: document.getElementById('lesson_text').value || ""
                 };
@@ -17600,8 +17762,9 @@
             (values || []).forEach(val => {
                 addFn();
                 const last = container.lastElementChild;
-                const input = last && last.querySelector('input');
-                if (input) input.value = val;
+                // Look for either input or textarea (lesson standards now use textarea)
+                const field = last && (last.querySelector('textarea') || last.querySelector('input'));
+                if (field) field.value = val;
             });
         }
 
@@ -18073,10 +18236,10 @@
             const allTextareas = document.querySelectorAll('textarea, input[type="text"]');
             allTextareas.forEach(ta => {
                 if (ta.hasAttribute('data-ltr')) {
-                    // LTR fields (JSON input, lesson standards)
+                    // LTR fields (JSON input, etc.)
                     ta.setAttribute('dir', 'ltr');
                 } else {
-                    // RTL fields (content, questions, titles, etc.)
+                    // RTL fields (content, questions, titles, lesson standards, etc.)
                     ta.setAttribute('dir', 'rtl');
                 }
                 // CSS will handle the styling based on data-ltr attribute
@@ -19476,7 +19639,7 @@
                     jsonData.lesson_preamble = {
                         id: lessonId.trim(),
                         title: document.getElementById('lesson_title').value || "",
-                        lesson_standards: Array.from(document.querySelectorAll('#lesson_standards input')).map(input => input.value).filter(v => v),
+                        lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
                         terminology: Array.from(document.querySelectorAll('#terminology input')).map(input => input.value).filter(v => v),
                         text: document.getElementById('lesson_text').value || ""
                     };
