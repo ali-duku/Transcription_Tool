@@ -10722,6 +10722,7 @@
                 });
                 
                 // Fix blockquotes: join consecutive lines unless separated by blank ">"
+                // Special handling for tables inside blockquotes - preserve newlines for table rows
                 // Process blockquotes line by line
                 const lines = md.split('\n');
                 let processedLines = [];
@@ -10735,6 +10736,11 @@
                     const isBlankLine = line.trim() === '';
                     const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
                     const nextIsBlockquote = /^>($| )/.test(nextLine);
+                    
+                    // Check if this blockquote line is part of a table
+                    // Strip blockquote prefix and check if it starts with |
+                    const strippedLine = isBlockquoteLine ? stripBlockquotePrefix(line) : '';
+                    const isTableRowInBlockquote = isBlockquoteLine && strippedLine.trim().startsWith('|');
                     
                     if (isBlockquoteLine) {
                         if (!inBlockquotePre) {
@@ -10752,8 +10758,19 @@
                             }
                             // Add blank line in blockquote
                             processedLines.push('> ');
+                        } else if (isTableRowInBlockquote) {
+                            // This is a table row inside a blockquote
+                            // Flush any non-table content first (regular blockquote text)
+                            if (blockquoteBuffer.length > 0) {
+                                processedLines.push('> ' + blockquoteBuffer.join(' '));
+                                blockquoteBuffer = [];
+                            }
+                            
+                            // Add the table row as-is (preserving the blockquote prefix and newline structure)
+                            // This preserves the table structure instead of joining with spaces
+                            processedLines.push(line);
                         } else {
-                            // Regular blockquote line - extract text after "> "
+                            // Regular blockquote line (not a table) - extract text after "> "
                             const text = line.substring(1).trim();
                             if (text) {
                                 blockquoteBuffer.push(text);
@@ -10833,29 +10850,37 @@
                     const line = mdLinesForTableMerge[i];
                     const trimmed = line.trim();
                     
-                    // Remove math expressions for detection
-                    let lineWithoutMath = removeMathExpressions(trimmed);
+                    // Check if this line is part of a blockquote
+                    const isBlockquoteLine = /^\s*>/.test(line);
+                    // Strip blockquote prefix for table processing
+                    const lineForTableCheck = isBlockquoteLine ? stripBlockquotePrefix(trimmed) : trimmed;
                     
-                    // Check if line is a table row
+                    // Remove math expressions for detection
+                    let lineWithoutMath = removeMathExpressions(lineForTableCheck);
+                    
+                    // Check if line is a table row (using stripped content for blockquote tables)
                     const startsWithPipe = lineWithoutMath.startsWith('|');
                     const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
                     const endsWithPipe = lineWithoutMath.endsWith('|');
                     const isSeparator = /^[\s|:-]+$/.test(lineWithoutMath) && lineWithoutMath.includes('-');
                     
-                    // Check if original line (before removing math) starts with pipe
+                    // Check if original line (before removing math and blockquote) starts with pipe
                     // This is used for continuation detection - a line starting with LaTeX should still be a continuation
-                    const originalStartsWithPipe = trimmed.startsWith('|');
+                    const originalStartsWithPipe = lineForTableCheck.startsWith('|');
                     
                     // If we have an incomplete row and this line doesn't start with pipe in original,
                     // it's a continuation even if it has pipes after removing math
                     // Can only be a continuation if currentTableRow exists and doesn't end with |
+                    // Also check if both current and previous lines are blockquote lines (same blockquote context)
+                    const currentRowIsBlockquote = currentTableRow !== null && /^\s*>/.test(currentTableRow);
                     const isContinuation = currentTableRow !== null && 
                         !originalStartsWithPipe && 
                         currentTableRow.trim() !== '' && 
-                        !currentTableRow.trim().endsWith('|');
+                        !currentTableRow.trim().endsWith('|') &&
+                        (isBlockquoteLine === currentRowIsBlockquote); // Must be in same context (both blockquote or both not)
                     
-                    // Empty lines always end tables
-                    const isEmptyLine = trimmed.length === 0;
+                    // Empty lines always end tables (check original line, not stripped)
+                    const isEmptyLine = lineForTableCheck.length === 0;
                     
                     // Determine if this line is part of a table
                     // If it's a continuation, treat it as part of the table
@@ -14923,6 +14948,19 @@
         }
         
         /**
+         * Strip blockquote prefix from a line (handles "> " or ">")
+         * @param {string} line - The line to process
+         * @returns {string} Line with blockquote prefix removed
+         */
+        function stripBlockquotePrefix(line) {
+            if (!line || typeof line !== 'string') {
+                return line || '';
+            }
+            // Remove blockquote prefix: "> " or ">" at the start
+            return line.replace(/^>\s?/, '').trim();
+        }
+        
+        /**
          * Validate all markdown tables in text and return detailed errors
          * @param {string} text - The text to check
          * @returns {Object} { valid: boolean, errors: string[], hasTables: boolean }
@@ -14949,8 +14987,13 @@
                 const line = lines[i].trim();
                 const rawLine = lines[i]; // Keep original with whitespace
                 
+                // Check if this line is part of a blockquote
+                const isBlockquoteLine = /^\s*>/.test(rawLine);
+                // Strip blockquote prefix for table processing
+                const lineForTableCheck = isBlockquoteLine ? stripBlockquotePrefix(line) : line;
+                
                 // Remove math expressions to avoid detecting pipes inside them
-                let lineWithoutMath = removeMathExpressions(line);
+                let lineWithoutMath = removeMathExpressions(lineForTableCheck);
                 
                 // Check if line has pipes after removing math expressions
                 // Require at least 2 pipes for a table (which creates 3 cells)
@@ -14958,22 +15001,29 @@
                 
                 // Check if line starts with a pipe (even if it doesn't have enough pipes for a full row)
                 // This handles multi-line cells where a row might start with | but continue on next line
+                // Use lineForTableCheck (with blockquote prefix stripped) for this check
                 const startsWithPipe = lineWithoutMath.trim().startsWith('|');
                 
-                // Check if original line (before removing math) starts with pipe
+                // Check if original line (before removing math and blockquote) starts with pipe
                 // This is used for continuation detection - a line starting with LaTeX should still be a continuation
-                const originalStartsWithPipe = line.trim().startsWith('|');
+                const originalStartsWithPipe = lineForTableCheck.trim().startsWith('|');
                 
-                // Empty lines always end tables
-                const isEmptyLine = line.length === 0;
+                // Empty lines always end tables (check original line, not stripped)
+                const isEmptyLine = lineForTableCheck.length === 0;
                 
                 // Check if this could be a continuation of the previous table row
                 // A continuation is a line that doesn't start with | in the original text but we're in a table
                 // and the previous line was a table row that didn't end with a pipe (or had incomplete cells)
                 // IMPORTANT: Can only be a continuation if lastTableRowContent exists and doesn't end with |
+                // Also check if both current and previous lines are blockquote lines (same blockquote context)
+                const lastLineWasBlockquote = lastTableRowLineNum > 0 && 
+                    lastTableRowLineNum <= lines.length && 
+                    lines[lastTableRowLineNum - 1] && 
+                    /^\s*>/.test(lines[lastTableRowLineNum - 1]);
                 const isContinuation = !isEmptyLine && inTable && !originalStartsWithPipe && lastTableRowContent !== null && 
                     lastTableRowContent.trim() !== '' && 
-                    !lastTableRowContent.trim().endsWith('|');
+                    !lastTableRowContent.trim().endsWith('|') &&
+                    (isBlockquoteLine === lastLineWasBlockquote); // Must be in same context (both blockquote or both not)
                 
                 // A line is part of a table if:
                 // 1. It has enough pipes (hasPipes), OR
@@ -15001,7 +15051,8 @@
                     if (isContinuation && lastTableRowContent !== null) {
                         // Merge the continuation with the last row, preserving the newline
                         // Use newline to preserve line breaks in cells for proper rendering
-                        const mergedRow = lastTableRowContent + '\n' + line;
+                        // Use lineForTableCheck (blockquote prefix already stripped) for consistency
+                        const mergedRow = lastTableRowContent + '\n' + lineForTableCheck;
                         // Update the last entry in currentTable
                         if (currentTable.length > 0) {
                             currentTable[currentTable.length - 1].content = mergedRow;
@@ -15010,19 +15061,22 @@
                         currentTableEnd = i;
                     } else if (!isContinuation) {
                         // New table row (not a continuation)
-                    currentTable.push({ lineNum: i + 1, content: line });
-                    currentTableEnd = i;
-                        lastTableRowContent = line;
+                        // Store the line without blockquote prefix for table processing
+                        currentTable.push({ lineNum: i + 1, content: lineForTableCheck });
+                        currentTableEnd = i;
+                        lastTableRowContent = lineForTableCheck;
                         lastTableRowLineNum = i + 1;
                     }
                     
                     // Count columns (number of pipes) - use merged content if available
-                    const contentToCheck = lastTableRowContent || line;
+                    // contentToCheck should already have blockquote prefix stripped
+                    const contentToCheck = lastTableRowContent || lineForTableCheck;
                     // Remove math expressions before counting pipes to ignore pipes inside LaTeX
                     const contentWithoutMath = removeMathExpressions(contentToCheck);
                     const pipeCount = (contentWithoutMath.match(/\|/g) || []).length;
                     
                     // Check if this is a separator row (only for lines that look like separators)
+                    // contentToCheck already has blockquote prefix stripped, so separator detection works correctly
                     const isSeparator = /^[\s|:-]+$/.test(contentToCheck) && contentToCheck.includes('-');
                     
                     if (isSeparator) {
