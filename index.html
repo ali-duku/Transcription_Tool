@@ -161,10 +161,7 @@
                         
                         // Update choice UI if this was a choice item (use the questionEl we found before removal)
                         if (isChoiceItem && questionEl) {
-                            setTimeout(() => {
-                                updateCorrectAnswerRadios(questionEl);
-                                updateCheckboxSummary(questionEl);
-                            }, 0);
+                            syncChoiceUI(questionEl);
                         }
                         
                         // Update matching UI if this was a matching item (use the questionEl we found before removal)
@@ -175,7 +172,7 @@
                                 } else {
                                     updateMatchingItemNumbers(matchingQuestionEl, 'left');
                                 }
-                                updateRelationshipUI(matchingQuestionEl);
+                                syncMatchingUI(matchingQuestionEl);
                             }, 0);
                         }
                     }
@@ -280,10 +277,9 @@
                     } else if (action.element && action.oldParent) {
                         action.oldParent.appendChild(action.element);
                     }
-                    // Update numbering/labels for nested lists
+                    // Update numbering/labels for nested lists using centralized sync
                     if (action.isChoice && action.questionEl) {
-                        updateCorrectAnswerRadios(action.questionEl);
-                        updateCheckboxSummary(action.questionEl);
+                        syncChoiceUI(action.questionEl);
                     } else if (action.isMatching && action.questionEl) {
                         if (action.side) {
                             const matchingContainer = action.questionEl.querySelector('#matching-container');
@@ -295,7 +291,7 @@
                             }
                             updateMatchingItemNumbers(action.questionEl, action.side);
                         }
-                        updateRelationshipUI(action.questionEl);
+                        syncMatchingUI(action.questionEl);
                     } else {
                         // Top-level items (questions, content sections)
                         afterListMutation(action.containerId);
@@ -508,10 +504,9 @@
                     } else if (action.element && action.newParent) {
                         action.newParent.appendChild(action.element);
                     }
-                    // Update numbering/labels for nested lists
+                    // Update numbering/labels for nested lists using centralized sync
                     if (action.isChoice && action.questionEl) {
-                        updateCorrectAnswerRadios(action.questionEl);
-                        updateCheckboxSummary(action.questionEl);
+                        syncChoiceUI(action.questionEl);
                     } else if (action.isMatching && action.questionEl) {
                         if (action.side) {
                             const matchingContainer = action.questionEl.querySelector('#matching-container');
@@ -523,7 +518,7 @@
                             }
                             updateMatchingItemNumbers(action.questionEl, action.side);
                         }
-                        updateRelationshipUI(action.questionEl);
+                        syncMatchingUI(action.questionEl);
                     } else {
                         // Top-level items (questions, content sections)
                         afterListMutation(action.containerId);
@@ -660,9 +655,6 @@
         function finalizeMatchingListItem(itemEl) {
             if (!itemEl) return;
             
-            // Apply font settings to the item container (targets all inputs, textareas, selects inside)
-            applyFontSettings(itemEl);
-            
             // Set RTL direction for textareas in matching items
             const textarea = itemEl.querySelector('textarea');
             if (textarea) {
@@ -670,9 +662,13 @@
             }
             
             // Attach previews if this is a matching item (not relationship)
+            // Must attach previews BEFORE applying font settings so previews inherit them
             if (itemEl.classList.contains('matching-item')) {
                 attachPreviews(itemEl);
             }
+            
+            // Apply font settings to the item container (targets all inputs, textareas, selects, and previews inside)
+            applyFontSettings(itemEl);
         }
         
         // ========== UID-BASED STATE MANAGEMENT HELPERS ==========
@@ -787,6 +783,807 @@
             if (rightUid) relItem.dataset.rightUid = rightUid;
         }
         
+        /**
+         * Unified Action Button System
+         * 
+         * This system provides a single source of truth for rendering and wiring action buttons
+         * across all contexts (sections, nested list items, bbox rows, relationships).
+         * 
+         * Supported contexts:
+         * - LIST_ITEM: Choices, matching items (left/right), relationships
+         * - SECTION: Content sections, questions (includes copy/paste/collapse)
+         * - BBOX: BBox rows (includes draw/paste/copy/duplicate)
+         * - SIMPLE: Standards, terminology (move up/down/remove only)
+         * 
+         * To add a new context:
+         * 1. Define a config preset in ACTION_BUTTON_CONFIGS
+         * 2. Call buildActionButtonsHTML(config) to generate HTML
+         * 3. Call wireActionButtons(rootEl, config) after DOM insertion to attach handlers
+         * 4. Ensure handlers are defined and follow the existing patterns
+         */
+
+        /**
+         * Unified Editor Action Button System
+         * 
+         * Provides a single source of truth for "Add / Insert / Paste" action buttons
+         * used throughout the editor (e.g., "Add Term", "Add Question", "Add Choice", etc.)
+         * 
+         * Supports both DOM-based creation (preferred) and HTML string generation (for templates).
+         */
+
+        /**
+         * Build an action button element (DOM-based, preferred)
+         * @param {Object} config - Button configuration
+         * @param {string} config.label - Button label text
+         * @param {string} config.onClick - onclick handler string (e.g., "addChoice(this)")
+         * @param {string} [config.iconClass] - FontAwesome icon class (e.g., "fa-plus", "fa-paste")
+         * @param {string} [config.className] - CSS class(es), defaults to "add-btn"
+         * @param {string} [config.title] - Tooltip title
+         * @param {string} [config.type] - Button type, defaults to "button"
+         * @param {string} [config.style] - Inline styles
+         * @param {Object} [config.attrs] - Additional attributes as key-value pairs
+         * @returns {HTMLButtonElement} Button element
+         */
+        /**
+         * Universal button factory - creates buttons consistently across the entire tool
+         * @param {Object} config - Button configuration
+         * @param {string} [config.label] - Button text label
+         * @param {string|Function} [config.onClick] - onClick handler (string for onclick attr, function for event listener)
+         * @param {string} [config.iconClass] - FontAwesome icon class (without 'fas' prefix, or full class like 'fas fa-icon')
+         * @param {string} [config.className] - CSS class(es), defaults to "add-btn"
+         * @param {string} [config.title] - Tooltip title
+         * @param {string} [config.type] - Button type, defaults to "button"
+         * @param {string} [config.style] - Inline styles
+         * @param {Object} [config.attrs] - Additional attributes as key-value pairs
+         * @param {Object} [config.dataset] - Data attributes (will be prefixed with 'data-')
+         * @param {boolean} [config.disabled] - Whether button is disabled
+         * @param {string} [config.id] - Button ID
+         * @returns {HTMLButtonElement} Button element
+         */
+        function createButton(config) {
+            const {
+                label,
+                onClick,
+                iconClass = null,
+                className = 'add-btn',
+                title = '',
+                type = 'button',
+                style = '',
+                attrs = {},
+                dataset = {},
+                disabled = false,
+                id = null
+            } = config;
+
+            const button = document.createElement('button');
+            button.type = type;
+            button.className = className;
+            if (title) button.title = title;
+            if (style) button.style.cssText = style;
+            if (id) button.id = id;
+            button.disabled = disabled;
+
+            // Handle onClick - prefer event listener for functions, onclick attr for strings
+            if (onClick) {
+                if (typeof onClick === 'function') {
+                    button.addEventListener('click', onClick);
+                } else {
+                    button.setAttribute('onclick', onClick);
+                }
+            }
+
+            // Handle special case: if attrs has innerHTML, use it as the ONLY content source
+            // This must be checked FIRST to avoid adding icon/label and then overwriting
+            if (attrs.innerHTML) {
+                button.innerHTML = attrs.innerHTML;
+                delete attrs.innerHTML;
+            } else {
+                // Normal path: build content from iconClass + label
+                // Add icon if provided
+                if (iconClass) {
+                    const icon = document.createElement('i');
+                    // Support both 'fa-icon' and 'fas fa-icon' formats
+                    icon.className = iconClass.startsWith('fas ') ? iconClass : `fas ${iconClass}`;
+                    // Support icon style override via attrs.iconStyle (for DOM version)
+                    if (attrs.iconStyle) {
+                        icon.style.cssText = attrs.iconStyle;
+                        // Remove iconStyle from attrs to avoid adding it as a regular attribute
+                        delete attrs.iconStyle;
+                    }
+                    button.appendChild(icon);
+                }
+
+                // Add label text
+                if (label) {
+                    if (iconClass) {
+                        // If there's an icon, add space and then label
+                        button.appendChild(document.createTextNode(' ' + label));
+                    } else {
+                        button.textContent = label;
+                    }
+                }
+            }
+
+            // Add data attributes
+            for (const [key, value] of Object.entries(dataset)) {
+                button.dataset[key] = value;
+            }
+
+            // Add additional attributes
+            for (const [key, value] of Object.entries(attrs)) {
+                button.setAttribute(key, value);
+            }
+
+            return button;
+        }
+
+        /**
+         * Build a single action button element (alias for createButton for backward compatibility)
+         * @param {Object} config - Button configuration (see createButton)
+         * @returns {HTMLButtonElement} Button element
+         */
+        function buildActionButton(config) {
+            return createButton(config);
+        }
+
+        /**
+         * Render multiple action buttons into a container
+         * @param {HTMLElement} containerEl - Container element to render buttons into
+         * @param {Array<Object>} buttonsConfig - Array of button configs (see buildActionButton)
+         */
+        function renderActionButtons(containerEl, buttonsConfig) {
+            if (!containerEl) return;
+            containerEl.innerHTML = ''; // Clear existing
+            buttonsConfig.forEach(config => {
+                containerEl.appendChild(buildActionButton(config));
+            });
+        }
+
+        /**
+         * Get action button HTML string (for template strings)
+         * @param {Object} config - Button configuration (same as createButton)
+         * @returns {string} HTML string
+         */
+        function getActionButtonHTML(config) {
+            const {
+                label,
+                onClick,
+                iconClass = null,
+                className = 'add-btn',
+                title = '',
+                type = 'button',
+                style = '',
+                attrs = {},
+                dataset = {},
+                disabled = false,
+                id = null
+            } = config;
+
+            let attrsStr = '';
+            for (const [key, value] of Object.entries(attrs)) {
+                attrsStr += ` ${key}="${value}"`;
+            }
+
+            // Add data attributes
+            for (const [key, value] of Object.entries(dataset)) {
+                attrsStr += ` data-${key}="${value}"`;
+            }
+
+            // Handle innerHTML first - if provided, it's the ONLY content source
+            let buttonContent = '';
+            if (attrs.innerHTML) {
+                buttonContent = attrs.innerHTML;
+                // Remove innerHTML from attrs to avoid adding it as an attribute
+                const { innerHTML: _, ...cleanAttrs } = attrs;
+                attrsStr = '';
+                for (const [key, value] of Object.entries(cleanAttrs)) {
+                    attrsStr += ` ${key}="${value}"`;
+                }
+            } else {
+                // Normal path: build content from iconClass + label
+                // Support icon style override via attrs.iconStyle (for HTML string version)
+                const iconStyle = attrs.iconStyle ? ` style="${attrs.iconStyle}"` : '';
+                const iconHTML = iconClass ? `<i class="${iconClass.startsWith('fas ') ? iconClass : `fas ${iconClass}`}"${iconStyle}></i>` : '';
+                const labelHTML = label ? (iconClass ? ` ${label}` : label) : '';
+                buttonContent = iconHTML + labelHTML;
+                
+                // Remove iconStyle from attrsStr to avoid adding it as a regular attribute
+                if (attrs.iconStyle) {
+                    const { iconStyle: _, ...cleanAttrs } = attrs;
+                    attrsStr = '';
+                    for (const [key, value] of Object.entries(cleanAttrs)) {
+                        attrsStr += ` ${key}="${value}"`;
+                    }
+                }
+            }
+            
+            const styleAttr = style ? ` style="${style}"` : '';
+            const onclickAttr = onClick ? ` onclick="${typeof onClick === 'function' ? onClick.toString() : onClick}"` : '';
+            const titleAttr = title ? ` title="${title}"` : '';
+            const idAttr = id ? ` id="${id}"` : '';
+            const disabledAttr = disabled ? ` disabled` : '';
+
+            return `<button type="${type}" class="${className}"${idAttr}${onclickAttr}${titleAttr}${styleAttr}${disabledAttr}${attrsStr}>${buttonContent}</button>`;
+        }
+
+        /**
+         * Action button configuration map for static HTML hydration
+         */
+        const ACTION_BUTTON_CONFIGS_STATIC = {
+            'addLessonStandard': {
+                label: 'Add Standard',
+                onClick: 'addLessonStandard()',
+                iconClass: 'fa-plus',
+                title: 'Add a new lesson standard'
+            },
+            'addTerminology': {
+                label: 'Add Term',
+                onClick: 'addTerminology()',
+                iconClass: 'fa-plus',
+                title: 'Add a new terminology term'
+            },
+            'addContentSection': {
+                label: 'Add Content Section',
+                onClick: 'addContentSection()',
+                iconClass: 'fa-plus',
+                title: 'Add a new instructional content section'
+            },
+            'pasteSectionAtEnd': {
+                label: 'Paste Section',
+                onClick: (param) => `pasteSectionAtEnd('${param}')`,
+                iconClass: 'fa-paste',
+                className: 'add-btn paste-section-btn',
+                title: (param) => `Paste a copied ${param === 'content' ? 'content section' : 'question'} at the end`
+            },
+            'addQuestion': {
+                label: 'Add Question',
+                onClick: 'addQuestion()',
+                iconClass: 'fa-plus',
+                title: 'Add a new practice question'
+            }
+        };
+
+        /**
+         * Hydrate static action buttons from placeholders
+         * Replaces <div class="js-action-button" data-action="..."> with actual buttons
+         */
+        function hydrateStaticActionButtons() {
+            const placeholders = document.querySelectorAll('.js-action-button');
+            placeholders.forEach(placeholder => {
+                const action = placeholder.getAttribute('data-action');
+                const param = placeholder.getAttribute('data-param');
+                
+                if (!action || !ACTION_BUTTON_CONFIGS_STATIC[action]) {
+                    return; // Unknown action, skip silently
+                }
+                
+                const config = ACTION_BUTTON_CONFIGS_STATIC[action];
+                let buttonConfig = { ...config };
+                
+                // Handle parameterized actions
+                if (typeof config.onClick === 'function') {
+                    buttonConfig.onClick = config.onClick(param);
+                }
+                if (typeof config.title === 'function') {
+                    buttonConfig.title = config.title(param);
+                }
+                
+                const button = buildActionButton(buttonConfig);
+                placeholder.parentNode.replaceChild(button, placeholder);
+            });
+        }
+
+        // Action button configuration presets
+        const ACTION_BUTTON_CONFIGS = {
+            // Nested list items: choices, matching items
+            LIST_ITEM: {
+                buttons: ['before', 'after', 'moveUp', 'moveDown', 'remove'],
+                buttonClasses: {
+                    before: 'add-bbox-btn',
+                    after: 'add-bbox-btn',
+                    moveUp: 'reorder-btn',
+                    moveDown: 'reorder-btn',
+                    remove: 'remove-btn'
+                },
+                buttonLabels: {
+                    before: 'Before',
+                    after: 'After',
+                    moveUp: '',
+                    moveDown: '',
+                    remove: '×'
+                },
+                buttonIcons: {
+                    before: 'fa-plus',
+                    after: 'fa-plus',
+                    moveUp: 'fa-arrow-up',
+                    moveDown: 'fa-arrow-down',
+                    remove: ''
+                },
+                buttonTitles: {
+                    before: (ctx) => `Add ${ctx.itemLabel || 'Item'} Before`,
+                    after: (ctx) => `Add ${ctx.itemLabel || 'Item'} After`,
+                    moveUp: 'Move Up',
+                    moveDown: 'Move Down',
+                    remove: (ctx) => `Remove ${ctx.itemLabel || 'Item'}`
+                },
+                handlers: {
+                    before: null, // Set per context
+                    after: null, // Set per context
+                    moveUp: null, // Set per context
+                    moveDown: null, // Set per context
+                    remove: null // Set per context
+                },
+                containerClass: 'array-item-header-controls',
+                customStyles: {} // Can override per context
+            },
+            
+            // Top-level sections: content sections, questions
+            SECTION: {
+                buttons: ['before', 'after', 'copy', 'paste', 'duplicate', 'moveUp', 'moveDown', 'collapse', 'remove'],
+                buttonClasses: {
+                    before: 'add-section-btn',
+                    after: 'add-section-btn',
+                    copy: 'copy-section-btn',
+                    paste: 'copy-section-btn paste-replace-btn',
+                    duplicate: 'duplicate-btn',
+                    moveUp: 'reorder-btn',
+                    moveDown: 'reorder-btn',
+                    collapse: 'collapse-btn',
+                    remove: 'remove-btn'
+                },
+                buttonLabels: {
+                    before: 'Before',
+                    after: 'After',
+                    copy: '',
+                    paste: '',
+                    duplicate: '',
+                    moveUp: '',
+                    moveDown: '',
+                    collapse: '',
+                    remove: '×'
+                },
+                buttonIcons: {
+                    before: 'fa-plus',
+                    after: 'fa-plus',
+                    copy: 'fa-copy',
+                    paste: 'fa-paste',
+                    duplicate: 'fa-clone',
+                    moveUp: 'fa-arrow-up',
+                    moveDown: 'fa-arrow-down',
+                    collapse: 'fa-chevron-down',
+                    remove: ''
+                },
+                buttonTitles: {
+                    before: (ctx) => `Add ${ctx.sectionLabel || 'Section'} Before`,
+                    after: (ctx) => `Add ${ctx.sectionLabel || 'Section'} After`,
+                    copy: (ctx) => `Copy ${ctx.sectionLabel || 'Section'}`,
+                    paste: (ctx) => `Paste & Replace ${ctx.sectionLabel || 'Section'}`,
+                    duplicate: (ctx) => `Duplicate ${ctx.sectionLabel || 'Section'}`,
+                    moveUp: 'Move Up',
+                    moveDown: 'Move Down',
+                    collapse: 'Collapse/Expand Section',
+                    remove: (ctx) => `Remove ${ctx.sectionLabel || 'Section'}`
+                },
+                handlers: {
+                    before: null,
+                    after: null,
+                    copy: 'copySection',
+                    paste: 'pasteIntoSection',
+                    duplicate: 'duplicateSection',
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    collapse: 'toggleSectionCollapse',
+                    remove: 'removeArrayItem'
+                },
+                containerClass: 'array-item-header-controls'
+            },
+            
+            // BBox rows
+            BBOX: {
+                buttons: ['moveUp', 'moveDown', 'before', 'after', 'draw', 'paste', 'copy', 'duplicate', 'remove'],
+                buttonClasses: {
+                    moveUp: 'reorder-btn',
+                    moveDown: 'reorder-btn',
+                    before: 'add-bbox-btn',
+                    after: 'add-bbox-btn',
+                    draw: 'add-btn',
+                    paste: 'add-btn',
+                    copy: 'add-btn',
+                    duplicate: 'duplicate-btn',
+                    remove: 'remove-btn'
+                },
+                buttonLabels: {
+                    moveUp: '',
+                    moveDown: '',
+                    before: 'Before',
+                    after: 'After',
+                    draw: 'Draw',
+                    paste: 'Paste',
+                    copy: 'Copy',
+                    duplicate: '',
+                    remove: '×'
+                },
+                buttonIcons: {
+                    moveUp: 'fa-arrow-up',
+                    moveDown: 'fa-arrow-down',
+                    before: 'fa-plus',
+                    after: 'fa-plus',
+                    draw: 'fa-pen-square',
+                    paste: 'fa-paste',
+                    copy: 'fa-copy',
+                    duplicate: 'fa-clone',
+                    remove: ''
+                },
+                buttonTitles: {
+                    moveUp: 'Move Up',
+                    moveDown: 'Move Down',
+                    before: 'Add Image Before',
+                    after: 'Add Image After',
+                    draw: 'Open PDF viewer to draw bounding box',
+                    paste: 'Paste bounding box coordinates from clipboard',
+                    copy: 'Copy bounding box coordinates to clipboard',
+                    duplicate: 'Duplicate BBox',
+                    remove: 'Remove'
+                },
+                handlers: {
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    before: null, // Set per context
+                    after: null, // Set per context
+                    draw: 'openBboxDrawer',
+                    paste: 'pasteBboxJson',
+                    copy: 'copyBboxJson',
+                    duplicate: 'duplicateBbox',
+                    remove: 'removeArrayItem'
+                },
+                containerClass: 'row-actions'
+            },
+            
+            // Simple items: standards, terminology
+            SIMPLE: {
+                buttons: ['moveUp', 'moveDown', 'remove'],
+                buttonClasses: {
+                    moveUp: 'reorder-btn',
+                    moveDown: 'reorder-btn',
+                    remove: 'remove-btn'
+                },
+                buttonLabels: {
+                    moveUp: '',
+                    moveDown: '',
+                    remove: '×'
+                },
+                buttonIcons: {
+                    moveUp: 'fa-arrow-up',
+                    moveDown: 'fa-arrow-down',
+                    remove: ''
+                },
+                buttonTitles: {
+                    moveUp: 'Move Up',
+                    moveDown: 'Move Down',
+                    remove: (ctx) => `Remove ${ctx.itemLabel || 'Item'}`
+                },
+                handlers: {
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    remove: 'removeArrayItem'
+                },
+                containerClass: 'array-item-header-controls'
+            },
+            
+            // Relationship rows (minimal)
+            RELATIONSHIP: {
+                buttons: ['remove'],
+                buttonClasses: {
+                    remove: 'remove-btn'
+                },
+                buttonLabels: {
+                    remove: '×'
+                },
+                buttonIcons: {
+                    remove: ''
+                },
+                buttonTitles: {
+                    remove: 'Remove Relationship'
+                },
+                handlers: {
+                    remove: 'removeRelationship'
+                },
+                containerClass: null, // Inline in relationship row
+                customStyles: {
+                    remove: 'padding: 4px 10px;'
+                }
+            }
+        };
+
+        // Button configuration for static HTML areas (top bar, tabs, JSON controls)
+        const STATIC_BUTTON_CONFIGS = {
+            // Top bar undo/redo buttons
+            TOPBAR_UNDO_REDO: [
+                { id: 'undo-btn', onClick: 'undoAction()', title: 'Undo', className: 'dark-mode-toggle', iconClass: 'fa-undo', disabled: true },
+                { id: 'redo-btn', onClick: 'redoAction()', title: 'Redo', className: 'dark-mode-toggle', iconClass: 'fa-redo', disabled: true }
+            ],
+            
+            // Top bar action buttons
+            TOPBAR_ACTIONS: [
+                { id: 'saveBtn', className: 'dark-mode-toggle', onClick: 'saveProgress()', title: 'Save Progress (Ctrl+S)', iconClass: 'fa-save' },
+                { className: 'dark-mode-toggle', onClick: 'location.reload()', title: 'Reload Page', iconClass: 'fa-sync-alt' },
+                { className: 'dark-mode-toggle', onClick: 'scrollToTop()', title: 'Scroll to Top', iconClass: 'fa-arrow-up' },
+                { id: 'autoResizeToggle', className: 'dark-mode-toggle', onClick: 'toggleAutoResize()', title: 'Toggle Auto-Resize Textareas', iconClass: 'fa-arrows-alt-v' },
+                { id: 'trailingSpacesToggle', className: 'dark-mode-toggle', onClick: 'toggleTrailingSpacesIndicator()', title: 'Show trailing spaces indicator in preview boxes', iconClass: 'fa-exclamation-triangle' },
+                { id: 'darkModeToggle', className: 'dark-mode-toggle', onClick: 'toggleDarkMode()', iconClass: 'fa-moon' }
+            ],
+            
+            // Clear search button
+            CLEAR_SEARCH: [
+                { id: 'clearSearchBtn', onClick: 'clearSearch()', title: 'Clear search', className: '', iconClass: 'fa-times', style: 'display: none; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 0.9rem;' }
+            ],
+            
+            // Main tabs (Input Form / Final Preview)
+            MAIN_TABS: [
+                { className: 'tab active', id: 'main-tab-input', onClick: "showMainTab('input-form')", title: 'Edit the form data', label: 'Input Form' },
+                { className: 'tab', id: 'main-tab-preview', onClick: "showMainTab('final-preview')", title: 'Preview all sections and questions', label: 'Final Preview' }
+            ],
+            
+            // Sub tabs (Basic Info, Lesson Preamble, Content, Questions)
+            SUB_TABS: [
+                { className: 'tab active', onClick: "showTab('basic')", title: 'Basic page information (page numbers, page type)', label: 'Basic Info' },
+                { className: 'tab', onClick: "showTab('preamble')", title: 'Lesson metadata (ID, title, standards, terminology)', label: 'Lesson Preamble' },
+                { className: 'tab', onClick: "showTab('content')", title: 'Instructional content sections', label: 'Content' },
+                { className: 'tab', onClick: "showTab('questions')", title: 'Practice questions', label: 'Questions' }
+            ],
+            
+            // Generate JSON button
+            GENERATE_JSON: [
+                { className: 'generate-btn', onClick: 'generateJSON()', style: 'width:auto;', title: 'Generate JSON from all form data (validates before generating)', label: 'Generate JSON', iconClass: 'fa-magic', attrs: { iconStyle: 'font-size: 0.75rem;' } }
+            ],
+            
+            // JSON import controls
+            JSON_IMPORT_CONTROLS: [
+                { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); loadJSON()', title: 'Load JSON or Python dictionary from the text area below to populate the form', label: 'Load JSON/Dict', iconClass: 'fa-file-upload' },
+                { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); confirmClearForm()', title: 'Clear all form data and start fresh', label: 'Clear Form', iconClass: 'fa-broom' },
+                { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); openBboxDrawerForPDFs()', title: 'Upload textbook or guidebook PDF for drawing bounding boxes', label: 'Upload PDFs', iconClass: 'fa-file-pdf' }
+            ],
+            
+            // JSON export controls
+            JSON_EXPORT_CONTROLS: [
+                { className: 'add-btn', onClick: 'copyJSON()', title: 'Copy the generated JSON to clipboard', label: 'Copy JSON', iconClass: 'fa-copy' }
+            ],
+            
+            // BBox modal prev button
+            BBOX_NAV_PREV_BUTTON: [
+                { id: 'em-prev', className: 'bbox-btn', title: 'Previous page', label: '◀' }
+            ],
+            
+            // BBox modal next button
+            BBOX_NAV_NEXT_BUTTON: [
+                { id: 'em-next', className: 'bbox-btn', title: 'Next page', label: '▶' }
+            ],
+            
+            // BBox modal goto button
+            BBOX_GOTO_BUTTON: [
+                { id: 'em-goto-btn', className: 'bbox-btn', title: 'Go to page', label: 'Go' }
+            ],
+            
+            // BBox modal zoom buttons (split for layout)
+            BBOX_ZOOM_OUT: [
+                { id: 'em-zoom-out', className: 'bbox-btn', title: 'Zoom out', label: '−' }
+            ],
+            BBOX_ZOOM_IN: [
+                { id: 'em-zoom-in', className: 'bbox-btn', title: 'Zoom in', label: '+' }
+            ],
+            BBOX_ZOOM_RESET: [
+                { id: 'em-zoom-reset', className: 'bbox-btn', title: 'Reset zoom to default', label: 'Reset' }
+            ],
+            
+            // BBox modal drawing buttons
+            BBOX_DRAWING_BUTTONS: [
+                { id: 'em-undo', className: 'bbox-btn', title: 'Undo last bounding box', label: 'Undo' },
+                { id: 'em-add', className: 'bbox-btn', title: 'Add a new bounding box', label: 'Add BBox' },
+                { id: 'em-clear', className: 'bbox-btn danger', title: 'Clear all bounding boxes on current page', label: 'Clear Page' }
+            ],
+            
+            // BBox modal close button
+            BBOX_CLOSE_BUTTON: [
+                { id: 'em-close', className: 'bbox-btn danger', title: 'Close', label: '✕' }
+            ],
+            
+            // BBox modal footer buttons
+            BBOX_FOOTER_BUTTONS: [
+                { id: 'em-cancel', className: 'bbox-btn', label: 'Cancel' },
+                { id: 'em-confirm', className: 'bbox-btn primary', label: 'Use Selected' }
+            ],
+            
+            // View toggle buttons (PDF/JSON)
+            VIEW_TOGGLE_BUTTONS: [
+                { id: 'toggle-pdf-btn', className: 'view-toggle-btn', onClick: 'showPdfViewer()', title: 'View and navigate PDF pages', label: 'PDF Viewer', iconClass: 'fa-file-pdf' },
+                { id: 'toggle-json-btn', className: 'view-toggle-btn active', onClick: 'showJsonPreview()', title: 'View generated JSON output', label: 'JSON Preview', iconClass: 'fa-code' }
+            ],
+            
+            // Main PDF auto navigation toggle (label removed - status span will contain text)
+            MAIN_PDF_AUTO_NAV: [
+                { id: 'auto-nav-toggle', className: 'bbox-btn', type: 'button', onClick: 'toggleAutoNavigation()', title: 'Toggle Auto Page Navigation', iconClass: 'fa-magic' }
+            ],
+            
+            // Main PDF zoom buttons (split for layout)
+            MAIN_PDF_ZOOM_OUT: [
+                { id: 'main-pdf-zoom-out', className: 'bbox-btn', type: 'button', title: 'Zoom out', label: '−' }
+            ],
+            MAIN_PDF_ZOOM_IN: [
+                { id: 'main-pdf-zoom-in', className: 'bbox-btn', type: 'button', title: 'Zoom in', label: '+' }
+            ],
+            MAIN_PDF_ZOOM_RESET: [
+                { id: 'main-pdf-zoom-reset', className: 'bbox-btn', type: 'button', title: 'Reset zoom to fit canvas', label: '↺' }
+            ],
+            
+            // Main PDF navigation buttons (split for layout)
+            MAIN_PDF_NAV_PREV: [
+                { id: 'main-pdf-prev', className: 'bbox-btn', type: 'button', title: 'Previous page', label: '◀' }
+            ],
+            MAIN_PDF_NAV_NEXT: [
+                { id: 'main-pdf-next', className: 'bbox-btn', type: 'button', title: 'Next page', label: '▶' }
+            ],
+            
+            // Main PDF goto button
+            MAIN_PDF_GOTO_BUTTON: [
+                { id: 'main-pdf-goto-btn', className: 'bbox-btn', type: 'button', title: 'Go to the specified page', label: 'Go' }
+            ],
+            
+            // PDF source toggle buttons (textbook/guide)
+            PDF_SOURCE_TOGGLE: [
+                { id: 'pdf-source-textbook', className: 'pdf-source-btn active', onClick: "switchPdfSource('textbook')", title: 'Switch to textbook PDF', label: 'Textbook', iconClass: 'fa-book' },
+                { id: 'pdf-source-guide', className: 'pdf-source-btn', onClick: "switchPdfSource('guide')", title: 'Switch to guidebook PDF', label: 'Guide', iconClass: 'fa-book-open' }
+            ]
+        };
+
+        /**
+         * Render button group from config array into container
+         * @param {HTMLElement|string} container - Container element or ID
+         * @param {Array<Object>} buttonConfigs - Array of button configs
+         * @param {Object} options - Optional settings
+         * @param {boolean} options.preserveExisting - If true, append instead of clearing (default: false)
+         */
+        function renderButtonGroup(container, buttonConfigs, options = {}) {
+            const containerEl = typeof container === 'string' ? document.getElementById(container) : container;
+            if (!containerEl || !Array.isArray(buttonConfigs)) return;
+            
+            // Clear existing content only if not preserving
+            // This ensures we don't have duplicates from old hardcoded buttons
+            if (!options.preserveExisting) {
+                containerEl.innerHTML = ''; // Clear existing
+            }
+            
+            buttonConfigs.forEach(config => {
+                const button = createButton(config);
+                containerEl.appendChild(button);
+            });
+        }
+
+        /**
+         * Hydrate all static button groups on page load
+         */
+        function hydrateStaticButtons() {
+            // Top bar undo/redo
+            renderButtonGroup('topbar-undo-redo', STATIC_BUTTON_CONFIGS.TOPBAR_UNDO_REDO);
+            
+            // Top bar actions
+            renderButtonGroup('topbar-actions', STATIC_BUTTON_CONFIGS.TOPBAR_ACTIONS);
+            
+            // Clear search
+            renderButtonGroup('topbar-clear-search', STATIC_BUTTON_CONFIGS.CLEAR_SEARCH);
+            
+            // Main tabs
+            renderButtonGroup('main-tabs-container', STATIC_BUTTON_CONFIGS.MAIN_TABS);
+            
+            // Sub tabs
+            renderButtonGroup('sub-tabs-container', STATIC_BUTTON_CONFIGS.SUB_TABS);
+            
+            // Generate JSON
+            renderButtonGroup('generate-json-container', STATIC_BUTTON_CONFIGS.GENERATE_JSON);
+            
+            // JSON import controls
+            renderButtonGroup('json-import-controls', STATIC_BUTTON_CONFIGS.JSON_IMPORT_CONTROLS);
+            
+            // JSON export controls
+            renderButtonGroup('json-export-controls', STATIC_BUTTON_CONFIGS.JSON_EXPORT_CONTROLS);
+            
+            // View toggle buttons (PDF/JSON)
+            renderButtonGroup('view-toggle-buttons-container', STATIC_BUTTON_CONFIGS.VIEW_TOGGLE_BUTTONS);
+            
+            // BBox modal buttons (in correct order)
+            renderButtonGroup('bbox-nav-prev-button', STATIC_BUTTON_CONFIGS.BBOX_NAV_PREV_BUTTON);
+            renderButtonGroup('bbox-nav-next-button', STATIC_BUTTON_CONFIGS.BBOX_NAV_NEXT_BUTTON);
+            renderButtonGroup('bbox-goto-button', STATIC_BUTTON_CONFIGS.BBOX_GOTO_BUTTON);
+            renderButtonGroup('bbox-zoom-out-button', STATIC_BUTTON_CONFIGS.BBOX_ZOOM_OUT);
+            renderButtonGroup('bbox-zoom-in-button', STATIC_BUTTON_CONFIGS.BBOX_ZOOM_IN);
+            renderButtonGroup('bbox-zoom-reset-button', STATIC_BUTTON_CONFIGS.BBOX_ZOOM_RESET);
+            renderButtonGroup('bbox-drawing-buttons', STATIC_BUTTON_CONFIGS.BBOX_DRAWING_BUTTONS);
+            renderButtonGroup('bbox-close-button', STATIC_BUTTON_CONFIGS.BBOX_CLOSE_BUTTON);
+            renderButtonGroup('bbox-footer-buttons', STATIC_BUTTON_CONFIGS.BBOX_FOOTER_BUTTONS);
+            
+            // Note: PDF viewer buttons are hydrated in initializePdfViewer() when the viewer is initialized.
+            // They are not hydrated here to avoid duplication since initializePdfViewer creates the HTML dynamically.
+        }
+
+        /**
+         * Build action buttons HTML from config
+         * @param {Object} config - Button configuration (from ACTION_BUTTON_CONFIGS or custom)
+         * @param {Object} context - Context object for dynamic labels/titles (optional)
+         * @returns {string} HTML string for button container
+         */
+        function buildActionButtonsHTML(config, context = {}) {
+            let buttonsHTML = '';
+            
+            for (const buttonKey of config.buttons) {
+                const cls = config.buttonClasses[buttonKey] || '';
+                const label = config.buttonLabels[buttonKey] || '';
+                const icon = config.buttonIcons[buttonKey] || '';
+                const titleFn = config.buttonTitles[buttonKey];
+                const title = typeof titleFn === 'function' ? titleFn(context) : (titleFn || '');
+                const customStyle = config.customStyles?.[buttonKey] || '';
+                const handler = config.handlers[buttonKey];
+                
+                // Build icon HTML if present
+                const iconHTML = icon ? `<i class="fas ${icon}"></i>` : '';
+                
+                // Build onclick attribute if handler exists
+                const onclickAttr = handler ? ` onclick="${handler}(this)"` : '';
+                
+                // Build button HTML
+                const buttonHTML = `
+                    <button class="${cls}"${onclickAttr} title="${title}"${customStyle ? ` style="${customStyle}"` : ''}>
+                        ${iconHTML}${label ? ` ${label}` : ''}
+                    </button>
+                `;
+                
+                buttonsHTML += buttonHTML;
+            }
+            
+            // Wrap in container if specified
+            if (config.containerClass) {
+                return `<div class="${config.containerClass}">${buttonsHTML}</div>`;
+            }
+            
+            return buttonsHTML;
+        }
+
+        /**
+         * Wire action button handlers using event delegation
+         * @param {HTMLElement} rootEl - Root element to attach delegation listener
+         * @param {Object} config - Button configuration with handlers
+         * @param {Object} context - Context object for handler resolution (optional)
+         */
+        function wireActionButtons(rootEl, config, context = {}) {
+            if (!rootEl) return;
+            
+            // Use event delegation on the root element
+            rootEl.addEventListener('click', (e) => {
+                const button = e.target.closest('button[data-action]');
+                if (!button) return;
+                
+                const action = button.getAttribute('data-action');
+                if (!action) return;
+                
+                // Get handler from config
+                const handlerName = config.handlers[action];
+                if (!handlerName) return;
+                
+                // Resolve handler function
+                let handler;
+                if (typeof handlerName === 'function') {
+                    handler = handlerName;
+                } else if (typeof handlerName === 'string' && typeof window[handlerName] === 'function') {
+                    handler = window[handlerName];
+                } else {
+                    return; // Handler not found
+                }
+                
+                // Call handler with button as context
+                e.preventDefault();
+                e.stopPropagation();
+                handler.call(button, button);
+            });
+        }
+
         // Helper to get list context for nested lists (choices, matching items)
         // Returns: { containerEl, containerId, questionEl, updateNumbersFn }
         function getListContext(buttonOrItemEl) {
@@ -872,12 +1669,9 @@
                 applyFontSettings(element);
             }
 
-            // For matching items, ensure textarea has RTL direction
+            // For matching items, finalize them (font settings, previews, RTL direction)
             if (element.classList && element.classList.contains('matching-item')) {
-                const textarea = element.querySelector('textarea');
-                if (textarea) {
-                    textarea.setAttribute('dir', 'rtl');
-                }
+                finalizeMatchingListItem(element);
             }
         }
         
@@ -1082,7 +1876,7 @@
                         checked: choiceCorrectInput ? choiceCorrectInput.checked : false
                     };
                 });
-                // Store correct answer: for multiple_choice use index, for checkbox store checked state
+                // Store correct answer: for multiple_choice use index, for checkbox derive from UIDs
                 if (state.question_type === 'multiple_choice') {
                     const correctChoiceUid = getCorrectChoiceUid(questionEl);
                     if (correctChoiceUid) {
@@ -1090,7 +1884,19 @@
                         state.correct_answer_index = correctIndex; // Store as index for export
                     }
                 } else if (state.question_type === 'checkbox') {
-                    // Checkbox correctness is already stored in choices[].checked
+                    // Derive checked state from UIDs (canonical source of truth)
+                    const correctUids = getCorrectChoiceUids(questionEl);
+                    state.choices = choices.map((item, index) => {
+                        const choiceIdInput = item.querySelector('.choice-id');
+                        const choiceTextArea = item.querySelector('.choice-text');
+                        const choiceUid = item.dataset.choiceUid;
+                        const isChecked = choiceUid ? correctUids.has(choiceUid) : false;
+                        return {
+                            id: choiceIdInput ? choiceIdInput.value : '',
+                            text: choiceTextArea ? choiceTextArea.value : '',
+                            checked: isChecked
+                        };
+                    });
                 }
             }
             
@@ -1316,19 +2122,8 @@
                         });
                         setCorrectChoiceUids(newQuestion, correctUids);
                     }
-                    // Rebuild UI
+                    // Rebuild UI using centralized sync (handles both multiple_choice and checkbox)
                     afterQuestionTypeListMutation(newQuestion);
-                    
-                    // Set correct answer for multiple_choice
-                    if (questionType === 'multiple_choice' && state.guide_answer) {
-                        setTimeout(() => {
-                            const correctAnswerSelect = newQuestion.querySelector('.correct-answer-select');
-                            if (correctAnswerSelect) {
-                                updateCorrectAnswerOptions(correctAnswerSelect);
-                                correctAnswerSelect.value = state.guide_answer;
-                            }
-                        }, 50);
-                    }
                 }
             } else {
                 // Free form or other types - set guide answer in main container
@@ -1370,6 +2165,9 @@
                                   (action && action.isMatchingItem === true);
             
             if (isMatchingItem) {
+                // Finalize the matching item (font settings, previews)
+                finalizeMatchingListItem(element);
+                
                 // Get question element from action if available, otherwise find it
                 let questionEl = null;
                 if (action && action.questionEl) {
@@ -1381,15 +2179,12 @@
                 }
                 
                 if (questionEl) {
-                    // Use setTimeout to ensure DOM is fully updated before updating UI
-                    setTimeout(() => {
-                        // Update matching item numbers if we have the side
-                        if (action && action.side) {
-                            updateMatchingItemNumbers(questionEl, action.side);
-                        }
-                        // Update relationship UI to refresh dropdown options
-                        updateRelationshipUI(questionEl);
-                    }, 0);
+                    // Update matching item numbers if we have the side
+                    if (action && action.side) {
+                        updateMatchingItemNumbers(questionEl, action.side);
+                    }
+                    // Update relationship UI to refresh dropdown options (uses centralized sync)
+                    syncMatchingUI(questionEl);
                 }
             }
         }
@@ -1661,10 +2456,29 @@
             opacity: 0.8;
         }
 
+        /* CSS variables for icon buttons - ensures consistent styling across themes */
+        :root {
+            --icon-btn-border: 1px solid rgba(255, 255, 255, 0.3);
+            --icon-btn-bg: rgba(255, 255, 255, 0.1);
+            --icon-btn-fg: white;
+            --icon-btn-hover-bg: rgba(255, 255, 255, 0.2);
+            --icon-btn-hover-border: rgba(255, 255, 255, 0.5);
+            --icon-btn-focus-outline: 2px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        [data-theme="dark"] {
+            --icon-btn-border: 1px solid rgba(255, 255, 255, 0.3);
+            --icon-btn-bg: rgba(255, 255, 255, 0.1);
+            --icon-btn-fg: white;
+            --icon-btn-hover-bg: rgba(255, 255, 255, 0.2);
+            --icon-btn-hover-border: rgba(255, 255, 255, 0.5);
+            --icon-btn-focus-outline: 2px solid rgba(255, 255, 255, 0.5);
+        }
+        
         .dark-mode-toggle {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
+            background: var(--icon-btn-bg);
+            border: var(--icon-btn-border);
+            color: var(--icon-btn-fg);
             width: 32px;
             height: 32px;
             padding: 0;
@@ -1682,16 +2496,22 @@
         .dark-mode-toggle i {
             font-size: 0.85rem;
             line-height: 1;
+            color: currentColor;
         }
 
         .dark-mode-toggle:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.5);
+            background: var(--icon-btn-hover-bg);
+            border: var(--icon-btn-hover-border);
             transform: scale(1.1);
         }
 
         .dark-mode-toggle:active {
             transform: scale(0.95);
+        }
+        
+        .dark-mode-toggle:focus-visible {
+            outline: var(--icon-btn-focus-outline);
+            outline-offset: 2px;
         }
 
         .auto-save-indicator {
@@ -3278,14 +4098,7 @@
             color: var(--text-secondary);
         }
 
-        [data-theme="dark"] .dark-mode-toggle {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-        }
-
-        [data-theme="dark"] .dark-mode-toggle:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
+        /* Dark mode icon buttons use CSS variables defined above - no override needed */
 
         /* BBox Modal Dark Mode */
         [data-theme="dark"] .bbox-modal {
@@ -4256,6 +5069,7 @@
     <div id="bboxModal" class="bbox-modal" aria-hidden="true">
         <div class="bbox-dialog">
             <div class="bbox-toolbar">
+                <!-- Upload buttons first -->
                 <div class="group">
                     <label class="bbox-btn">
                         <input id="em-text-pdf-file" type="file" accept="application/pdf" style="display:none" />
@@ -4265,31 +5079,39 @@
                         <input id="em-guide-pdf-file" type="file" accept="application/pdf" style="display:none" />
                         Upload Answers PDF
                     </label>
-                    <div class="muted">Doc: <span id="em-doc-label">Textbook</span></div>
-                    <button id="em-prev" class="bbox-btn" title="Previous page">◀</button>
-                    <div class="muted">Page <span id="em-page-num">0</span>/<span id="em-page-count">0</span></div>
-                    <input id="em-goto" type="number" min="1" step="1" placeholder="#" title="Go to page" style="width:80px" />
-                    <button id="em-goto-btn" class="bbox-btn" title="Go to page">Go</button>
-                    <button id="em-next" class="bbox-btn" title="Next page">▶</button>
                 </div>
+                <!-- Doc label -->
                 <div class="group">
-                    <button id="em-zoom-out" class="bbox-btn" title="Zoom out">-</button>
-                    <span id="em-zoom-display" style="color: var(--text-secondary); font-size: 0.9rem; padding: 0 8px;">100%</span>
-                    <button id="em-zoom-in" class="bbox-btn" title="Zoom in">+</button>
-                    <button id="em-zoom-reset" class="bbox-btn" title="Reset zoom to default">Reset</button>
+                    <div class="muted">Doc: <span id="em-doc-label">Textbook</span></div>
                 </div>
+                <!-- Page Navigation: prev, page indicator, next, goto input, goto button -->
+                <div class="group">
+                    <div id="bbox-nav-prev-button" style="display: flex; gap: 4px; align-items: center;"></div>
+                    <div class="muted">Page <span id="em-page-num">0</span>/<span id="em-page-count">0</span></div>
+                    <div id="bbox-nav-next-button" style="display: flex; gap: 4px; align-items: center;"></div>
+                    <input id="em-goto" type="number" min="1" step="1" placeholder="#" title="Go to page" style="width:80px" />
+                    <div id="bbox-goto-button"></div>
+                </div>
+                <!-- Zoom: zoom-out, display, zoom-in, reset -->
+                <div class="group">
+                    <div id="bbox-zoom-out-button" style="display: flex; gap: 4px; align-items: center;"></div>
+                    <span id="em-zoom-display" style="color: var(--text-secondary); font-size: 0.9rem; padding: 0 8px;">100%</span>
+                    <div id="bbox-zoom-in-button" style="display: flex; gap: 4px; align-items: center;"></div>
+                    <div id="bbox-zoom-reset-button" style="display: flex; gap: 4px; align-items: center;"></div>
+                </div>
+                <!-- Drawing status + drawing actions -->
                 <div class="group">
                     <span class="muted">Drawing: Always On</span>
-                    <button id="em-undo" class="bbox-btn" title="Undo last bounding box">Undo</button>
-                    <button id="em-add" class="bbox-btn" title="Add a new bounding box">Add BBox</button>
-                    <button id="em-clear" class="bbox-btn danger" title="Clear all bounding boxes on current page">Clear Page</button>
+                    <div id="bbox-drawing-buttons" style="display: flex; gap: 4px; align-items: center;"></div>
                 </div>
+                <!-- Coords display -->
                 <div class="group">
                     <div class="muted">Coords</div>
                     <div id="em-coords" class="muted">—</div>
                 </div>
+                <!-- Close button at far right -->
                 <div class="group" style="margin-left:auto">
-                    <button id="em-close" class="bbox-btn danger" title="Close">✕</button>
+                    <div id="bbox-close-button"></div>
                 </div>
             </div>
             <div class="bbox-content">
@@ -4304,8 +5126,7 @@
                 </div>
             </div>
             <div class="bbox-footer">
-                <button id="em-cancel" class="bbox-btn">Cancel</button>
-                <button id="em-confirm" class="bbox-btn primary">Use Selected</button>
+                <div id="bbox-footer-buttons" style="display: flex; gap: 8px;"></div>
             </div>
         </div>
     </div>
@@ -4329,12 +5150,7 @@
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <!-- Undo/Redo Buttons -->
-                        <button id="undo-btn" onclick="undoAction()" title="Undo (Ctrl+Z)" class="dark-mode-toggle" disabled>
-                            <i class="fas fa-undo"></i>
-                        </button>
-                        <button id="redo-btn" onclick="redoAction()" title="Redo (Ctrl+Y)" class="dark-mode-toggle" disabled>
-                            <i class="fas fa-redo"></i>
-                        </button>
+                        <div id="topbar-undo-redo" style="display: flex; gap: 8px;"></div>
                         <!-- Font Settings -->
                         <div class="font-settings" style="display: flex; gap: 6px; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 4px 8px; border-radius: 6px;">
                             <label style="font-size: 0.7rem; opacity: 0.9;">Font:</label>
@@ -4375,9 +5191,7 @@
                                 </div>
                                 <div id="searchResultsDropdown" class="search-results-dropdown" style="display: none;"></div>
                             </div>
-                            <button id="clearSearchBtn" onclick="clearSearch()" title="Clear search" style="display: none; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 0.9rem;">
-                                <i class="fas fa-times"></i>
-                            </button>
+                            <div id="topbar-clear-search"></div>
                         </div>
                         <div class="quick-jump">
                             <select id="quickJumpSelect" onchange="quickJumpTo(this.value)" title="Quickly jump to any form section, content section, or question">
@@ -4396,24 +5210,7 @@
                                 </optgroup>
                             </select>
                         </div>
-                        <button id="saveBtn" class="dark-mode-toggle" onclick="saveProgress()" title="Save Progress (Ctrl+S)">
-                            <i class="fas fa-save"></i>
-                        </button>
-                        <button class="dark-mode-toggle" onclick="location.reload()" title="Reload Page">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                        <button class="dark-mode-toggle" onclick="scrollToTop()" title="Scroll to Top">
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                        <button id="autoResizeToggle" class="dark-mode-toggle" onclick="toggleAutoResize()" title="Toggle Auto-Resize Textareas">
-                            <i class="fas fa-arrows-alt-v"></i>
-                        </button>
-                        <button id="trailingSpacesToggle" class="dark-mode-toggle" onclick="toggleTrailingSpacesIndicator()" title="Show trailing spaces indicator in preview boxes">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </button>
-                        <button id="darkModeToggle" class="dark-mode-toggle" onclick="toggleDarkMode()">
-                            <i class="fas fa-moon"></i>
-                        </button>
+                        <div id="topbar-actions" style="display: flex; gap: 8px;"></div>
                     </div>
                 </div>
             </div>
@@ -4423,18 +5220,14 @@
             <!-- Form Section -->
             <div class="form-section">
                 <!-- Main Tab Navigation: Input Form / Final Preview -->
-                <div class="tabs main-tabs">
-                    <button class="tab active" id="main-tab-input" onclick="showMainTab('input-form')" title="Edit the form data">Input Form</button>
-                    <button class="tab" id="main-tab-preview" onclick="showMainTab('final-preview')" title="Preview all sections and questions">Final Preview</button>
+                <div class="tabs main-tabs" id="main-tabs-container">
+                    <!-- Buttons will be hydrated by JS -->
                 </div>
                 
                 <!-- Input Form Tab Content -->
                 <div id="input-form" class="main-tab-content active">
-                <div class="tabs">
-                    <button class="tab active" onclick="showTab('basic')" title="Basic page information (page numbers, page type)">Basic Info</button>
-                    <button class="tab" onclick="showTab('preamble')" title="Lesson metadata (ID, title, standards, terminology)">Lesson Preamble</button>
-                    <button class="tab" onclick="showTab('content')" title="Instructional content sections">Content</button>
-                    <button class="tab" onclick="showTab('questions')" title="Practice questions">Questions</button>
+                <div class="tabs" id="sub-tabs-container">
+                    <!-- Buttons will be hydrated by JS -->
                 </div>
 
                 <!-- Basic Info Tab -->
@@ -4500,9 +5293,7 @@
                                 </div>
                             </div>
                         </div>
-                        <button class="add-btn" onclick="addLessonStandard()" title="Add a new lesson standard">
-                            <i class="fas fa-plus"></i> Add Standard
-                        </button>
+                        <div class="js-action-button" data-action="addLessonStandard"></div>
                     </div>
                     
                     <div class="form-group">
@@ -4527,9 +5318,7 @@
                                 </div>
                             </div>
                         </div>
-                        <button class="add-btn" onclick="addTerminology()" title="Add a new terminology term">
-                            <i class="fas fa-plus"></i> Add Term
-                        </button>
+                        <div class="js-action-button" data-action="addTerminology"></div>
                     </div>
                     
                     <div class="form-group">
@@ -4554,12 +5343,8 @@
                     </div>
                     
                     <div class="button-group">
-                        <button class="add-btn" onclick="addContentSection()" title="Add a new instructional content section">
-                            <i class="fas fa-plus"></i> Add Content Section
-                        </button>
-                        <button class="add-btn paste-section-btn" onclick="pasteSectionAtEnd('content')" title="Paste a copied content section at the end">
-                            <i class="fas fa-paste"></i> Paste Section
-                        </button>
+                        <div class="js-action-button" data-action="addContentSection"></div>
+                        <div class="js-action-button" data-action="pasteSectionAtEnd" data-param="content"></div>
                     </div>
                     
                     <div class="highlight">
@@ -4581,12 +5366,8 @@
                     </div>
                     
                     <div class="button-group">
-                        <button class="add-btn" onclick="addQuestion()" title="Add a new practice question">
-                            <i class="fas fa-plus"></i> Add Question
-                        </button>
-                        <button class="add-btn paste-section-btn" onclick="pasteSectionAtEnd('question')" title="Paste a copied question at the end">
-                            <i class="fas fa-paste"></i> Paste Question
-                        </button>
+                        <div class="js-action-button" data-action="addQuestion"></div>
+                        <div class="js-action-button" data-action="pasteSectionAtEnd" data-param="question"></div>
                     </div>
                     
                     <div class="highlight">
@@ -4620,17 +5401,10 @@
             <div class="form-section toggle-section">
                 <!-- Toggle Header -->
                 <div class="view-toggle-header">
-                    <div class="view-toggle-buttons">
-                        <button id="toggle-pdf-btn" class="view-toggle-btn" onclick="showPdfViewer()" title="View and navigate PDF pages">
-                            <i class="fas fa-file-pdf"></i> PDF Viewer
-                        </button>
-                        <button id="toggle-json-btn" class="view-toggle-btn active" onclick="showJsonPreview()" title="View generated JSON output">
-                            <i class="fas fa-code"></i> JSON Preview
-                        </button>
+                    <div class="view-toggle-buttons" id="view-toggle-buttons-container">
+                        <!-- Buttons will be hydrated by JS -->
                     </div>
-                    <button class="generate-btn" onclick="generateJSON()" style="width:auto;" title="Generate JSON from all form data (validates before generating)">
-                        <i class="fas fa-magic" style="font-size: 0.75rem;"></i> Generate JSON
-                    </button>
+                    <div id="generate-json-container"></div>
                 </div>
                 
                 <!-- PDF Viewer Panel (hidden by default) -->
@@ -4643,24 +5417,14 @@
                     <!-- Input JSON (Import Area) -->
                     <div class="form-group">
                         <label>Load JSON or Python Dict to populate the form</label>
-                        <div class="json-controls" style="margin-bottom:8px;">
-                            <button class="add-btn" type="button" onclick="event.stopPropagation(); loadJSON()" title="Load JSON or Python dictionary from the text area below to populate the form">
-                                <i class="fas fa-file-upload"></i> Load JSON/Dict
-                            </button>
-                            <button class="add-btn" type="button" onclick="event.stopPropagation(); confirmClearForm()" title="Clear all form data and start fresh">
-                                <i class="fas fa-broom"></i> Clear Form
-                            </button>
-                            <button class="add-btn" type="button" onclick="event.stopPropagation(); openBboxDrawerForPDFs()" title="Upload textbook or guidebook PDF for drawing bounding boxes">
-                                <i class="fas fa-file-pdf"></i> Upload PDFs
-                            </button>
+                        <div class="json-controls" id="json-import-controls" style="margin-bottom:8px;">
+                            <!-- Buttons will be hydrated by JS -->
                         </div>
                         <textarea id="json_input" placeholder="Paste JSON or Python dict here..." data-ltr="true" title="Paste JSON or Python dictionary here, then click 'Load JSON/Dict' to populate the form"></textarea>
                     </div>
                     <!-- Output JSON (Preview Area) -->
-                    <div class="json-controls" style="margin-bottom:8px;">
-                        <button class="add-btn" onclick="copyJSON()" title="Copy the generated JSON to clipboard">
-                            <i class="fas fa-copy"></i> Copy JSON
-                        </button>
+                    <div class="json-controls" id="json-export-controls" style="margin-bottom:8px;">
+                        <!-- Buttons will be hydrated by JS -->
                     </div>
                     <div class="json-preview" id="json_output">
                         <span class="json-key">//</span> <span class="json-string">JSON will be generated here...</span>
@@ -5797,7 +6561,7 @@
                                 // Unescape HTML entities back to original symbols for KaTeX
                                 texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
                                 window.katex.render(texToRender, node, { 
-                                    displayMode: false,
+                                    displayMode: true,
                                     throwOnError: false,
                                     output: 'html'
                                 }); 
@@ -7457,11 +8221,7 @@
                     }
                     // Update the correct answer UI after a small delay to ensure DOM is ready
                         setTimeout(() => {
-                        if (currentType === 'multiple_choice') {
-                            updateCorrectAnswerRadios(questionEl);
-                        } else if (currentType === 'checkbox') {
-                            updateCheckboxSummary(questionEl);
-                            }
+                        syncChoiceUI(questionEl);
                         }, 50);
                 } else {
                     if (guideAnswerContainer) guideAnswerContainer.style.display = 'block';
@@ -7606,7 +8366,7 @@
                         }
                         // Wait a moment for KaTeX to finish rendering, then update the radio previews
                         choiceTextArea.__updateRadiosTimeout = setTimeout(() => {
-                            rebuildCorrectAnswerUI(questionEl);
+                            syncChoiceUI(questionEl);
                         }, 100);
                     });
                 }
@@ -7658,8 +8418,21 @@
             // Update correct answer UI when ID changes
             const questionEl = choiceItem.parentElement?.closest('.array-item');
             if (questionEl) {
-                rebuildCorrectAnswerUI(questionEl);
+                syncChoiceUI(questionEl);
             }
+        }
+
+        // Reusable confirmation helper for removing nested list items
+        function confirmRemoveListItem(kind) {
+            const labels = {
+                'choice': 'Are you sure you want to remove this choice?',
+                'matching-left': 'Are you sure you want to remove this left matching item?',
+                'matching-right': 'Are you sure you want to remove this right matching item?',
+                'matching': 'Are you sure you want to remove this matching item?',
+                'relationship': 'Are you sure you want to remove this relationship?'
+            };
+            const message = labels[kind] || `Are you sure you want to remove this ${kind}?`;
+            return confirm(message);
         }
 
         function removeChoice(button) {
@@ -7669,7 +8442,7 @@
             const context = getListContext(choiceItem);
             if (!context) return;
             
-            if (!confirm('Are you sure you want to remove this choice?')) return;
+            if (!confirmRemoveListItem('choice')) return;
             
             // Record action for undo/redo BEFORE removing
             // Preserve the actual DOM node (not a clone) for proper restoration
@@ -7710,29 +8483,47 @@
             rebuildCorrectAnswerUI(questionEl);
         }
         
-        // Sync checkbox correctness state with UIDs (for checkbox questions)
-        function syncCheckboxCorrectness(questionEl) {
+        // Single canonical UI sync helper for choices (multiple choice + checkbox)
+        // Ensures UIDs exist, syncs UI with dataset state, and updates summaries
+        function syncChoiceUI(questionEl) {
             if (!questionEl) return;
+            
+            const questionType = getQuestionType(questionEl);
+            if (questionType !== 'multiple_choice' && questionType !== 'checkbox') return;
             
             ensureChoiceUids(questionEl);
             
-            const choicesList = questionEl.querySelector('[id^="choices-list-"]');
-            if (!choicesList) return;
-            
-            const choices = choicesList.querySelectorAll('.choice-item');
-            const correctUids = getCorrectChoiceUids(questionEl);
-            
-            choices.forEach(choiceItem => {
-                const choiceUid = choiceItem.dataset.choiceUid;
-                if (!choiceUid) return;
+            if (questionType === 'multiple_choice') {
+                // Sync multiple choice: rebuild radio UI from dataset.correctChoiceUid
+                rebuildCorrectAnswerUI(questionEl);
+            } else if (questionType === 'checkbox') {
+                // Sync checkbox: update checkboxes from dataset.correctChoiceUids
+                const choicesList = questionEl.querySelector('[id^="choices-list-"]');
+                if (!choicesList) return;
                 
-                const checkbox = choiceItem.querySelector('.choice-correct');
-                if (checkbox) {
-                    const isCorrect = correctUids.has(choiceUid);
-                    checkbox.checked = isCorrect;
-                    choiceItem.dataset.isCorrect = isCorrect ? 'true' : 'false';
-                }
-            });
+                const choices = choicesList.querySelectorAll('.choice-item');
+                const correctUids = getCorrectChoiceUids(questionEl);
+                
+                choices.forEach(choiceItem => {
+                    const choiceUid = choiceItem.dataset.choiceUid;
+                    if (!choiceUid) return;
+                    
+                    const checkbox = choiceItem.querySelector('.choice-correct');
+                    if (checkbox) {
+                        const isCorrect = correctUids.has(choiceUid);
+                        checkbox.checked = isCorrect;
+                        choiceItem.dataset.isCorrect = isCorrect ? 'true' : 'false';
+                    }
+                });
+                
+                // Update checkbox summary
+                updateCheckboxSummary(questionEl);
+            }
+        }
+        
+        // Legacy alias for backward compatibility
+        function syncCheckboxCorrectness(questionEl) {
+            syncChoiceUI(questionEl);
         }
 
         // Rebuild correct answer UI for multiple choice questions (UID-based)
@@ -8006,7 +8797,7 @@
                                 clearTimeout(choiceTextArea.__updateRadiosTimeout);
                             }
                             choiceTextArea.__updateRadiosTimeout = setTimeout(() => {
-                                updateCorrectAnswerRadios(questionEl);
+                                syncChoiceUI(questionEl);
                             }, 100);
                         });
                         choiceTextArea.dataset.listenerAttached = 'true';
@@ -8014,20 +8805,31 @@
                     
                     if (choiceIdInput && !choiceIdInput.dataset.listenerAttached) {
                         choiceIdInput.addEventListener('input', () => {
-                            updateCorrectAnswerRadios(questionEl);
+                            syncChoiceUI(questionEl);
                         });
                         choiceIdInput.dataset.listenerAttached = 'true';
                     }
                 } else if (questionType === 'checkbox') {
-                    // Add listeners for checkbox
+                    // Add listeners for checkbox (UID-based)
                     const correctCheckbox = choiceItem.querySelector('.choice-correct');
                     if (correctCheckbox && !correctCheckbox.dataset.listenerAttached) {
-                        correctCheckbox.addEventListener('change', () => {
-                            updateCheckboxSummary(questionEl);
-                            markFormAsChanged();
-                            triggerAutoSave();
-                        });
-                        correctCheckbox.dataset.listenerAttached = 'true';
+                        ensureChoiceUids(questionEl);
+                        const choiceUid = choiceItem.dataset.choiceUid;
+                        if (choiceUid) {
+                            correctCheckbox.addEventListener('change', () => {
+                                const correctUids = getCorrectChoiceUids(questionEl);
+                                if (correctCheckbox.checked) {
+                                    correctUids.add(choiceUid);
+                                } else {
+                                    correctUids.delete(choiceUid);
+                                }
+                                setCorrectChoiceUids(questionEl, correctUids);
+                                updateCheckboxSummary(questionEl);
+                                markFormAsChanged();
+                                triggerAutoSave();
+                            });
+                            correctCheckbox.dataset.listenerAttached = 'true';
+                        }
                     }
                 }
             });
@@ -8553,22 +9355,38 @@
                             });
                         }
                         
+                        // Populate relationships (convert indices to UIDs)
                         const relationshipsList = newQuestion.querySelector('[id^="relationships-list-"]');
                         if (relationshipsList && sectionData.data.relationship && Array.isArray(sectionData.data.relationship)) {
                             relationshipsList.innerHTML = '';
+                            ensureMatchingUids(newQuestion);
+                            const leftItems = newQuestion.querySelectorAll('[id^="matching-left-list-"] .matching-item');
+                            const rightItems = newQuestion.querySelectorAll('[id^="matching-right-list-"] .matching-item');
+                            const leftIndexToUid = new Map();
+                            const rightIndexToUid = new Map();
+                            leftItems.forEach((item, index) => {
+                                const uid = item.dataset.leftUid;
+                                if (uid) leftIndexToUid.set(index + 1, uid);
+                            });
+                            rightItems.forEach((item, index) => {
+                                const uid = item.dataset.rightUid;
+                                if (uid) rightIndexToUid.set(index + 1, uid);
+                            });
                             sectionData.data.relationship.forEach(([leftIdx, rightIdx]) => {
                                 const addRelBtn = newQuestion.querySelector('button[onclick*="addRelationship"]');
                                 if (addRelBtn) {
                                     addRelationship(addRelBtn);
                                     const lastRel = relationshipsList.lastElementChild;
                                     if (lastRel) {
-                                        const leftSelect = lastRel.querySelector('.relationship-left');
-                                        const rightSelect = lastRel.querySelector('.relationship-right');
-                                        if (leftSelect) leftSelect.value = leftIdx;
-                                        if (rightSelect) rightSelect.value = rightIdx;
+                                        const leftUid = leftIndexToUid.get(leftIdx);
+                                        const rightUid = rightIndexToUid.get(rightIdx);
+                                        if (leftUid) lastRel.dataset.leftUid = leftUid;
+                                        if (rightUid) lastRel.dataset.rightUid = rightUid;
                                     }
                                 }
                             });
+                            // Rebuild UI to show correct selections
+                            afterQuestionTypeListMutation(newQuestion);
                         }
                         
                         // Fill guide answer in matching container
@@ -8611,38 +9429,42 @@
                             choicesGuideAnswer.value = sectionData.data.guide_answer || '';
                         }
                         
-                        // Set correct answer based on question type
-                        setTimeout(() => {
-                            // Attach listeners for real-time updates
-                            attachChoiceListeners(newQuestion);
-                            
-                            if (questionType === 'multiple_choice') {
-                                // Update radio buttons first
-                                updateCorrectAnswerRadios(newQuestion);
-                                // Then set the value from new 'value' field
-                                if (sectionData.data.value !== undefined) {
-                                    const correctRadio = newQuestion.querySelector(`.choice-correct-radio[value="${sectionData.data.value}"]`);
-                                    if (correctRadio) {
-                                        correctRadio.checked = true;
+                        // Restore correct answer state using UID-based approach
+                        ensureChoiceUids(newQuestion);
+                        if (questionType === 'multiple_choice') {
+                            // Convert index to UID (support both 'value' and 'correct_answer_index')
+                            const correctIndex = sectionData.data.correct_answer_index || sectionData.data.value;
+                            if (correctIndex) {
+                                const choicesList = newQuestion.querySelector('[id^="choices-list-"]');
+                                if (choicesList) {
+                                    const choices = choicesList.querySelectorAll('.choice-item');
+                                    const correctChoice = choices[correctIndex - 1];
+                                    if (correctChoice && correctChoice.dataset.choiceUid) {
+                                        setCorrectChoiceUid(newQuestion, correctChoice.dataset.choiceUid);
                                     }
                                 }
-                            } else if (questionType === 'checkbox') {
-                                // Restore from new 'values' array
-                                if (sectionData.data.values && Array.isArray(sectionData.data.values)) {
-                                    const choicesListCheckbox = newQuestion.querySelector('[id^="choices-list-"]');
-                                    if (choicesListCheckbox) {
-                                        const choiceItems = choicesListCheckbox.querySelectorAll('.choice-item');
-                                        choiceItems.forEach((choiceItem, index) => {
-                                            const correctCheckbox = choiceItem.querySelector('.choice-correct');
-                                            if (correctCheckbox && sectionData.data.values[index] !== undefined) {
-                                                correctCheckbox.checked = sectionData.data.values[index];
-                                            }
-                                        });
-                                    }
-                                }
-                                updateCheckboxSummary(newQuestion);
                             }
-                        }, 50);
+                        } else if (questionType === 'checkbox') {
+                            // Restore checkbox correctness from choices[].checked (UID-based)
+                            const correctUids = new Set();
+                            const choicesList = newQuestion.querySelector('[id^="choices-list-"]');
+                            if (choicesList) {
+                                const choices = choicesList.querySelectorAll('.choice-item');
+                                choices.forEach((choiceItem, index) => {
+                                    // Support both new format (choices[].checked) and old format (values array)
+                                    const isChecked = (sectionData.data.choices && sectionData.data.choices[index] && sectionData.data.choices[index].checked) ||
+                                                    (sectionData.data.values && sectionData.data.values[index]);
+                                    if (isChecked) {
+                                        const uid = choiceItem.dataset.choiceUid;
+                                        if (uid) correctUids.add(uid);
+                                    }
+                                });
+                            }
+                            setCorrectChoiceUids(newQuestion, correctUids);
+                        }
+                        // Attach listeners and sync UI
+                        attachChoiceListeners(newQuestion);
+                        afterQuestionTypeListMutation(newQuestion);
                     } else {
                         // Free form and other types - fill guide answer
                         const guideAnswerTextarea = newQuestion.querySelector('#guide-answer-container textarea');
@@ -8882,22 +9704,38 @@
                             });
                         }
                         
+                        // Populate relationships (convert indices to UIDs)
                         const relationshipsList = sectionEl.querySelector('[id^="relationships-list-"]');
                         if (relationshipsList && sectionData.data.relationship && Array.isArray(sectionData.data.relationship)) {
                             relationshipsList.innerHTML = '';
+                            ensureMatchingUids(sectionEl);
+                            const leftItems = sectionEl.querySelectorAll('[id^="matching-left-list-"] .matching-item');
+                            const rightItems = sectionEl.querySelectorAll('[id^="matching-right-list-"] .matching-item');
+                            const leftIndexToUid = new Map();
+                            const rightIndexToUid = new Map();
+                            leftItems.forEach((item, index) => {
+                                const uid = item.dataset.leftUid;
+                                if (uid) leftIndexToUid.set(index + 1, uid);
+                            });
+                            rightItems.forEach((item, index) => {
+                                const uid = item.dataset.rightUid;
+                                if (uid) rightIndexToUid.set(index + 1, uid);
+                            });
                             sectionData.data.relationship.forEach(([leftIdx, rightIdx]) => {
                                 const addRelBtn = sectionEl.querySelector('button[onclick*="addRelationship"]');
                                 if (addRelBtn) {
                                     addRelationship(addRelBtn);
                                     const lastRel = relationshipsList.lastElementChild;
                                     if (lastRel) {
-                                        const leftSelect = lastRel.querySelector('.relationship-left');
-                                        const rightSelect = lastRel.querySelector('.relationship-right');
-                                        if (leftSelect) leftSelect.value = leftIdx;
-                                        if (rightSelect) rightSelect.value = rightIdx;
+                                        const leftUid = leftIndexToUid.get(leftIdx);
+                                        const rightUid = rightIndexToUid.get(rightIdx);
+                                        if (leftUid) lastRel.dataset.leftUid = leftUid;
+                                        if (rightUid) lastRel.dataset.rightUid = rightUid;
                                     }
                                 }
                             });
+                            // Rebuild UI to show correct selections
+                            afterQuestionTypeListMutation(sectionEl);
                         }
                         
                         const guideAnswerNotesTextarea = sectionEl.querySelector('.guide-answer-notes');
@@ -8937,45 +9775,42 @@
                             guideAnswerNotesTextarea.value = sectionData.data.guide_answer || '';
                         }
                         
-                        // Set correct answer based on question type
-                        setTimeout(() => {
-                            // Attach listeners for real-time updates
-                            attachChoiceListeners(sectionEl);
-                            
-                            if (questionType === 'multiple_choice') {
-                                // Update radio buttons first
-                                updateCorrectAnswerRadios(sectionEl);
-                                // Then set the value from new 'value' field or old 'guide_answer' field
-                                if (sectionData.data.value !== undefined) {
-                                    const correctRadio = sectionEl.querySelector(`.choice-correct-radio[value="${sectionData.data.value}"]`);
-                                    if (correctRadio) {
-                                        correctRadio.checked = true;
-                                    }
-                                } else if (sectionData.data.guide_answer) {
-                                    // Backward compatibility: old guide_answer with choice ID
-                            const correctAnswerSelect = sectionEl.querySelector('.correct-answer-select');
-                                    if (correctAnswerSelect) {
-                                updateCorrectAnswerOptions(correctAnswerSelect);
-                                correctAnswerSelect.value = sectionData.data.guide_answer;
+                        // Restore correct answer state using UID-based approach
+                        ensureChoiceUids(sectionEl);
+                        if (questionType === 'multiple_choice') {
+                            // Convert index to UID (support both 'value' and 'correct_answer_index')
+                            const correctIndex = sectionData.data.correct_answer_index || sectionData.data.value;
+                            if (correctIndex) {
+                                const choicesList = sectionEl.querySelector('[id^="choices-list-"]');
+                                if (choicesList) {
+                                    const choices = choicesList.querySelectorAll('.choice-item');
+                                    const correctChoice = choices[correctIndex - 1];
+                                    if (correctChoice && correctChoice.dataset.choiceUid) {
+                                        setCorrectChoiceUid(sectionEl, correctChoice.dataset.choiceUid);
                                     }
                                 }
-                            } else if (questionType === 'checkbox') {
-                                // Restore from new 'values' array
-                                if (sectionData.data.values && Array.isArray(sectionData.data.values)) {
-                                    const choicesList = sectionEl.querySelector('[id^="choices-list-"]');
-                                    if (choicesList) {
-                                        const choiceItems = choicesList.querySelectorAll('.choice-item');
-                                        choiceItems.forEach((choiceItem, index) => {
-                                            const correctCheckbox = choiceItem.querySelector('.choice-correct');
-                                            if (correctCheckbox && sectionData.data.values[index] !== undefined) {
-                                                correctCheckbox.checked = sectionData.data.values[index];
-                                            }
-                                        });
-                                    }
-                                }
-                                updateCheckboxSummary(sectionEl);
                             }
-                        }, 50);
+                        } else if (questionType === 'checkbox') {
+                            // Restore checkbox correctness from choices[].checked (UID-based)
+                            const correctUids = new Set();
+                            const choicesList = sectionEl.querySelector('[id^="choices-list-"]');
+                            if (choicesList) {
+                                const choices = choicesList.querySelectorAll('.choice-item');
+                                choices.forEach((choiceItem, index) => {
+                                    // Support both new format (choices[].checked) and old format (values array)
+                                    const isChecked = (sectionData.data.choices && sectionData.data.choices[index] && sectionData.data.choices[index].checked) ||
+                                                    (sectionData.data.values && sectionData.data.values[index]);
+                                    if (isChecked) {
+                                        const uid = choiceItem.dataset.choiceUid;
+                                        if (uid) correctUids.add(uid);
+                                    }
+                                });
+                            }
+                            setCorrectChoiceUids(sectionEl, correctUids);
+                        }
+                        // Attach listeners and sync UI
+                        attachChoiceListeners(sectionEl);
+                        afterQuestionTypeListMutation(sectionEl);
                     } else {
                         // Free form - fill guide answer
                         const guideAnswerTextarea = sectionEl.querySelector('#guide-answer-container textarea');
@@ -9001,8 +9836,10 @@
                     // Re-attach previews and ensure proper direction
                     setTimeout(() => {
                         attachPreviews(sectionEl);
-                        applyFontSettings(sectionEl);
                         attachBboxValidation(sectionEl);
+                        
+                        // Finalize pasted section to apply font settings to all bbox inputs
+                        finalizePastedSection(sectionEl, { type: 'question' });
                         
                         // Update direction buttons
                         const dirBtns = sectionEl.querySelectorAll('.dir-btn');
@@ -9036,8 +9873,11 @@
                     // Re-attach previews and ensure proper direction
                     setTimeout(() => {
                         attachPreviews(sectionEl);
-                        applyFontSettings(sectionEl);
                         attachBboxValidation(sectionEl);
+                        
+                        // Finalize pasted section to apply font settings to all bbox inputs
+                        const isQuestion = !!sectionEl.closest('#questions_container');
+                        finalizePastedSection(sectionEl, { type: isQuestion ? 'question' : 'content' });
                         
                         // Update direction buttons
                         const dirBtns = sectionEl.querySelectorAll('.dir-btn');
@@ -9221,6 +10061,9 @@
                         attachPreviews(newQuestion);
                         attachBboxValidation(newQuestion);
                         
+                        // Finalize pasted section to apply font settings to all bbox inputs
+                        finalizePastedSection(newQuestion, { type: 'question' });
+                        
                         // Update direction buttons
                         const dirBtns = newQuestion.querySelectorAll('.dir-btn');
                         dirBtns.forEach(btn => {
@@ -9269,6 +10112,9 @@
                     setTimeout(() => {
                         attachPreviews(newSection);
                         attachBboxValidation(newSection);
+                        
+                        // Finalize pasted section to apply font settings to all bbox inputs
+                        finalizePastedSection(newSection, { type: 'content' });
                         
                         // Update direction buttons
                         const dirBtns = newSection.querySelectorAll('.dir-btn');
@@ -9401,23 +10247,26 @@
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
             
+            // Build standards-specific button config (LIST_ITEM style with before/after)
+            const standardConfig = {
+                ...ACTION_BUTTON_CONFIGS.LIST_ITEM,
+                handlers: {
+                    before: 'addLessonStandardBefore',
+                    after: 'addLessonStandardAfter',
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    remove: 'removeArrayItem'
+                },
+                containerClass: 'row-actions'
+            };
+            
             newItem.innerHTML = `
                 <div class="text-field-container">
                     <span class="input-label">Input Markdown</span>
                     <textarea placeholder="e.g., CCSS.MATH.CONTENT.8.G.A.1" title="Educational standard code (e.g., Common Core State Standards)"></textarea>
                     ${getMarkdownButtonBarHTML()}
                 </div>
-                <div class="row-actions">
-                    <button class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
-                        <i class="fas fa-plus"></i> Before
-                    </button>
-                    <button class="add-bbox-btn" onclick="addLessonStandardAfter(this)" title="Add Standard After">
-                        <i class="fas fa-plus"></i> After
-                    </button>
-                    <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                    <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                    <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this standard">×</button>
-                </div>
+                ${buildActionButtonsHTML(standardConfig, { itemLabel: 'Standard' })}
             `;
             
             // Ensure the new lesson standard field starts with RTL (default direction)
@@ -9457,23 +10306,26 @@
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
             
+            // Build terminology-specific button config (LIST_ITEM style with before/after)
+            const terminologyConfig = {
+                ...ACTION_BUTTON_CONFIGS.LIST_ITEM,
+                handlers: {
+                    before: 'addTerminologyBefore',
+                    after: 'addTerminologyAfter',
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    remove: 'removeArrayItem'
+                },
+                containerClass: 'row-actions'
+            };
+            
             newItem.innerHTML = `
                 <div class="text-field-container">
                 <span class="input-label">Input Markdown</span>
                     <textarea placeholder="e.g., Parallel Lines" title="Terminology term with definition (supports markdown formatting)"></textarea>
                     ${getMarkdownButtonBarHTML()}
                 </div>
-                <div class="row-actions">
-                    <button class="add-bbox-btn" onclick="addTerminologyBefore(this)" title="Add Term Before">
-                        <i class="fas fa-plus"></i> Before
-                    </button>
-                    <button class="add-bbox-btn" onclick="addTerminologyAfter(this)" title="Add Term After">
-                        <i class="fas fa-plus"></i> After
-                    </button>
-                    <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                    <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                    <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove this term">×</button>
-                </div>
+                ${buildActionButtonsHTML(terminologyConfig, { itemLabel: 'Term' })}
             `;
             
             // Ensure the new terminology field starts with RTL (default direction)
@@ -9799,50 +10651,29 @@
         function getBBoxRowActionsHTML(options = {}) {
             const { beforeHandler = null, afterHandler = null, buttonOrder = 'beforeFirst' } = options;
             
-            let buttonsHTML = '';
+            // Build bbox-specific button config
+            // Button order must match question template: moveUp, moveDown, before, after, draw, paste, copy, duplicate, remove
+            const bboxConfig = {
+                ...ACTION_BUTTON_CONFIGS.BBOX,
+                handlers: {
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    before: beforeHandler,
+                    after: afterHandler,
+                    draw: 'openBboxDrawer',
+                    paste: 'pasteBboxJson',
+                    copy: 'copyBboxJson',
+                    duplicate: 'duplicateBbox',
+                    remove: 'removeArrayItem'
+                },
+                buttons: beforeHandler && afterHandler 
+                    ? (buttonOrder === 'beforeFirst' 
+                        ? ['before', 'after', 'moveUp', 'moveDown', 'draw', 'paste', 'copy', 'duplicate', 'remove']
+                        : ['moveUp', 'moveDown', 'before', 'after', 'draw', 'paste', 'copy', 'duplicate', 'remove'])
+                    : ['moveUp', 'moveDown', 'draw', 'paste', 'copy', 'duplicate', 'remove']
+            };
             
-            // Before/After buttons (if handlers provided)
-            if (beforeHandler && afterHandler) {
-                if (buttonOrder === 'beforeFirst') {
-                    buttonsHTML += `
-                        <button class="add-bbox-btn" onclick="${beforeHandler}(this)" title="Add BBox Before">
-                            <i class="fas fa-plus"></i> Before
-                        </button>
-                        <button class="add-bbox-btn" onclick="${afterHandler}(this)" title="Add BBox After">
-                            <i class="fas fa-plus"></i> After
-                        </button>
-                    `;
-                }
-            }
-            
-            // Reorder buttons
-            buttonsHTML += `
-                <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-            `;
-            
-            // Before/After buttons (if handlers provided and order is 'reorderFirst')
-            if (beforeHandler && afterHandler && buttonOrder === 'reorderFirst') {
-                buttonsHTML += `
-                    <button class="add-bbox-btn" onclick="${beforeHandler}(this)" title="Add Image Before">
-                        <i class="fas fa-plus"></i> Before
-                    </button>
-                    <button class="add-bbox-btn" onclick="${afterHandler}(this)" title="Add Image After">
-                        <i class="fas fa-plus"></i> After
-                    </button>
-                `;
-            }
-            
-            // Standard action buttons
-            buttonsHTML += `
-                <button class="add-btn" onclick="openBboxDrawer(this)" title="Open PDF viewer to draw bounding box"><i class="fas fa-pen-square"></i> Draw</button>
-                <button class="add-btn" onclick="pasteBboxJson(this)" title="Paste bounding box coordinates from clipboard"><i class="fas fa-paste"></i> Paste</button>
-                <button class="add-btn" onclick="copyBboxJson(this)" title="Copy bounding box coordinates to clipboard"><i class="fas fa-copy"></i> Copy</button>
-                <button class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate BBox"><i class="fas fa-clone"></i></button>
-                <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
-            `;
-            
-            return `<div class="row-actions">${buttonsHTML}</div>`;
+            return `<div class="row-actions">${buildActionButtonsHTML(bboxConfig)}</div>`;
         }
         
         // Helper: Build complete bbox row DOM element
@@ -9892,6 +10723,28 @@
         function finalizeBBoxRow(item) {
             attachBboxValidationToItem(item);
             applyFontSettings(item);
+        }
+        
+        /**
+         * Finalize a pasted section by applying font settings to all bbox inputs
+         * This ensures bbox inputs match current font settings after paste operations
+         * @param {HTMLElement} sectionEl - The section element to finalize
+         * @param {Object} options - Options object
+         * @param {string} options.type - 'content' or 'question'
+         */
+        function finalizePastedSection(sectionEl, options = {}) {
+            if (!sectionEl) return;
+            
+            // Apply font settings to the entire section (includes all bbox inputs)
+            // This must be called AFTER DOM insertion and AFTER previews are attached
+            applyFontSettings(sectionEl);
+            
+            // Also explicitly finalize all bbox rows in the section
+            // This ensures any bbox rows created by fillBboxGroup get proper font settings
+            const allBboxItems = sectionEl.querySelectorAll('.bbox-container .array-item');
+            allBboxItems.forEach(item => {
+                finalizeBBoxRow(item);
+            });
         }
         
         // Unified helper: Finalize any array item based on its type
@@ -9986,36 +10839,26 @@
 
         // Helper function to get HTML for content section (extracted from addContentSection)
         function getContentSectionHTML(sectionCount) {
+            // Build content section-specific button config
+            const contentConfig = {
+                ...ACTION_BUTTON_CONFIGS.SECTION,
+                handlers: {
+                    before: 'addContentSectionBefore',
+                    after: 'addContentSectionAfter',
+                    copy: 'copySection',
+                    paste: 'pasteIntoSection',
+                    duplicate: 'duplicateSection',
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    collapse: 'toggleSectionCollapse',
+                    remove: 'removeArrayItem'
+                }
+            };
+            
             return `
                 <div class="array-item-header">
                     <h4>Content Section ${sectionCount}</h4>
-                    <div class="array-item-header-controls">
-                        <button class="add-section-btn" onclick="addContentSectionBefore(this)" title="Add Section Before">
-                            <i class="fas fa-plus"></i> Before
-                        </button>
-                        <button class="add-section-btn" onclick="addContentSectionAfter(this)" title="Add Section After">
-                            <i class="fas fa-plus"></i> After
-                        </button>
-                        <button class="copy-section-btn" onclick="copySection(this)" title="Copy Section">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="copy-section-btn paste-replace-btn" onclick="pasteIntoSection(this)" title="Paste & Replace Section">
-                            <i class="fas fa-paste"></i>
-                        </button>
-                        <button class="duplicate-btn" onclick="duplicateSection(this)" title="Duplicate Section">
-                            <i class="fas fa-clone"></i>
-                        </button>
-                        <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up">
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                        <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down">
-                            <i class="fas fa-arrow-down"></i>
-                        </button>
-                        <button class="collapse-btn" onclick="toggleSectionCollapse(this)" title="Collapse/Expand Section">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                        <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove Section">×</button>
-                    </div>
+                    ${buildActionButtonsHTML(contentConfig, { sectionLabel: 'Section' })}
                 </div>
                 
                 <div class="section-content">
@@ -10044,9 +10887,7 @@
                             ${getBBoxInputsHTML() + getBBoxRowActionsHTML({ beforeHandler: 'addContentImageBefore', afterHandler: 'addContentImageAfter', buttonOrder: 'reorderFirst' })}
                         </div>
                     </div>
-                    <button class="add-btn" onclick="addContentImage(this)" title="Add a new image bounding box for this content section">
-                        <i class="fas fa-plus"></i> Add Image
-                    </button>
+                    ${getActionButtonHTML({ label: 'Add Image', onClick: 'addContentImage(this)', iconClass: 'fa-plus', title: 'Add a new image bounding box for this content section' })}
                 </div>
                 </div>
             `;
@@ -10121,24 +10962,22 @@
                 </div>
             ` : '';
             
+            // Build choice-specific button config
+            const choiceConfig = {
+                ...ACTION_BUTTON_CONFIGS.LIST_ITEM,
+                handlers: {
+                    before: 'addChoiceBefore',
+                    after: 'addChoiceAfter',
+                    moveUp: 'moveChoiceUp',
+                    moveDown: 'moveChoiceDown',
+                    remove: 'removeChoice'
+                }
+            };
+            
             return `
                 <div class="array-item-header">
                     <h5>Choice</h5>
-                    <div class="array-item-header-controls">
-                        <button class="add-bbox-btn" onclick="addChoiceBefore(this)" title="Add Choice Before">
-                            <i class="fas fa-plus"></i> Before
-                        </button>
-                        <button class="add-bbox-btn" onclick="addChoiceAfter(this)" title="Add Choice After">
-                            <i class="fas fa-plus"></i> After
-                        </button>
-                        <button class="reorder-btn" onclick="moveChoiceUp(this)" title="Move Up">
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                        <button class="reorder-btn" onclick="moveChoiceDown(this)" title="Move Down">
-                            <i class="fas fa-arrow-down"></i>
-                        </button>
-                        <button class="remove-btn" onclick="removeChoice(this)" title="Remove Choice">×</button>
-                    </div>
+                    ${buildActionButtonsHTML(choiceConfig, { itemLabel: 'Choice' })}
                 </div>
                 <div class="form-group">
                     <label>Choice ID <span style="opacity: 0.6; font-size: 0.85em;">(Optional)</span></label>
@@ -10176,17 +11015,32 @@
         // Helper: Generate matching item HTML (for left/right items)
         // Returns HTML string for a matching item
         function getMatchingItemHTML(side, itemCount) {
+            // Build matching item-specific button config with custom styles
+            const matchingConfig = {
+                ...ACTION_BUTTON_CONFIGS.LIST_ITEM,
+                handlers: {
+                    before: 'addMatchingItemBefore',
+                    after: 'addMatchingItemAfter',
+                    moveUp: 'moveMatchingItemUp',
+                    moveDown: 'moveMatchingItemDown',
+                    remove: 'removeMatchingItem'
+                },
+                customStyles: {
+                    before: 'padding: 2px 6px; font-size: 0.8em;',
+                    after: 'padding: 2px 6px; font-size: 0.8em;',
+                    moveUp: 'padding: 2px 6px; font-size: 0.8em;',
+                    moveDown: 'padding: 2px 6px; font-size: 0.8em;',
+                    remove: 'padding: 2px 8px; font-size: 0.9em;'
+                },
+                containerClass: null // Inline in flex container
+            };
+            
+            const sideLabel = side === 'left' ? 'Left' : 'Right';
             return `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <strong style="color: var(--accent); font-size: 1.1em;">${side === 'left' ? 'L' : 'R'}${itemCount}</strong>
                     <div style="display: flex; gap: 5px;">
-                        <button class="reorder-btn" onclick="moveMatchingItemUp(this)" title="Move Up" style="padding: 2px 6px; font-size: 0.8em;">
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                        <button class="reorder-btn" onclick="moveMatchingItemDown(this)" title="Move Down" style="padding: 2px 6px; font-size: 0.8em;">
-                            <i class="fas fa-arrow-down"></i>
-                        </button>
-                        <button class="remove-btn" onclick="removeMatchingItem(this)" title="Remove" style="padding: 2px 8px; font-size: 0.9em;">×</button>
+                        ${buildActionButtonsHTML(matchingConfig, { itemLabel: `${sideLabel} Item` })}
                     </div>
                 </div>
                 <div class="text-field-container">
@@ -10231,36 +11085,26 @@
 
         // Helper function to get HTML for question (extracted from addQuestion)
         function getQuestionHTML(questionCount) {
+            // Build question-specific button config
+            const questionConfig = {
+                ...ACTION_BUTTON_CONFIGS.SECTION,
+                handlers: {
+                    before: 'addQuestionBefore',
+                    after: 'addQuestionAfter',
+                    copy: 'copySection',
+                    paste: 'pasteIntoSection',
+                    duplicate: 'duplicateSection',
+                    moveUp: 'moveItemUp',
+                    moveDown: 'moveItemDown',
+                    collapse: 'toggleSectionCollapse',
+                    remove: 'removeArrayItem'
+                }
+            };
+            
             return `
                 <div class="array-item-header">
                     <h4>Question ${questionCount}</h4>
-                    <div class="array-item-header-controls">
-                        <button class="add-section-btn" onclick="addQuestionBefore(this)" title="Add Question Before">
-                            <i class="fas fa-plus"></i> Before
-                        </button>
-                        <button class="add-section-btn" onclick="addQuestionAfter(this)" title="Add Question After">
-                            <i class="fas fa-plus"></i> After
-                        </button>
-                        <button class="copy-section-btn" onclick="copySection(this)" title="Copy Question">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="copy-section-btn paste-replace-btn" onclick="pasteIntoSection(this)" title="Paste & Replace Question">
-                            <i class="fas fa-paste"></i>
-                        </button>
-                        <button class="duplicate-btn" onclick="duplicateSection(this)" title="Duplicate Question">
-                            <i class="fas fa-clone"></i>
-                        </button>
-                        <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up">
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                        <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down">
-                            <i class="fas fa-arrow-down"></i>
-                        </button>
-                        <button class="collapse-btn" onclick="toggleSectionCollapse(this)" title="Collapse/Expand Question">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                        <button class="remove-btn" onclick="removeArrayItem(this)" title="Remove Question">×</button>
-                    </div>
+                    ${buildActionButtonsHTML(questionConfig, { sectionLabel: 'Question' })}
                 </div>
                 
                 <div class="section-content">
@@ -10288,9 +11132,7 @@
                     <div id="choices-list-${questionCount}">
                         <!-- Choices will be added here -->
                 </div>
-                    <button class="add-btn" onclick="addChoice(this)" title="Add a new answer choice">
-                        <i class="fas fa-plus"></i> Add Choice
-                                </button>
+                    ${getActionButtonHTML({ label: 'Add Choice', onClick: 'addChoice(this)', iconClass: 'fa-plus', title: 'Add a new answer choice' })}
                     <div class="form-group" id="correct-answer-selector" style="margin-top: 15px; display: none;">
                         <label style="font-weight: 600;">Correct Answer Position</label>
                         <div id="correct-answer-radios-${questionCount}" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
@@ -10310,9 +11152,7 @@
                 <div class="form-group" id="blanks-container" style="display: none;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <label style="font-weight: 600; margin: 0;">Blank Answers</label>
-                        <button type="button" class="add-btn" style="padding: 4px 10px; font-size: 0.85em;" onclick="insertBlankAtCursor(this.closest('.array-item').querySelector('textarea[placeholder*=\\'Enter question text\\']'))" title="Insert the next numbered blank placeholder in the question text">
-                            <i class="fas fa-plus"></i> Insert Next Blank
-                        </button>
+                        ${getActionButtonHTML({ label: 'Insert Next Blank', onClick: "insertBlankAtCursor(this.closest('.array-item').querySelector('textarea[placeholder*=\\'Enter question text\\']'))", iconClass: 'fa-plus', title: 'Insert the next numbered blank placeholder in the question text', style: 'padding: 4px 10px; font-size: 0.85em;' })}
                     </div>
                     <div id="blanks-validation-errors" style="display: none; margin-bottom: 10px;"></div>
                     <div id="blanks-answers-container" style="padding: 15px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px;">
@@ -10342,9 +11182,7 @@
                             <div id="matching-left-list-${questionCount}" class="matching-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
                                 <!-- Left items will be added here -->
                             </div>
-                            <button type="button" class="add-btn" onclick="addMatchingItem(this, 'left')" title="Add a new item to the left column">
-                                <i class="fas fa-plus"></i> Add Left Item
-                            </button>
+                            ${getActionButtonHTML({ label: 'Add Left Item', onClick: "addMatchingItem(this, 'left')", iconClass: 'fa-plus', title: 'Add a new item to the left column' })}
                         </div>
                         
                         <!-- Right Column -->
@@ -10353,9 +11191,7 @@
                             <div id="matching-right-list-${questionCount}" class="matching-list" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px;">
                                 <!-- Right items will be added here -->
                             </div>
-                            <button type="button" class="add-btn" onclick="addMatchingItem(this, 'right')" title="Add a new item to the right column">
-                                <i class="fas fa-plus"></i> Add Right Item
-                            </button>
+                            ${getActionButtonHTML({ label: 'Add Right Item', onClick: "addMatchingItem(this, 'right')", iconClass: 'fa-plus', title: 'Add a new item to the right column' })}
                         </div>
                     </div>
                     
@@ -10363,9 +11199,7 @@
                     <div style="margin-top: 20px; padding: 15px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                             <label style="font-weight: 600; margin: 0;">Relationships</label>
-                            <button type="button" class="add-btn" onclick="addRelationship(this)" title="Add a new relationship connecting a left item to a right item">
-                                <i class="fas fa-link"></i> Add Relationship
-                            </button>
+                            ${getActionButtonHTML({ label: 'Add Relationship', onClick: 'addRelationship(this)', iconClass: 'fa-link', title: 'Add a new relationship connecting a left item to a right item' })}
                         </div>
                         <div id="relationships-list-${questionCount}" style="display: flex; flex-direction: column; gap: 8px;">
                             <p style="color: var(--text-secondary); font-style: italic; margin: 0;">No relationships added yet. Click "Add Relationship" to connect items.</p>
@@ -10403,9 +11237,7 @@
                             </div>
                         </div>
                     </div>
-                    <button class="add-btn" onclick="addQuestionImage(this)" title="Add a new image bounding box for question images">
-                        <i class="fas fa-plus"></i> Add Image
-                    </button>
+                    ${getActionButtonHTML({ label: 'Add Image', onClick: 'addQuestionImage(this)', iconClass: 'fa-plus', title: 'Add a new image bounding box for question images' })}
                 </div>
                 
                 <div class="form-group">
@@ -10436,9 +11268,7 @@
                             </div>
                         </div>
                     </div>
-                    <button class="add-btn" onclick="addAnswerImage(this)" title="Add a new image bounding box for answer images">
-                        <i class="fas fa-plus"></i> Add Image
-                    </button>
+                    ${getActionButtonHTML({ label: 'Add Image', onClick: 'addAnswerImage(this)', iconClass: 'fa-plus', title: 'Add a new image bounding box for answer images' })}
                 </div>
                 </div>
             `;
@@ -11317,7 +12147,7 @@
                             // Unescape HTML entities back to original symbols for KaTeX
                             texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
                             window.katex.render(texToRender, node, { 
-                                displayMode: false,
+                                displayMode: true,
                                 throwOnError: false,
                                 output: 'html'
                             }); 
@@ -16393,6 +17223,66 @@
          * @param {HTMLElement} button - The button element
          * @param {string} side - Either 'left' or 'right'
          */
+        // Generic helper for inserting nested list items (choices or matching items)
+        // Works for both choices and matching items with consistent behavior
+        function insertNestedListItemRelative(button, options) {
+            const {
+                itemSelector, // '.choice-item' or '.matching-item'
+                position, // 'before' or 'after'
+                buildItemFn, // Function that creates and returns the new item element
+                finalizeFn, // Function that finalizes the item (previews, fonts, etc.)
+                getContextFn, // Function that gets context from the button
+                recordMetaFn // Function that returns metadata for recordFormAction
+            } = options;
+            
+            const currentItem = button.closest(itemSelector);
+            if (!currentItem) return;
+            
+            const context = getContextFn(currentItem);
+            if (!context) return;
+            
+            const container = context.containerEl;
+            if (!container) return;
+            
+            // Determine reference item for insertion
+            const referenceItem = position === 'before' ? currentItem : currentItem.nextSibling;
+            
+            // Build new item
+            const newItem = buildItemFn(context);
+            if (!newItem) return;
+            
+            // Insert into DOM
+            if (referenceItem && referenceItem.parentNode === container) {
+                container.insertBefore(newItem, referenceItem);
+            } else {
+                container.appendChild(newItem);
+            }
+            
+            // Finalize the item
+            finalizeFn(newItem, context);
+            
+            // Record action for undo/redo
+            const recordMeta = recordMetaFn(newItem, context, referenceItem);
+            recordFormAction({
+                type: ACTION_TYPES.ADD_ITEM,
+                element: newItem,
+                parent: container,
+                nextSibling: newItem.nextSibling,
+                ...recordMeta
+            });
+            
+            // Update UI using centralized hook
+            if (context.questionEl) {
+                afterQuestionTypeListMutation(context.questionEl);
+            }
+            if (context.updateNumbersFn) {
+                context.updateNumbersFn();
+            }
+            
+            markFormAsChanged();
+            triggerAutoSave();
+        }
+
         function addMatchingItem(button, side) {
             const questionEl = button.closest('.array-item');
             const listContainer = questionEl.querySelector(`#matching-${side}-list-${questionEl.querySelector('[id^="matching-left-list-"]').id.split('-')[3]}`);
@@ -16403,7 +17293,6 @@
             }
             
             const itemCount = listContainer.querySelectorAll('.matching-item').length + 1;
-            const itemId = `matching-${side}-item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             
             const itemDiv = document.createElement('div');
             itemDiv.className = 'array-item matching-item';
@@ -16413,6 +17302,9 @@
             itemDiv.innerHTML = getMatchingItemHTML(side, itemCount);
             
             listContainer.appendChild(itemDiv);
+            
+            // Ensure UID is assigned (must happen after DOM insertion)
+            ensureMatchingUids(questionEl);
             
             // Finalize the item: apply font settings, attach previews, set RTL
             finalizeMatchingListItem(itemDiv);
@@ -16434,7 +17326,95 @@
             updateMatchingItemNumbers(questionEl, side);
             
             // Update relationship UI
-            updateRelationshipUI(questionEl);
+            syncMatchingUI(questionEl);
+        }
+
+        function addMatchingItemBefore(button) {
+            const item = button.closest('.matching-item');
+            if (!item) return;
+            
+            const side = item.dataset.side;
+            const context = getListContext(item);
+            if (!context) return;
+            
+            insertNestedListItemRelative(button, {
+                itemSelector: '.matching-item',
+                position: 'before',
+                buildItemFn: (context) => {
+                    const listContainer = context.containerEl;
+                    const itemCount = listContainer.querySelectorAll('.matching-item').length + 1;
+                    
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'array-item matching-item';
+                    itemDiv.dataset.side = side;
+                    itemDiv.style.cssText = 'padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary);';
+                    itemDiv.innerHTML = getMatchingItemHTML(side, itemCount);
+                    
+                    return itemDiv;
+                },
+                finalizeFn: (newItem, context) => {
+                    // Ensure UID is assigned (must happen after DOM insertion)
+                    if (context.questionEl) {
+                        ensureMatchingUids(context.questionEl);
+                    }
+                    finalizeMatchingListItem(newItem);
+                    if (context.questionEl) {
+                        updateMatchingItemNumbers(context.questionEl, side);
+                    }
+                },
+                getContextFn: (item) => getListContext(item),
+                recordMetaFn: (newItem, context, referenceItem) => ({
+                    containerId: context.containerId,
+                    updateNumbers: false,
+                    isMatchingItem: true,
+                    questionEl: context.questionEl,
+                    side: side
+                })
+            });
+        }
+
+        function addMatchingItemAfter(button) {
+            const item = button.closest('.matching-item');
+            if (!item) return;
+            
+            const side = item.dataset.side;
+            const context = getListContext(item);
+            if (!context) return;
+            
+            insertNestedListItemRelative(button, {
+                itemSelector: '.matching-item',
+                position: 'after',
+                buildItemFn: (context) => {
+                    const listContainer = context.containerEl;
+                    const itemCount = listContainer.querySelectorAll('.matching-item').length + 1;
+                    
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'array-item matching-item';
+                    itemDiv.dataset.side = side;
+                    itemDiv.style.cssText = 'padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary);';
+                    itemDiv.innerHTML = getMatchingItemHTML(side, itemCount);
+                    
+                    return itemDiv;
+                },
+                finalizeFn: (newItem, context) => {
+                    // Ensure UID is assigned (must happen after DOM insertion)
+                    if (context.questionEl) {
+                        ensureMatchingUids(context.questionEl);
+                    }
+                    finalizeMatchingListItem(newItem);
+                    if (context.questionEl) {
+                        updateMatchingItemNumbers(context.questionEl, side);
+                    }
+                },
+                getContextFn: (item) => getListContext(item),
+                recordMetaFn: (newItem, context, referenceItem) => ({
+                    containerId: context.containerId,
+                    updateNumbers: false,
+                    isMatchingItem: true,
+                    questionEl: context.questionEl,
+                    side: side
+                })
+            });
         }
 
         /**
@@ -16443,31 +17423,39 @@
          */
         function removeMatchingItem(button) {
             const item = button.closest('.matching-item');
-            const side = item.dataset.side;
-            // Get the matching container, then the question container
-            const matchingContainer = item.closest('#matching-container');
-            const questionEl = matchingContainer ? matchingContainer.closest('.array-item') : null;
+            if (!item) return;
             
-            if (confirm(`Are you sure you want to remove this ${side} item?`)) {
-                // Record action for undo/redo (before removing)
-                recordFormAction({
-                    type: ACTION_TYPES.REMOVE_ITEM,
-                    element: item.cloneNode(true), // Clone for restoration
-                    parent: item.parentElement,
-                    nextSibling: item.nextSibling,
-                    containerId: null,
-                    updateNumbers: false,
-                    isMatchingItem: true, // Flag to identify matching items
-                    questionEl: questionEl, // Store question element for UI updates
-                    side: side // Store which side (left/right)
-                });
-                
-                item.remove();
-                if (questionEl) {
-                    updateMatchingItemNumbers(questionEl, side);
-                    updateRelationshipUI(questionEl);
-                }
+            const side = item.dataset.side;
+            const context = getListContext(item);
+            if (!context) return;
+            
+            if (!confirmRemoveListItem(`matching-${side}`)) return;
+            
+            // Record action for undo/redo BEFORE removing
+            // Preserve the actual DOM node (not a clone) for proper restoration
+            recordFormAction({
+                type: ACTION_TYPES.REMOVE_ITEM,
+                element: item, // Preserve actual DOM node
+                parent: item.parentNode,
+                nextSibling: item.nextSibling,
+                containerId: context.containerId,
+                updateNumbers: true,
+                isMatchingItem: true,
+                questionEl: context.questionEl,
+                side: side
+            });
+            
+            // Remove from DOM
+            item.remove();
+            
+            // Update UI using centralized hook
+            afterQuestionTypeListMutation(context.questionEl);
+            if (context.updateNumbersFn) {
+                context.updateNumbersFn();
             }
+            
+            markFormAsChanged();
+            triggerAutoSave();
         }
 
         /**
@@ -16652,7 +17640,7 @@
                 <select class="relationship-right" style="flex: 1; padding: 6px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" title="Select a right item to connect">
                     ${rightOptions}
                 </select>
-                <button class="remove-btn" onclick="removeRelationship(this)" title="Remove Relationship" style="padding: 4px 10px;">×</button>
+                ${buildActionButtonsHTML(ACTION_BUTTON_CONFIGS.RELATIONSHIP)}
             `;
             
             relationshipsList.appendChild(relationshipDiv);
@@ -16691,6 +17679,11 @@
             const questionEl = relationshipDiv.closest('.array-item');
             
             if (!questionEl) return;
+            
+            // Confirm deletion using existing confirmation pattern
+            if (!confirmRemoveListItem('relationship')) {
+                return;
+            }
             
             // Record action for undo/redo BEFORE removing
             // Preserve the actual DOM node (not a clone) for proper restoration
@@ -16757,35 +17750,51 @@
                 
                 // Rebuild left options
                 let leftOptions = '<option value="">Select Left Item</option>';
+                let hasValidLeftSelection = false;
                 leftItems.forEach((item, index) => {
                     const leftUid = item.dataset.leftUid;
                     if (!leftUid) return;
                     const position = index + 1;
                     const selected = storedLeftUid === leftUid ? 'selected' : '';
-                    const missing = !leftUidToIndex.has(leftUid) ? ' (missing)' : '';
-                    leftOptions += `<option value="${leftUid}" ${selected}>L${position}${missing}</option>`;
+                    if (selected) hasValidLeftSelection = true;
+                    leftOptions += `<option value="${leftUid}" ${selected}>L${position}</option>`;
                 });
-                // Add missing option if stored UID doesn't exist
-                if (storedLeftUid && !leftUidToIndex.has(storedLeftUid)) {
-                    leftOptions += `<option value="${storedLeftUid}" selected>(missing) L${storedLeftUid.substring(0, 8)}...</option>`;
-                }
                 leftSelect.innerHTML = leftOptions;
+                
+                // If stored UID exists and is valid, restore selection
+                // If stored UID doesn't exist yet, show placeholder but KEEP the UID in dataset
+                // This allows undo/redo to restore the selection automatically when item is restored
+                if (storedLeftUid) {
+                    if (hasValidLeftSelection) {
+                        leftSelect.value = storedLeftUid; // Restore selection if UID exists
+                    } else {
+                        leftSelect.value = ''; // Show placeholder, but keep dataset.leftUid for undo/redo
+                    }
+                }
                 
                 // Rebuild right options
                 let rightOptions = '<option value="">Select Right Item</option>';
+                let hasValidRightSelection = false;
                 rightItems.forEach((item, index) => {
                     const rightUid = item.dataset.rightUid;
                     if (!rightUid) return;
                     const position = index + 1;
                     const selected = storedRightUid === rightUid ? 'selected' : '';
-                    const missing = !rightUidToIndex.has(rightUid) ? ' (missing)' : '';
-                    rightOptions += `<option value="${rightUid}" ${selected}>R${position}${missing}</option>`;
+                    if (selected) hasValidRightSelection = true;
+                    rightOptions += `<option value="${rightUid}" ${selected}>R${position}</option>`;
                 });
-                // Add missing option if stored UID doesn't exist
-                if (storedRightUid && !rightUidToIndex.has(storedRightUid)) {
-                    rightOptions += `<option value="${storedRightUid}" selected>(missing) R${storedRightUid.substring(0, 8)}...</option>`;
-                }
                 rightSelect.innerHTML = rightOptions;
+                
+                // If stored UID exists and is valid, restore selection
+                // If stored UID doesn't exist yet, show placeholder but KEEP the UID in dataset
+                // This allows undo/redo to restore the selection automatically when item is restored
+                if (storedRightUid) {
+                    if (hasValidRightSelection) {
+                        rightSelect.value = storedRightUid; // Restore selection if UID exists
+                    } else {
+                        rightSelect.value = ''; // Show placeholder, but keep dataset.rightUid for undo/redo
+                    }
+                }
                 
                 // Update stored UIDs when selection changes
                 leftSelect.addEventListener('change', () => {
@@ -16817,6 +17826,18 @@
             rebuildMatchingRelationshipUI(questionEl);
         }
         
+        // Single canonical UI sync helper for matching
+        // Ensures UIDs exist and rebuilds relationship UI
+        function syncMatchingUI(questionEl) {
+            if (!questionEl) return;
+            
+            const questionType = getQuestionType(questionEl);
+            if (questionType !== 'matching') return;
+            
+            ensureMatchingUids(questionEl);
+            rebuildMatchingRelationshipUI(questionEl);
+        }
+        
         // Centralized hook called after any question-type list mutation (choices, matching items, relationships)
         // Ensures UIDs are present, rebuilds dependent UIs, and applies font settings/previews
         function afterQuestionTypeListMutation(questionEl) {
@@ -16824,14 +17845,11 @@
             
             const questionType = getQuestionType(questionEl);
             
-            // Ensure UIDs exist for all items
+            // Use centralized sync helpers
             if (questionType === 'multiple_choice' || questionType === 'checkbox') {
-                ensureChoiceUids(questionEl);
-                rebuildCorrectAnswerUI(questionEl);
-                syncCheckboxCorrectness(questionEl);
+                syncChoiceUI(questionEl);
             } else if (questionType === 'matching') {
-                ensureMatchingUids(questionEl);
-                rebuildMatchingRelationshipUI(questionEl);
+                syncMatchingUI(questionEl);
             }
         }
 
@@ -18227,6 +19245,11 @@
                 inputs[3].value = bbox.position?.[1]?.[0] ?? '';
                 inputs[4].value = bbox.position?.[1]?.[1] ?? '';
             });
+            
+            // Finalize all bbox rows to ensure font settings are applied
+            items.forEach(item => {
+                finalizeBBoxRow(item);
+            });
         }
 
         function populateContentSections(data, defaultPage) {
@@ -18507,24 +19530,26 @@
                     // Attach listeners for real-time updates
                     attachChoiceListeners(qEl);
                     
-                    // Ensure UIDs exist and restore correct answer state
+                    // Ensure UIDs exist and restore correct answer state from UID-based state
                     ensureChoiceUids(qEl);
                     if (questionType === 'multiple_choice') {
-                        // Convert index to UID
-                        if (q.value) {
+                        // Convert index to UID (support both 'value' and 'correct_answer_index' fields)
+                        const correctIndex = q.correct_answer_index || q.value;
+                        if (correctIndex) {
                             const choices = choicesList.querySelectorAll('.choice-item');
-                            const correctChoice = choices[q.value - 1];
+                            const correctChoice = choices[correctIndex - 1];
                             if (correctChoice && correctChoice.dataset.choiceUid) {
                                 setCorrectChoiceUid(qEl, correctChoice.dataset.choiceUid);
                             }
                         }
                     } else if (questionType === 'checkbox') {
-                        // Restore checkbox correctness from values array or checked field
+                        // Restore checkbox correctness from choices[].checked (UID-based)
                         const correctUids = new Set();
                         const choices = choicesList.querySelectorAll('.choice-item');
                         choices.forEach((choiceItem, index) => {
-                            const isChecked = (q.values && q.values[index]) || 
-                                            (q.choices && q.choices[index] && q.choices[index].checked);
+                            // Support both new format (choices[].checked) and old format (values array)
+                            const isChecked = (q.choices && q.choices[index] && q.choices[index].checked) ||
+                                            (q.values && q.values[index]);
                             if (isChecked) {
                                 const uid = choiceItem.dataset.choiceUid;
                                 if (uid) correctUids.add(uid);
@@ -18964,7 +19989,14 @@
                 }
                 
                 // Start a new session when JSON is loaded (user is starting new work)
-                startNewSession('json_load');
+                // Clear previous undo history but keep the LOAD_JSON action we just recorded
+                if (formUndoHistory.length > 1) {
+                    const loadJsonAction = formUndoHistory[formUndoHistory.length - 1];
+                    formUndoHistory.length = 0;
+                    formUndoHistory.push(loadJsonAction);
+                }
+                // Redo history is already cleared by recordFormAction
+                updateUndoRedoButtons();
                 
                 // Auto-resize all textareas after loading
                 setTimeout(() => {
@@ -20410,6 +21442,8 @@
 
         // Initialize page
         window.onload = function() {
+            // Hydrate all static button groups first
+            hydrateStaticButtons();
             
             // Initialize refactored form controls (using createFormControl factory)
             // Lesson ID
@@ -20560,6 +21594,9 @@
             
             // Initialize dark mode
             initializeDarkMode();
+            
+            // Hydrate static action buttons
+            hydrateStaticActionButtons();
             
             // Initialize font settings
             initializeFontSettings();
@@ -20969,37 +22006,30 @@
             const controlsHtml = `
                 <div class="pdf-viewer-controls">
                     <!-- Source Toggle -->
-                    <div class="pdf-source-toggle">
-                        <button id="pdf-source-textbook" class="pdf-source-btn active" onclick="switchPdfSource('textbook')" title="Switch to textbook PDF">
-                            <i class="fas fa-book"></i> Textbook
-                        </button>
-                        <button id="pdf-source-guide" class="pdf-source-btn" onclick="switchPdfSource('guide')" title="Switch to guidebook PDF">
-                            <i class="fas fa-book-open"></i> Guide
-                        </button>
+                    <div class="pdf-source-toggle" id="pdf-source-toggle-container">
+                        <!-- Buttons will be hydrated by JS -->
                     </div>
                     
                     <!-- Auto Navigation Toggle -->
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <button id="auto-nav-toggle" class="bbox-btn" type="button" onclick="toggleAutoNavigation()" title="Toggle Auto Page Navigation">
-                            <i class="fas fa-magic"></i> <span id="auto-nav-status">Auto Nav: OFF</span>
-                        </button>
+                    <div style="display: flex; align-items: center; gap: 6px;" id="main-pdf-auto-nav-container">
+                        <!-- Button will be hydrated by JS -->
                     </div>
                     
-                    <!-- Zoom Controls -->
+                    <!-- Zoom Controls: zoom-out, display, zoom-in, reset -->
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <button id="main-pdf-zoom-out" class="bbox-btn" type="button" title="Zoom out">−</button>
+                        <div id="main-pdf-zoom-out-button" style="display: flex; gap: 6px; align-items: center;"></div>
                         <span id="main-pdf-zoom-display">100%</span>
-                        <button id="main-pdf-zoom-in" class="bbox-btn" type="button" title="Zoom in">+</button>
-                        <button id="main-pdf-zoom-reset" class="bbox-btn" type="button" title="Reset zoom to fit canvas">↺</button>
+                        <div id="main-pdf-zoom-in-button" style="display: flex; gap: 6px; align-items: center;"></div>
+                        <div id="main-pdf-zoom-reset-button" style="display: flex; gap: 6px; align-items: center;"></div>
                     </div>
                     
-                    <!-- Page Navigation -->
+                    <!-- Page Navigation: prev, page indicator, next, goto input, goto button -->
                     <div style="display: flex; align-items: center; gap: 6px;">
-                        <button id="main-pdf-prev" class="bbox-btn" type="button" title="Previous page">◀</button>
+                        <div id="main-pdf-nav-prev-button" style="display: flex; gap: 6px; align-items: center;"></div>
                         <span id="main-pdf-page-display">Page 1/0</span>
-                        <button id="main-pdf-next" class="bbox-btn" type="button" title="Next page">▶</button>
+                        <div id="main-pdf-nav-next-button" style="display: flex; gap: 6px; align-items: center;"></div>
                         <input type="number" id="main-pdf-goto" min="1" placeholder="#" style="width: 60px; padding: 4px; border: 1px solid #dee2e6; border-radius: 4px;" title="Enter page number to jump to">
-                        <button id="main-pdf-goto-btn" class="bbox-btn" type="button" title="Go to the specified page">Go</button>
+                        <div id="main-pdf-goto-button"></div>
                     </div>
                 </div>
                 <div class="pdf-canvas-container" id="pdf-canvas-container">
@@ -21008,6 +22038,25 @@
             `;
             
             pdfPanel.innerHTML = controlsHtml;
+            
+            // Hydrate PDF viewer buttons after setting innerHTML
+            renderButtonGroup('pdf-source-toggle-container', STATIC_BUTTON_CONFIGS.PDF_SOURCE_TOGGLE);
+            renderButtonGroup('main-pdf-auto-nav-container', STATIC_BUTTON_CONFIGS.MAIN_PDF_AUTO_NAV);
+            // Add status span to auto-nav button after creation
+            const autoNavBtn = document.getElementById('auto-nav-toggle');
+            if (autoNavBtn) {
+                const statusSpan = document.createElement('span');
+                statusSpan.id = 'auto-nav-status';
+                statusSpan.textContent = 'Auto Nav: OFF';
+                autoNavBtn.appendChild(document.createTextNode(' '));
+                autoNavBtn.appendChild(statusSpan);
+            }
+            renderButtonGroup('main-pdf-zoom-out-button', STATIC_BUTTON_CONFIGS.MAIN_PDF_ZOOM_OUT);
+            renderButtonGroup('main-pdf-zoom-in-button', STATIC_BUTTON_CONFIGS.MAIN_PDF_ZOOM_IN);
+            renderButtonGroup('main-pdf-zoom-reset-button', STATIC_BUTTON_CONFIGS.MAIN_PDF_ZOOM_RESET);
+            renderButtonGroup('main-pdf-nav-prev-button', STATIC_BUTTON_CONFIGS.MAIN_PDF_NAV_PREV);
+            renderButtonGroup('main-pdf-nav-next-button', STATIC_BUTTON_CONFIGS.MAIN_PDF_NAV_NEXT);
+            renderButtonGroup('main-pdf-goto-button', STATIC_BUTTON_CONFIGS.MAIN_PDF_GOTO_BUTTON);
             
             // Store element references - use setTimeout to ensure DOM is updated
             setTimeout(() => {
