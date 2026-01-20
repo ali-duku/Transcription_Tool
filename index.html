@@ -470,21 +470,83 @@
                     break;
                     
                 case ACTION_TYPES.DUPLICATE_ITEM:
-                    // Redo duplicate = duplicate again
-                    if (action.duplicatedElement && action.parent && action.nextSibling) {
-                        // Clone the element for redo (since it may have been removed during undo)
-                        const cloned = action.duplicatedElement.cloneNode(true);
-                        action.parent.insertBefore(cloned, action.nextSibling);
-                        // Reinitialize the cloned element
-                        attachPreviews(cloned);
-                        applyFontSettings(cloned);
-                        attachBboxValidation(cloned);
-                        // Update the action to reference the new cloned element for future operations
-                        action.duplicatedElement = cloned;
+                    // Redo duplicate = restore duplicated element deterministically from snapshotState
+                    if (action.parent && action.snapshotState) {
+                        let elementToRestore = null;
                         
-                        // Initialize duplicated element and update numbering
-                        postUndoRedoRestore(cloned);
-                        afterListMutation(action.containerId);
+                        // Rebuild from snapshotState using canonical builders (NEVER rely on cloneNode)
+                        if (action.isBbox) {
+                            // Rebuild bbox row from saved values
+                            const state = action.snapshotState;
+                            const handlers = action.bboxHandlers || {};
+                            elementToRestore = buildBBoxRow({
+                                values: state,
+                                beforeHandler: handlers.beforeFunc || 'addContentImageBefore',
+                                afterHandler: handlers.afterFunc || 'addContentImageAfter',
+                                buttonOrder: handlers.buttonOrder || 'reorderFirst'
+                            });
+                        } else if (action.isQuestion) {
+                            // Rebuild question from serialized state
+                            elementToRestore = buildQuestionFromState(action.snapshotState);
+                        } else {
+                            // Rebuild content section from serialized state
+                            const container = action.parent;
+                            const sectionCount = container.querySelectorAll(':scope > .array-item').length + 1;
+                            elementToRestore = buildContentSectionItem(sectionCount);
+                            
+                            // Populate with saved data
+                            const state = action.snapshotState;
+                            const sectionTitleInput = findFieldByLabel(elementToRestore, 'Section Title', 'input');
+                            if (sectionTitleInput) {
+                                sectionTitleInput.value = state.section_title || '';
+                            }
+                            const sectionTextTextarea = findFieldByLabel(elementToRestore, 'Content (Markdown + LaTeX)', 'textarea');
+                            if (sectionTextTextarea) {
+                                sectionTextTextarea.value = state.text || '';
+                            }
+                            // Fill bbox data
+                            const imagesGroup = findFormGroupByLabel(elementToRestore, 'Section Images');
+                            if (imagesGroup && state.images) {
+                                fillBboxGroup(imagesGroup, state.images);
+                            }
+                        }
+                        
+                        if (elementToRestore) {
+                            // Insert at correct position
+                            if (action.nextSibling && action.nextSibling.parentNode === action.parent) {
+                                action.parent.insertBefore(elementToRestore, action.nextSibling);
+                            } else {
+                                // nextSibling may be gone; append to parent
+                                action.parent.appendChild(elementToRestore);
+                            }
+                            
+                            // Finalize based on type
+                            if (action.isBbox) {
+                                finalizeBBoxRow(elementToRestore);
+                            } else {
+                                // Finalize: previews, font, bbox validation
+                                attachPreviews(elementToRestore);
+                                applyFontSettings(elementToRestore);
+                                attachBboxValidation(elementToRestore);
+                                
+                                // Force render previews
+                                PreviewBox.refreshAll(elementToRestore);
+                                
+                                // Run post-restore hooks (question type toggling, etc.)
+                                postUndoRedoRestore(elementToRestore);
+                                
+                                // Auto-size
+                                AutoSizeManager.refresh(elementToRestore);
+                            }
+                            
+                            // Update the action to reference the restored element
+                            action.duplicatedElement = elementToRestore;
+                            
+                            // Update numbering if needed
+                            if (action.containerId) {
+                                afterListMutation(action.containerId);
+                            }
+                        }
                     }
                     break;
                     
@@ -1663,10 +1725,14 @@
                 }
                 attachPreviews(element);
                 applyFontSettings(element);
+                // Force render all previews after restore (ISSUE A fix)
+                PreviewBox.refreshAll(element);
             } else if (isContentSection) {
                 // Initialize content section: reattach previews and apply font settings
                 attachPreviews(element);
                 applyFontSettings(element);
+                // Force render all previews after restore (ISSUE A fix)
+                PreviewBox.refreshAll(element);
             }
 
             // For matching items, finalize them (font settings, previews, RTL direction)
@@ -1970,6 +2036,9 @@
                 // Call toggleQuestionType to rebuild UI correctly (it will keep dataset in sync)
                 toggleQuestionType(questionTypeSelect);
             }
+            
+            // Force render all previews after building from state (ISSUE A fix)
+            PreviewBox.refreshAll(newQuestion);
             
             // Set text fields
             const setupTextarea = findFieldByLabel(newQuestion, 'Set-up Text', 'textarea');
@@ -5832,6 +5901,309 @@
                 `${location}, Image #${imgNum} - Problem: The top edge must be above the bottom edge.\n   ➡️ Fix: Check your box coordinates - top (y0) should be smaller than bottom (y1).`
         };
 
+        // Determine the active autosize root from a given element or fallback to active tabs
+        function resolveActiveAutosizeRoot(el = null) {
+            if (el) {
+                const inner = el.closest('.tab-content');
+                if (inner) return inner;
+                const main = el.closest('.main-tab-content');
+                if (main) return main;
+            }
+            const mainActive = document.querySelector('.main-tab-content.active');
+            if (mainActive && mainActive.id === 'input-form') {
+                const innerActive = mainActive.querySelector('.tab-content.active');
+                if (innerActive) return innerActive;
+            }
+            return mainActive || document;
+        }
+
+        // ============================================================================
+        // AutoSizeManager: Single canonical autosize system
+        // Handles all textarea and preview sizing with layout-change awareness
+        // ============================================================================
+        const AutoSizeManager = (function() {
+            const FUDGE_PX = 8; // Single source of truth for sizing padding
+            const MAX_SETTLE_PASSES = 12;
+            const DEBOUNCE_MS = 60;
+            
+            // Per-root state for debouncing
+            const _settleState = new WeakMap();
+            
+            // Track registered targets for mutation observation
+            const _observedRoots = new WeakSet();
+            
+            // Single shared ResizeObserver for layout changes
+            let _resizeObserver = null;
+            let _resizeObserverTargets = new WeakSet();
+            
+            // Single shared MutationObserver for DOM changes (KaTeX/markdown)
+            let _mutationObserver = null;
+            
+            // Pending roots that need settle after observer triggers
+            const _pendingSettleRoots = new Set();
+            let _observerSettleScheduled = false;
+            
+            // Initialize observers once
+            function initObservers() {
+                if (_resizeObserver) return;
+                
+                // ResizeObserver: detect size changes that might affect scrollHeight
+                if (typeof ResizeObserver !== 'undefined') {
+                    _resizeObserver = new ResizeObserver((entries) => {
+                        if (!autoResizeEnabled) return;
+                        entries.forEach(entry => {
+                            const el = entry.target;
+                            const root = resolveRootFor(el);
+                            if (root) _pendingSettleRoots.add(root);
+                        });
+                        scheduleObserverSettle();
+                    });
+                }
+                
+                // MutationObserver: detect preview DOM changes (KaTeX/markdown rendering)
+                if (typeof MutationObserver !== 'undefined') {
+                    _mutationObserver = new MutationObserver((mutations) => {
+                        if (!autoResizeEnabled) return;
+                        mutations.forEach(m => {
+                            const el = m.target;
+                            if (el.closest && el.closest('.live-preview')) {
+                                const root = resolveRootFor(el);
+                                if (root) _pendingSettleRoots.add(root);
+                            }
+                        });
+                        scheduleObserverSettle();
+                    });
+                }
+            }
+            
+            // Schedule a debounced settle for observer-triggered changes
+            function scheduleObserverSettle() {
+                if (_observerSettleScheduled) return;
+                _observerSettleScheduled = true;
+                requestAnimationFrame(() => {
+                    _observerSettleScheduled = false;
+                    _pendingSettleRoots.forEach(root => {
+                        scheduleSettle(root);
+                    });
+                    _pendingSettleRoots.clear();
+                });
+            }
+            
+            // Resolve the autosize root container for an element
+            function resolveRootFor(el) {
+                if (!el || !el.isConnected) return null;
+                const inner = el.closest('.tab-content');
+                if (inner) return inner;
+                const main = el.closest('.main-tab-content');
+                if (main) return main;
+                return document.body;
+            }
+            
+            // Check if element is measurable (visible in layout)
+            function isMeasurable(el) {
+                if (!el || !el.isConnected) return false;
+                const rects = el.getClientRects();
+                return !!el.offsetParent || (rects && rects.length > 0);
+            }
+            
+            // Single sizing primitive - used for BOTH textareas and previews
+            function fitHeightToContent(el) {
+                if (!el || !isMeasurable(el)) return false;
+                el.style.height = 'auto';
+                const scrollH = el.scrollHeight || 0;
+                el.style.height = (scrollH + FUDGE_PX) + 'px';
+                return true;
+            }
+            
+            // Fit all targets within a root
+            function fitAllTargets(rootEl) {
+                if (!rootEl) return;
+                
+                // Textareas
+                const textareas = rootEl.querySelectorAll('textarea:not(#json_input)');
+                textareas.forEach(ta => {
+                    if (isMeasurable(ta)) {
+                        fitHeightToContent(ta);
+                    }
+                });
+                
+                // Preview boxes
+                const previews = rootEl.querySelectorAll('.live-preview');
+                previews.forEach(pv => {
+                    if (isMeasurable(pv)) {
+                        fitHeightToContent(pv);
+                    }
+                });
+            }
+            
+            // Check if any target is overflowing
+            function hasOverflow(rootEl) {
+                if (!rootEl) return false;
+                const elements = rootEl.querySelectorAll('textarea:not(#json_input), .live-preview');
+                for (const el of elements) {
+                    if (!isMeasurable(el)) continue;
+                    if (el.scrollHeight > el.clientHeight + FUDGE_PX + 1) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // Collect height metrics for stability check
+            function collectMetrics(rootEl) {
+                const map = new Map();
+                if (!rootEl) return map;
+                const elements = rootEl.querySelectorAll('textarea:not(#json_input), .live-preview');
+                elements.forEach(el => {
+                    if (!isMeasurable(el)) return;
+                    map.set(el, { scroll: el.scrollHeight || 0, client: el.clientHeight || 0 });
+                });
+                return map;
+            }
+            
+            // Compare two metric maps
+            function metricsChanged(before, after) {
+                if (before.size !== after.size) return true;
+                for (const [el, m] of after) {
+                    const prev = before.get(el);
+                    if (!prev || prev.scroll !== m.scroll || prev.client !== m.client) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // The actual settle loop - runs passes until stable
+            function runSettle(rootEl) {
+                if (!rootEl || !rootEl.isConnected) return;
+                
+                let pass = 0;
+                let stableCount = 0;
+                let lastMetrics = new Map();
+                
+                const runPass = () => {
+                    if (!rootEl.isConnected) return;
+                    if (pass >= MAX_SETTLE_PASSES) return;
+                    
+                    const before = collectMetrics(rootEl);
+                    fitAllTargets(rootEl);
+                    pass++;
+                    
+                    const after = collectMetrics(rootEl);
+                    const changed = metricsChanged(before, after) || metricsChanged(lastMetrics, after);
+                    const overflow = hasOverflow(rootEl);
+                    lastMetrics = after;
+                    
+                    // Need 2 consecutive stable passes with no overflow
+                    if (!overflow && !changed) {
+                        stableCount++;
+                        if (stableCount >= 2) return;
+                    } else {
+                        stableCount = 0;
+                    }
+                    
+                    requestAnimationFrame(runPass);
+                };
+                
+                // Start with 2 rAF delay for initial paint
+                requestAnimationFrame(() => requestAnimationFrame(runPass));
+            }
+            
+            // Debounced settle scheduler (per root, coalesces multiple triggers)
+            function scheduleSettle(rootEl) {
+                if (!rootEl || !autoResizeEnabled) return;
+                
+                let state = _settleState.get(rootEl);
+                if (!state) {
+                    state = { pending: false, fontHooked: false };
+                    _settleState.set(rootEl, state);
+                }
+                
+                if (state.pending) return;
+                state.pending = true;
+                
+                const execute = () => {
+                    state.pending = false;
+                    runSettle(rootEl);
+                };
+                
+                // Debounce: wait for layout to settle
+                setTimeout(() => {
+                    requestAnimationFrame(() => requestAnimationFrame(execute));
+                }, DEBOUNCE_MS);
+                
+                // Also trigger after fonts load (once per root)
+                if (!state.fontHooked && document.fonts && document.fonts.ready) {
+                    state.fontHooked = true;
+                    document.fonts.ready.then(() => {
+                        if (autoResizeEnabled) {
+                            state.pending = false; // Allow re-schedule
+                            scheduleSettle(rootEl);
+                        }
+                    });
+                }
+            }
+            
+            // Register targets for observation (previews only - textareas don't need it)
+            function registerTargets(rootEl) {
+                if (!rootEl) return;
+                
+                initObservers();
+                
+                // Observe preview elements for DOM mutations (KaTeX/markdown)
+                if (_mutationObserver) {
+                    const previews = rootEl.querySelectorAll('.live-preview');
+                    previews.forEach(pv => {
+                        if (!_observedRoots.has(pv)) {
+                            _mutationObserver.observe(pv, { 
+                                childList: true, 
+                                subtree: true, 
+                                characterData: true 
+                            });
+                            _observedRoots.add(pv);
+                        }
+                    });
+                }
+                
+                // Observe resize on textareas and previews
+                if (_resizeObserver) {
+                    const targets = rootEl.querySelectorAll('textarea:not(#json_input), .live-preview');
+                    targets.forEach(el => {
+                        if (!_resizeObserverTargets.has(el)) {
+                            _resizeObserver.observe(el);
+                            _resizeObserverTargets.add(el);
+                        }
+                    });
+                }
+            }
+            
+            // PUBLIC API: Single entry point for all autosize operations
+            function refresh(rootEl) {
+                if (!rootEl) {
+                    rootEl = resolveRootFor(document.activeElement) || document.body;
+                }
+                
+                // 1. Ensure previews are rendered (delegate to PreviewBox)
+                if (typeof PreviewBox !== 'undefined' && PreviewBox.refreshAll) {
+                    PreviewBox.refreshAll(rootEl);
+                }
+                
+                // 2. Register targets for observation
+                registerTargets(rootEl);
+                
+                // 3. Trigger debounced settle
+                scheduleSettle(rootEl);
+            }
+            
+            // Expose FUDGE_PX for backward compatibility with any external code
+            return {
+                refresh: refresh,
+                FUDGE_PX: FUDGE_PX,
+                // For manual single-element sizing (used by toggleAutoResize)
+                fitHeightToContent: fitHeightToContent
+            };
+        })();
+
         function showTab(tabName) {
             // Hide all tab contents (only within the input-form main tab)
             const inputFormTab = document.getElementById('input-form');
@@ -5848,6 +6220,8 @@
             const targetTabContent = document.getElementById(tabName);
             if (targetTabContent) {
                 targetTabContent.classList.add('active');
+                // When a tab becomes visible, refresh and auto-size via canonical pipeline
+                AutoSizeManager.refresh(targetTabContent);
             }
             
             // Add active class to corresponding tab button (only within input-form)
@@ -5880,6 +6254,9 @@
                 if (tabName === 'final-preview') {
                     generateFinalPreview();
                 }
+                
+                // When switching main tabs, refresh and auto-size via canonical pipeline
+                AutoSizeManager.refresh(targetMainTabContent);
             }
             
             // Add active class to corresponding main tab button
@@ -8020,6 +8397,9 @@
             if (!isBulkOperation) {
                 afterListMutation('questions_container');
             }
+            
+            // Auto-size the new question's textareas/previews
+            AutoSizeManager.refresh(newQuestion);
         }
 
         function toggleQuestionType(selectElement) {
@@ -8263,9 +8643,9 @@
             
             // Reinitialize previews for all textareas in this question after type change
             // This ensures newly shown fields get previews and direction is properly set
-            setTimeout(() => {
                 attachPreviews(questionEl);
-            }, 50);
+            // Force render all previews after question type change (ISSUE A fix)
+            PreviewBox.refreshAll(questionEl);
             
             // Track question type change
         }
@@ -9495,6 +9875,7 @@
                     attachBboxValidation(newQuestion);
                     
                     // Record action for undo/redo (after element is fully populated and added to DOM)
+                    // Save snapshotState so redo can rebuild deterministically
                     recordFormAction({
                         type: ACTION_TYPES.DUPLICATE_ITEM,
                         originalElement: sectionEl,
@@ -9502,10 +9883,15 @@
                         parent: container,
                         nextSibling: newQuestion.nextSibling,
                         containerId: 'questions_container',
-                        updateNumbers: true
+                        updateNumbers: true,
+                        isQuestion: true,
+                        snapshotState: serializeQuestionState(newQuestion)
                     });
                     
                     afterListMutation('questions_container');
+                    
+                    // Auto-size the duplicated question's textareas/previews
+                    AutoSizeManager.refresh(newQuestion);
                     
                 } else {
                     // Content section
@@ -9542,6 +9928,7 @@
                     attachBboxValidation(newSection);
                     
                     // Record action for undo/redo (after element is fully populated and added to DOM)
+                    // Save snapshotState so redo can rebuild deterministically
                     recordFormAction({
                         type: ACTION_TYPES.DUPLICATE_ITEM,
                         originalElement: sectionEl,
@@ -9549,10 +9936,15 @@
                         parent: container,
                         nextSibling: newSection.nextSibling,
                         containerId: 'content_sections_container',
-                        updateNumbers: true
+                        updateNumbers: true,
+                        isQuestion: false,
+                        snapshotState: collectContentData(newSection)
                     });
                     
                     afterListMutation('content_sections_container');
+                    
+                    // Auto-size the duplicated section's textareas/previews
+                    AutoSizeManager.refresh(newSection);
                 }
                 
                 // Visual feedback
@@ -10428,7 +10820,8 @@
                 afterListMutation('content_sections_container');
             }
             
-            // Track content section addition
+            // Auto-size the new section's textareas/previews
+            AutoSizeManager.refresh(newSection);
         }
 
         // Unified helper for appending BBox items to container
@@ -10502,6 +10895,9 @@
             applyFontSettings(newSection);
             attachBboxValidation(newSection);
             afterListMutation('content_sections_container');
+            
+            // Auto-size the new section's textareas/previews
+            AutoSizeManager.refresh(newSection);
         }
 
         function addContentSectionAfter(button) {
@@ -10530,6 +10926,9 @@
             applyFontSettings(newSection);
             attachBboxValidation(newSection);
             afterListMutation('content_sections_container');
+            
+            // Auto-size the new section's textareas/previews
+            AutoSizeManager.refresh(newSection);
         }
 
         function addQuestionBefore(button) {
@@ -10563,6 +10962,9 @@
             applyFontSettings(newQuestion);
             attachBboxValidation(newQuestion);
             afterListMutation('questions_container');
+            
+            // Auto-size the new question's textareas/previews
+            AutoSizeManager.refresh(newQuestion);
         }
 
         function addQuestionAfter(button) {
@@ -10599,6 +11001,9 @@
             applyFontSettings(newQuestion);
             attachBboxValidation(newQuestion);
             afterListMutation('questions_container');
+            
+            // Auto-size the new question's textareas/previews
+            AutoSizeManager.refresh(newQuestion);
         }
 
         // Helper: Build complete content section DOM element
@@ -10745,6 +11150,12 @@
             allBboxItems.forEach(item => {
                 finalizeBBoxRow(item);
             });
+            
+            // Force render all previews in the section (ISSUE A fix)
+            PreviewBox.refreshAll(sectionEl);
+            
+            // Auto-size the pasted section's textareas/previews
+            AutoSizeManager.refresh(sectionEl);
         }
         
         // Unified helper: Finalize any array item based on its type
@@ -12196,139 +12607,338 @@
         }
 
         // Attach preview under each textarea and bind listeners
+        // Legacy attachPreviews function - now delegates to universal PreviewBox component
+        // Maintained for backward compatibility during migration
         function attachPreviews(root=document) {
-            const nodes = [
-                ...root.querySelectorAll('.text-field-container textarea, #lesson_text'),
-                ...root.querySelectorAll('#lesson_title'),
-                ...root.querySelectorAll('.form-group input[placeholder="Section title"]'),
-                ...root.querySelectorAll('#terminology textarea'),
-                ...root.querySelectorAll('#lesson_standards textarea')
-            ];
-            nodes.forEach(ta => {
-                // Find existing preview by looking through all siblings (skip buttons)
-                let preview = null;
-                let previewLabel = null;
-                let sibling = ta.nextElementSibling;
+            PreviewBox.attachPreviews(root);
+        }
+
+        // ============================================================================
+        // UNIVERSAL PREVIEW BOX COMPONENT
+        // ============================================================================
+        // Single source of truth for all preview box functionality
+        // Replaces: attachPreviews(), renderLivePreview(), renderLivePreviewToElement(),
+        //           and all special-case preview handling
+        //
+        // INVENTORY OF EXISTING PREVIEW IMPLEMENTATIONS:
+        // ============================================================================
+        // 1. Main preview system (attachPreviews + renderLivePreview):
+        //    - DOM: <label class="preview-label">Output Preview</label>
+        //            <div class="live-preview" dir="rtl|ltr">...</div>
+        //    - Selectors: .text-field-container textarea, #lesson_text, #lesson_title,
+        //                 .form-group input[placeholder="Section title"], #terminology textarea,
+        //                 #lesson_standards textarea
+        //    - Features: Markdown rendering, LaTeX (block/inline), image handling,
+        //                trailing spaces indicator, validation errors, RTL/LTR direction,
+        //                auto-resize, font settings propagation
+        //
+        // 2. Choice previews (choice-preview-mini):
+        //    - DOM: <div class="choice-preview-mini" dir="rtl|ltr">...</div>
+        //    - Used in: renderMultipleChoicePreview() for final preview
+        //    - Features: Same rendering as main previews but different styling
+        //
+        // 3. Fill-in-the-blanks preview (updateFilledBlanksPreview):
+        //    - DOM: <div id="filled-blanks-preview">...</div>
+        //    - Features: Replaces ___num___ with answers, then renders markdown/LaTeX
+        //
+        // 4. Final preview (renderQuestionPreview, renderContentSectionPreview):
+        //    - Uses renderLivePreviewToElement() to render to temporary divs
+        //    - Features: Same rendering pipeline but for final preview tab
+        //
+        // CALL SITES (37+ locations):
+        // - Content sections: addContentSectionBefore/After, duplicateContentSection,
+        //   pasteContentSection, loadJSON, undo/redo restore
+        // - Questions: addQuestionBefore/After, duplicateQuestion, pasteQuestion,
+        //   loadJSON, undo/redo restore, postUndoRedoRestore
+        // - Choices: addChoice, duplicateChoice, pasteChoice, loadJSON
+        // - Matching items: finalizeMatchingListItem, pasteMatchingItem, loadJSON
+        // - Relationship items: finalizeRelationshipItem, pasteRelationshipItem
+        // - Bbox rows: (if any previews exist)
+        // - Global: attachPreviews(document) on page load, after JSON load
+        // ============================================================================
+
+        const PreviewBox = (function() {
+            'use strict';
+            
+            // WeakMap to track initialized previews and prevent double-binding
+            const initializedPreviews = new WeakMap();
+            
+            /**
+             * Universal PreviewBox component
+             * @param {Object} config - Configuration object
+             * @param {HTMLElement} config.sourceEl - Source textarea/input element
+             * @param {HTMLElement} [config.targetEl] - Target preview element (if exists)
+             * @param {HTMLElement} [config.rootEl] - Root element to search within (default: document)
+             * @param {Object} [config.options] - Additional options
+             * @param {string} [config.options.mode='live'] - 'live' or 'static'
+             * @param {string} [config.options.className='live-preview'] - CSS class for preview
+             * @param {boolean} [config.options.showLabel=true] - Show preview label
+             * @param {boolean} [config.options.autoResize=true] - Enable auto-resize
+             * @param {boolean} [config.options.createDirBtn=true] - Create direction toggle button
+             * @returns {Object} - PreviewBox instance with methods
+             */
+            function createPreviewBox(config) {
+                const { sourceEl, targetEl, rootEl = document, options = {} } = config;
+                if (!sourceEl) return null;
                 
-                // Walk through siblings to find preview label and preview
+                const {
+                    mode = 'live',
+                    className = 'live-preview',
+                    showLabel = true,
+                    autoResize = true,
+                    createDirBtn = true
+                } = options;
+                
+                // Check if already initialized
+                if (initializedPreviews.has(sourceEl)) {
+                    const existing = initializedPreviews.get(sourceEl);
+                    // Update target if changed
+                    if (targetEl && existing.targetEl !== targetEl) {
+                        existing.targetEl = targetEl;
+                        existing.previewEl = targetEl;
+                    }
+                    return existing;
+                }
+                
+                // Find or create preview element
+                let previewEl = targetEl;
+                let previewLabel = null;
+                
+                if (!previewEl) {
+                    // Find existing preview by walking siblings
+                    let sibling = sourceEl.nextElementSibling;
                 while (sibling) {
                     if (sibling.classList && sibling.classList.contains('preview-label')) {
                         previewLabel = sibling;
-                    } else if (sibling.classList && sibling.classList.contains('live-preview')) {
-                        preview = sibling;
-                        break; // Found preview, stop looking
+                        } else if (sibling.classList && sibling.classList.contains(className)) {
+                            previewEl = sibling;
+                            break;
                     }
                     sibling = sibling.nextElementSibling;
+                    }
                 }
                 
-                if (!preview) {
-                    // No preview exists, create new one
-                    // Set direction based on the textarea's direction
-                    const isLTR = ta.hasAttribute('data-ltr');
+                // Create preview if it doesn't exist
+                if (!previewEl) {
+                    const isLTR = sourceEl.hasAttribute('data-ltr');
                     const direction = isLTR ? 'ltr' : 'rtl';
                     const textAlign = isLTR ? 'left' : 'right';
-                    const buttonText = isLTR ? 'RTL' : 'LTR';
                     
-                    // Direction toggle: add if none exists in this container (for input fields)
-                    const existingDirBtn = ta.parentElement.querySelector('.dir-btn');
-                    if (!existingDirBtn) {
+                    // Create direction toggle button if needed
+                    if (createDirBtn && !sourceEl.parentElement.querySelector('.dir-btn')) {
                         const dirBtn = document.createElement('button');
                         dirBtn.type = 'button';
                         dirBtn.className = 'dir-btn';
-                        dirBtn.textContent = buttonText;
+                        dirBtn.textContent = isLTR ? 'RTL' : 'LTR';
                         dirBtn.title = 'Toggle direction RTL/LTR';
-                        dirBtn.onclick = () => toggleDirection(ta);
+                        dirBtn.onclick = () => toggleDirection(sourceEl);
                         dirBtn.style.marginTop = '8px';
                         dirBtn.style.marginBottom = '8px';
-                        ta.parentElement.insertBefore(dirBtn, ta.nextSibling);
+                        sourceEl.parentElement.insertBefore(dirBtn, sourceEl.nextSibling);
                     }
                     
-                    // Create preview label
+                    // Create preview label if needed
+                    if (showLabel) {
                     previewLabel = document.createElement('label');
                     previewLabel.className = 'preview-label';
                     previewLabel.textContent = 'Output Preview';
+                    }
                     
                     // Create preview element
-                    const previewEl = document.createElement('div');
-                    previewEl.className = 'live-preview';
+                    previewEl = document.createElement('div');
+                    previewEl.className = className;
                     previewEl.setAttribute('dir', direction);
                     previewEl.style.textAlign = textAlign;
                     
-                    // Find insertion point after all buttons
-                    let insertPoint = ta.nextSibling;
+                    // Find insertion point after buttons
+                    let insertPoint = sourceEl.nextSibling;
                     while (insertPoint && (insertPoint.nodeType === 3 || (insertPoint.tagName && insertPoint.tagName === 'BUTTON'))) {
                         insertPoint = insertPoint.nextSibling;
                     }
                     
-                    // Insert preview label after buttons
-                    ta.parentElement.insertBefore(previewLabel, insertPoint);
-                    
-                    // Insert preview element after label
-                    ta.parentElement.insertBefore(previewEl, previewLabel.nextSibling);
-                    
-                    preview = previewEl;
+                    // Insert elements
+                    if (previewLabel) {
+                        sourceEl.parentElement.insertBefore(previewLabel, insertPoint);
+                        sourceEl.parentElement.insertBefore(previewEl, previewLabel.nextSibling);
                 } else {
-                    // Preview exists, just update its properties
-                    const isLTR = ta.hasAttribute('data-ltr');
+                        sourceEl.parentElement.insertBefore(previewEl, insertPoint);
+                    }
+                } else {
+                    // Update existing preview properties
+                    const isLTR = sourceEl.hasAttribute('data-ltr');
                     const direction = isLTR ? 'ltr' : 'rtl';
                     const textAlign = isLTR ? 'left' : 'right';
+                    previewEl.setAttribute('dir', direction);
+                    previewEl.style.textAlign = textAlign;
                     
-                    preview.setAttribute('dir', direction);
-                    preview.style.textAlign = textAlign;
-                    
-                    // Ensure preview label exists before preview
-                    if (!previewLabel) {
+                    // Ensure preview label exists
+                    if (showLabel && !previewLabel) {
                         previewLabel = document.createElement('label');
                         previewLabel.className = 'preview-label';
                         previewLabel.textContent = 'Output Preview';
-                        preview.parentElement.insertBefore(previewLabel, preview);
+                        previewEl.parentElement.insertBefore(previewLabel, previewEl);
                     }
                 }
                 
-                // Ensure textarea direction matches its data-ltr attribute
-                const isLTR = ta.hasAttribute('data-ltr');
+                // Ensure source element direction matches data-ltr attribute
+                const isLTR = sourceEl.hasAttribute('data-ltr');
                 const direction = isLTR ? 'ltr' : 'rtl';
-                ta.setAttribute('dir', direction);
+                sourceEl.setAttribute('dir', direction);
                 
-                // Initial render and event binding
-                renderLivePreview(ta);
-                // Update trailing spaces indicator after initial render
-                updateTrailingSpacesIndicator(ta, preview);
-                ta.removeEventListener('input', ta.__livePreviewHandler || (()=>{}));
-                const handler = () => {
-                    renderLivePreview(ta);
-                    // Update trailing spaces indicator after rendering
-                    updateTrailingSpacesIndicator(ta, preview);
-                    // Show validation errors for all types
-                    showTableValidationErrors(ta);
-                    showListValidationErrors(ta);
-                    showBlockquoteValidationErrors(ta);
-                    showLatexValidationErrors(ta);
-                    showImageValidationErrors(ta);
-                    showQuoteValidationErrors(ta);
-                    showBrTagValidationErrors(ta);
+                // Create instance
+                const instance = {
+                    sourceEl,
+                    targetEl: previewEl,
+                    previewEl,
+                    previewLabel,
+                    mode,
+                    className,
+                    render: function() {
+                        if (mode === 'live') {
+                            renderLivePreview(sourceEl);
+                        } else {
+                            renderLivePreviewToElement(sourceEl, previewEl);
+                        }
+                        updateTrailingSpacesIndicator(sourceEl, previewEl);
+                        // NOTE: Sizing is handled by AutoSizeManager (no sizing logic here)
+                    },
+                    update: function() {
+                        this.render();
+                        // Show validation errors
+                        showTableValidationErrors(sourceEl);
+                        showListValidationErrors(sourceEl);
+                        showBlockquoteValidationErrors(sourceEl);
+                        showLatexValidationErrors(sourceEl);
+                        showImageValidationErrors(sourceEl);
+                        showQuoteValidationErrors(sourceEl);
+                        showBrTagValidationErrors(sourceEl);
+                    },
+                    destroy: function() {
+                        if (sourceEl.__livePreviewHandler) {
+                            sourceEl.removeEventListener('input', sourceEl.__livePreviewHandler);
+                            delete sourceEl.__livePreviewHandler;
+                        }
+                        initializedPreviews.delete(sourceEl);
+                    }
                 };
-                ta.addEventListener('input', handler);
-                ta.__livePreviewHandler = handler;
+                
+                // Initial render
+                instance.render();
+                
+                // Bind input handler for live mode
+                if (mode === 'live') {
+                    sourceEl.removeEventListener('input', sourceEl.__livePreviewHandler || (()=>{}));
+                const handler = () => {
+                        instance.update();
+                    };
+                    sourceEl.addEventListener('input', handler);
+                    sourceEl.__livePreviewHandler = handler;
+                }
+                
+                // NOTE: Auto-resize for textareas is now handled by AutoSizeManager
                 
                 // Show validation errors on initial load
-                showTableValidationErrors(ta);
-                showListValidationErrors(ta);
-                showBlockquoteValidationErrors(ta);
-                showLatexValidationErrors(ta);
-                showImageValidationErrors(ta);
-                showQuoteValidationErrors(ta);
-                showBrTagValidationErrors(ta);
+                if (mode === 'live') {
+                    showTableValidationErrors(sourceEl);
+                    showListValidationErrors(sourceEl);
+                    showBlockquoteValidationErrors(sourceEl);
+                    showLatexValidationErrors(sourceEl);
+                    showImageValidationErrors(sourceEl);
+                    showQuoteValidationErrors(sourceEl);
+                    showBrTagValidationErrors(sourceEl);
+                }
                 
-                // Add auto-resize functionality to textareas
-                autoResizeTextarea(ta);
-            });
-        }
+                // Store instance
+                initializedPreviews.set(sourceEl, instance);
+                
+                return instance;
+            }
+            
+            /**
+             * Initialize previews for all matching elements in a root
+             * @param {HTMLElement} rootEl - Root element to search within
+             * @param {Object} options - Options passed to createPreviewBox
+             */
+            function initPreviewBoxes(rootEl = document, options = {}) {
+                const selectors = [
+                    '.text-field-container textarea',
+                    '#lesson_text',
+                    '#lesson_title',
+                    '.form-group input[placeholder="Section title"]',
+                    '#terminology textarea',
+                    '#lesson_standards textarea'
+                ];
+                
+                const nodes = [];
+                selectors.forEach(selector => {
+                    nodes.push(...rootEl.querySelectorAll(selector));
+                });
+                
+                nodes.forEach(node => {
+                    if (!initializedPreviews.has(node)) {
+                        createPreviewBox({ sourceEl: node, rootEl, options });
+                    }
+                });
+            }
+            
+            /**
+             * Force render all previews in a container (canonical refresh pathway)
+             * @param {HTMLElement} rootEl - Root element to refresh previews within
+             */
+            function refreshAll(rootEl = document) {
+                const selectors = [
+                    '.text-field-container textarea',
+                    '#lesson_text',
+                    '#lesson_title',
+                    '.form-group input[placeholder="Section title"]',
+                    '#terminology textarea',
+                    '#lesson_standards textarea'
+                ];
+                
+                const nodes = [];
+                selectors.forEach(selector => {
+                    nodes.push(...rootEl.querySelectorAll(selector));
+                });
+                
+                nodes.forEach(node => {
+                    // If already initialized, force update (render + validations)
+                    if (initializedPreviews.has(node)) {
+                        const instance = initializedPreviews.get(node);
+                        if (instance && typeof instance.update === 'function') {
+                            instance.update();
+                        } else if (instance && typeof instance.render === 'function') {
+                            instance.render();
+                        }
+                    } else {
+                        // If not initialized, create it (which will render)
+                        createPreviewBox({ sourceEl: node, rootEl });
+                    }
+                });
+            }
+            
+            // NOTE: Sizing logic has been moved to AutoSizeManager
+            // PreviewBox only handles preview DOM creation and rendering
+            
+            return {
+                create: createPreviewBox,
+                init: initPreviewBoxes,
+                refreshAll: refreshAll,
+                // Expose WeakMap for external access
+                getInitializedPreviews: () => initializedPreviews,
+                // Expose for backward compatibility during migration
+                attachPreviews: function(root = document) {
+                    initPreviewBoxes(root);
+                }
+            };
+        })();
 
         // Global state for auto-resize feature
         let autoResizeEnabled = true; // Default to enabled
         
-        // Auto-resize textarea to fit content
+        // NOTE: Sizing logic is in AutoSizeManager.FUDGE_PX and AutoSizeManager.fitHeightToContent
+        // These wrappers exist for backward compatibility with input handlers
+        
+        // Auto-resize textarea to fit content (binds input handler)
         function autoResizeTextarea(textarea) {
             if (!textarea || textarea.tagName !== 'TEXTAREA') return;
             
@@ -12349,16 +12959,11 @@
                 return;
             }
             
-            // Set initial height based on content
+            // Set initial height based on content - delegate to AutoSizeManager
             const resize = () => {
-                // Only auto-resize if the textarea hasn't been manually resized below its content
-                // Check if current height is less than scrollHeight (user manually made it smaller)
-                const currentHeight = textarea.offsetHeight;
-                const scrollHeight = textarea.scrollHeight;
-                
-                // Always update to fit content (scrollbar will show if manually resized smaller)
-                textarea.style.height = 'auto';
-                textarea.style.height = scrollHeight + 'px';
+                if (typeof AutoSizeManager !== 'undefined') {
+                    AutoSizeManager.fitHeightToContent(textarea);
+                }
             };
             
             // Resize on input
@@ -12375,7 +12980,7 @@
             }
         }
         
-        // Auto-resize all textareas in a container
+        // Auto-resize all textareas in a container (binds handlers, used by toggle)
         function autoResizeAllTextareas(container = document) {
             const textareas = container.querySelectorAll('textarea');
             textareas.forEach(ta => {
@@ -12405,8 +13010,13 @@
             // Save preference to localStorage
             localStorage.setItem('autoResizeEnabled', autoResizeEnabled ? 'true' : 'false');
             
-            // Apply to all existing textareas
+            // When turning auto-resize ON, immediately resync everything via canonical pipeline
+            if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
+                AutoSizeManager.refresh(document.body);
+            } else {
+                // If OFF, just update textarea handlers
             autoResizeAllTextareas();
+            }
         }
         
         // Initialize auto-resize state from localStorage
@@ -12578,6 +13188,9 @@
             
             // Save to localStorage (save as string)
             localStorage.setItem('fontSize', sizeStr);
+            
+            // Re-run autosize for all visible elements (font size affects scrollHeight)
+            AutoSizeManager.refresh(document.body);
         }
         
         function changeLineHeight(height) {
@@ -12614,6 +13227,9 @@
             
             // Save to localStorage (save as string)
             localStorage.setItem('lineHeight', heightStr);
+            
+            // Re-run autosize for all visible elements (line height affects scrollHeight)
+            AutoSizeManager.refresh(document.body);
         }
         
         // Initialize font settings from localStorage
@@ -13247,6 +13863,7 @@
                 container.insertBefore(newItem, parentArrayItem.nextSibling);
                 
                 // Record action for undo/redo (after adding to DOM so we have the actual element)
+                // Save snapshotState and metadata for deterministic redo
                 recordFormAction({
                     type: ACTION_TYPES.DUPLICATE_ITEM,
                     originalElement: parentArrayItem,
@@ -13254,7 +13871,10 @@
                     parent: container,
                     nextSibling: newItem.nextSibling,
                     containerId: null,
-                    updateNumbers: false
+                    updateNumbers: false,
+                    isBbox: true,
+                    snapshotState: { page, x0, y0, x1, y1 },
+                    bboxHandlers: { beforeFunc, afterFunc, buttonOrder }
                 });
                 
                 // Finalize the bbox row (validation + font settings)
@@ -17053,6 +17673,9 @@
             
             // Update the filled blanks preview
             updateFilledBlanksPreview(questionEl);
+            
+            // Auto-size all textareas/previews in this question (including newly added blanks)
+            AutoSizeManager.refresh(questionEl);
         }
 
         /**
@@ -17836,6 +18459,9 @@
             
             ensureMatchingUids(questionEl);
             rebuildMatchingRelationshipUI(questionEl);
+            
+            // Auto-size all textareas/previews in this question (including matching items)
+            AutoSizeManager.refresh(questionEl);
         }
         
         // Centralized hook called after any question-type list mutation (choices, matching items, relationships)
@@ -17851,6 +18477,9 @@
             } else if (questionType === 'matching') {
                 syncMatchingUI(questionEl);
             }
+            
+            // Auto-size all textareas/previews in this question (including newly added list items)
+            AutoSizeManager.refresh(questionEl);
         }
 
         /**
@@ -19612,6 +20241,9 @@
             
             // Ensure numbering is correct after populating all questions
             updateQuestionNumbers();
+            
+            // Force render all previews after loading questions (ISSUE A fix)
+            PreviewBox.refreshAll(container);
         }
 
         function populateFormFromJSON(data) {
@@ -19658,9 +20290,6 @@
 
             // Questions
             populateQuestions(data, defaultPage);
-
-                // After DOM is populated, attach and render previews for all textareas
-            attachPreviews(document);
             
             // Attach bbox validation to all loaded bboxes
             attachBboxValidation(document);
@@ -19714,6 +20343,15 @@
                     generateFinalPreview();
                 }, 100);
             }
+
+            // After JSON population is complete, refresh and auto-size previews in the active container
+            const mainActive = document.querySelector('.main-tab-content.active');
+            let activeRoot = mainActive || document;
+            if (mainActive && mainActive.id === 'input-form') {
+                const innerActive = mainActive.querySelector('.tab-content.active');
+                if (innerActive) activeRoot = innerActive;
+            }
+            AutoSizeManager.refresh(activeRoot);
         }
 
         // Try to repair and parse malformed JSON inputs commonly encountered
@@ -21529,7 +22167,7 @@
             }
             
             // Basic Info number inputs - Refactored to use createFormControl factory
-            // Textbook Page Number
+            // Textbook Page Number (ISSUE B: Set LTR for Basic Info inputs)
             const textbookPageControl = createRequiredNumberInput({
                 id: 'textbook_page',
                 label: 'Textbook Page Number',
@@ -21539,9 +22177,15 @@
             const textbookPageContainer = document.getElementById('textbook_page_container');
             if (textbookPageContainer) {
                 textbookPageContainer.appendChild(textbookPageControl.rootEl);
+                // Set LTR for Basic Info inputs (ISSUE B fix)
+                const input = textbookPageControl.controlEl;
+                if (input) {
+                    input.setAttribute('data-ltr', 'true');
+                    input.setAttribute('dir', 'ltr');
+                }
             }
             
-            // PDF Page Number
+            // PDF Page Number (ISSUE B: Set LTR for Basic Info inputs)
             const textbookPdfPageControl = createRequiredNumberInput({
                 id: 'textbook_pdf_page',
                 label: 'PDF Page Number',
@@ -21551,9 +22195,15 @@
             const textbookPdfPageContainer = document.getElementById('textbook_pdf_page_container');
             if (textbookPdfPageContainer) {
                 textbookPdfPageContainer.appendChild(textbookPdfPageControl.rootEl);
+                // Set LTR for Basic Info inputs (ISSUE B fix)
+                const input = textbookPdfPageControl.controlEl;
+                if (input) {
+                    input.setAttribute('data-ltr', 'true');
+                    input.setAttribute('dir', 'ltr');
+                }
             }
             
-            // Guidebook Start Page (inside bbox-inputs container, no form-group wrapper)
+            // Guidebook Start Page (inside bbox-inputs container, no form-group wrapper) (ISSUE B: Set LTR)
             const guidebookStartControl = createRequiredNumberInput({
                 id: 'guidebook_start_page',
                 label: '', // No label, just the input
@@ -21565,10 +22215,13 @@
                 // Extract just the input element (remove form-group wrapper for bbox-inputs layout)
                 const input = guidebookStartControl.controlEl;
                 guidebookStartControl.rootEl.removeChild(input);
+                // Set LTR for Basic Info inputs (ISSUE B fix)
+                input.setAttribute('data-ltr', 'true');
+                input.setAttribute('dir', 'ltr');
                 guidebookStartContainer.appendChild(input);
             }
             
-            // Guidebook End Page (inside bbox-inputs container, no form-group wrapper)
+            // Guidebook End Page (inside bbox-inputs container, no form-group wrapper) (ISSUE B: Set LTR)
             const guidebookEndControl = createRequiredNumberInput({
                 id: 'guidebook_end_page',
                 label: '', // No label, just the input
@@ -21580,6 +22233,9 @@
                 // Extract just the input element (remove form-group wrapper for bbox-inputs layout)
                 const input = guidebookEndControl.controlEl;
                 guidebookEndControl.rootEl.removeChild(input);
+                // Set LTR for Basic Info inputs (ISSUE B fix)
+                input.setAttribute('data-ltr', 'true');
+                input.setAttribute('dir', 'ltr');
                 guidebookEndContainer.appendChild(input);
             }
             
@@ -21660,11 +22316,19 @@
                         // Use the same populateFormFromJSON function that loads JSON
                         populateFormFromJSON(savedData);
                         
-                        
                         // Set the initial saved state
                         lastSavedData = JSON.stringify(savedData);
                         hasUnsavedChanges = false;
                         updateSaveIndicator('saved');
+
+                        // After restore, refresh and auto-size previews for the active container
+                        const mainActive = document.querySelector('.main-tab-content.active');
+                        let activeRoot = mainActive || document;
+                        if (mainActive && mainActive.id === 'input-form') {
+                            const innerActive = mainActive.querySelector('.tab-content.active');
+                            if (innerActive) activeRoot = innerActive;
+                        }
+                        AutoSizeManager.refresh(activeRoot);
                         
                         alert('Your previous work has been restored!');
                     } catch (e) {
