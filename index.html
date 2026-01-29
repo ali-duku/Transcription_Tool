@@ -167,6 +167,7 @@
                         // Update matching UI if this was a matching item (use the questionEl we found before removal)
                         if (isMatchingItem && matchingQuestionEl) {
                             setTimeout(() => {
+                                if (!matchingQuestionEl.isConnected) return;
                                 if (action.side) {
                                     updateMatchingItemNumbers(matchingQuestionEl, action.side);
                                 } else {
@@ -1055,6 +1056,8 @@
          * Replaces <div class="js-action-button" data-action="..."> with actual buttons
          */
         function hydrateStaticActionButtons() {
+            if (window.__hydrateStaticActionButtonsDone) return;
+            window.__hydrateStaticActionButtonsDone = true;
             const placeholders = document.querySelectorAll('.js-action-button');
             placeholders.forEach(placeholder => {
                 const action = placeholder.getAttribute('data-action');
@@ -1470,6 +1473,8 @@
          * Hydrate all static button groups on page load
          */
         function hydrateStaticButtons() {
+            if (window.__hydrateStaticButtonsDone) return;
+            window.__hydrateStaticButtonsDone = true;
             // Top bar undo/redo
             renderButtonGroup('topbar-undo-redo', STATIC_BUTTON_CONFIGS.TOPBAR_UNDO_REDO);
             
@@ -1652,7 +1657,7 @@
         
         // Helper to update choice UI if the element is a choice item
         function updateChoiceUIIfNeeded(element) {
-            if (!element) return;
+            if (!element || !element.isConnected) return;
             
             // Check if this is a choice item - choice items have class 'choice-item'
             // or are inside a choices-list container
@@ -1670,6 +1675,7 @@
                 if (questionEl) {
                     // Use setTimeout to ensure DOM is fully updated before updating UI
                     setTimeout(() => {
+                        if (!questionEl.isConnected) return;
                         // Update correct answer UI
                         updateCorrectAnswerRadios(questionEl);
                         updateCheckboxSummary(questionEl);
@@ -2139,7 +2145,7 @@
         
 
         function updateMatchingUIIfNeeded(element, action) {
-            if (!element) return;
+            if (!element || !element.isConnected) return;
             
             // Check if this is a matching item or if action has the flag
             const isMatchingItem = element.classList.contains('matching-item') || 
@@ -2159,7 +2165,7 @@
                                 element.closest('.array-item');
                 }
                 
-                if (questionEl) {
+                if (questionEl && questionEl.isConnected) {
                     // Update matching item numbers if we have the side
                     if (action && action.side) {
                         updateMatchingItemNumbers(questionEl, action.side);
@@ -3685,6 +3691,27 @@
             background: var(--bg-primary);
             /* Disable scroll anchoring to prevent auto-scroll when content height changes */
             overflow-anchor: none;
+        }
+        /* Final Preview bbox replacement container (auto-replace, no click) */
+        .final-preview-container .fp-bbox-replacement {
+            max-width: 320px;
+            padding: 6px;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        /* Bbox preview ~50% width, responsive; caption stays below */
+        .live-preview .image-placeholder-container.has-bbox-preview,
+        .final-preview-container .image-placeholder-container.has-bbox-preview {
+            display: block;
+            width: min(50%, 640px);
+            max-width: 100%;
+        }
+        .live-preview .image-placeholder-container.has-bbox-preview .image-placeholder-box,
+        .final-preview-container .image-placeholder-container.has-bbox-preview .image-placeholder-box {
+            width: 100% !important; /* override inline 200px without JS */
         }
         .final-preview-section {
             margin-bottom: 32px;
@@ -5653,6 +5680,43 @@
     </div>
 
     <script>
+        // KaTeX: suppress noisy warnings (Arabic/diacritics, character metrics) in production; keep in dev.
+        var SUPPRESS_KATEX_WARNINGS = true;
+        try {
+            if (typeof window !== 'undefined' && window.location) {
+                if (/^localhost$/i.test(window.location.hostname) || /^127\.0\.0\.1$/.test(window.location.hostname) || /[?&]katex_warn=1/.test(window.location.search || ''))
+                    SUPPRESS_KATEX_WARNINGS = false;
+            }
+        } catch (e) {}
+        function runWithKatexWarnSuppressed(fn) {
+            if (!SUPPRESS_KATEX_WARNINGS) return fn();
+            var origWarn = console.warn;
+            console.warn = function(msg) {
+                if (typeof msg === 'string' && (/LaTeX-incompatible input and strict mode is set to 'warn'/.test(msg) || /No character metrics for/.test(msg)))
+                    return;
+                origWarn.apply(console, arguments);
+            };
+            try { return fn(); } finally { console.warn = origWarn; }
+        }
+        function getKatexRenderOptions(overrides) {
+            var o = { throwOnError: false, strict: 'ignore', output: 'html' };
+            if (overrides) for (var k in overrides) if (overrides.hasOwnProperty(k)) o[k] = overrides[k];
+            return o;
+        }
+        function safeKatexRender(tex, node, options) {
+            if (!window.katex) return;
+            runWithKatexWarnSuppressed(function() {
+                window.katex.render(tex, node, getKatexRenderOptions(options));
+            });
+        }
+        function safeRenderMathInElement(element, options) {
+            if (!window.renderMathInElement) return;
+            var opts = options ? Object.assign({}, options) : {};
+            opts.strict = 'ignore';
+            opts.throwOnError = false;
+            runWithKatexWarnSuppressed(function() { window.renderMathInElement(element, opts); });
+        }
+
         // ========================================
         // Universal Form Control Factory
         // ========================================
@@ -6548,7 +6612,26 @@
                 PreviewBox.ensureRendered(root);
             }
         }
-        
+
+        // Debounced autosize recalc after bbox canvas render; no-op if autosize toggle is OFF.
+        function triggerAutoSizeRecalc() {
+            if (typeof autoResizeEnabled === 'undefined' || !autoResizeEnabled) return;
+            if (window.__autosizeRecalcScheduled) return;
+            window.__autosizeRecalcScheduled = true;
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    window.__autosizeRecalcScheduled = false;
+                    if (typeof autoResizeEnabled !== 'undefined' && !autoResizeEnabled) return;
+                    if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                        var activeRoot = resolveActivePanelRoot();
+                        if (activeRoot) AutoSizeManager.finalizeSpawn(activeRoot);
+                        var fpContent = document.getElementById('final-preview-content');
+                        if (fpContent) AutoSizeManager.finalizeSpawn(fpContent);
+                    }
+                });
+            });
+        }
+
         function showTab(tabName) {
             // Get the universal scroller (single source of truth)
             const scroller = getInputFormScroller();
@@ -6712,6 +6795,547 @@
                     }
                 }, 100);
             }, 50);
+        }
+
+        // Final Preview bbox-check: page canvas cache (reuse across checks)
+        function getFpBboxPageCache() {
+            if (!window.__fpBboxPageCache) window.__fpBboxPageCache = new Map();
+            return window.__fpBboxPageCache;
+        }
+        // Resolve bbox record by key from state-derived map (no tab DOM)
+        function resolveBboxForFinalPreviewKey(key) {
+            if (!key || !window.__fpBboxMap || !window.__fpBboxMap[key]) return null;
+            return window.__fpBboxMap[key];
+        }
+        // Resolve bbox record from placeholder element (uses data-fp-key)
+        function resolveBboxForFinalPreviewPlaceholder(el) {
+            const key = el && el.getAttribute && el.getAttribute('data-fp-key');
+            return resolveBboxForFinalPreviewKey(key);
+        }
+        // Build bbox map from form state (instructional_content[].images, practice_questions[].question_images / guide_answer_images)
+        function buildFpBboxMapFromState(state) {
+            const map = {};
+            if (!state) return map;
+            const toRecord = function (item) {
+                if (!item || !item.position || !Array.isArray(item.position)) return null;
+                const p0 = item.position[0], p1 = item.position[1];
+                if (!p0 || !p1 || p0.length < 2 || p1.length < 2) return null;
+                const pageNum = item.page != null ? parseInt(item.page, 10) : 0;
+                return { pageNum: pageNum, x0: p0[0], y0: p0[1], x1: p1[0], y1: p1[1] };
+            };
+            const content = Array.isArray(state.instructional_content) ? state.instructional_content : [];
+            content.forEach(function (sec, i) {
+                const images = Array.isArray(sec.images) ? sec.images : [];
+                images.forEach(function (img, j) {
+                    const rec = toRecord(img);
+                    if (rec) map['content-' + i + '-' + j] = rec;
+                });
+            });
+            const questions = Array.isArray(state.practice_questions) ? state.practice_questions : [];
+            questions.forEach(function (q, i) {
+                const qImgs = Array.isArray(q.question_images) ? q.question_images : [];
+                qImgs.forEach(function (img, j) {
+                    const rec = toRecord(img);
+                    if (rec) map['question-' + i + '-' + j] = rec;
+                });
+                const aImgs = Array.isArray(q.guide_answer_images) ? q.guide_answer_images : [];
+                aImgs.forEach(function (img, j) {
+                    const rec = toRecord(img);
+                    if (rec) map['answer-' + i + '-' + j] = rec;
+                });
+            });
+            return map;
+        }
+        // Infer bbox key prefix from textarea position (content / question / answer). Used when creating placeholders.
+        function getBboxKeyPrefixForTextarea(textarea) {
+            if (!textarea || !textarea.closest) return null;
+            const contentSection = textarea.closest('#content_sections_container .array-item');
+            if (contentSection) {
+                const sections = document.querySelectorAll('#content_sections_container > .array-item');
+                const idx = Array.prototype.indexOf.call(sections, contentSection);
+                if (idx >= 0) return 'content-' + idx;
+            }
+            const questionEl = textarea.closest('#questions_container .array-item');
+            if (questionEl) {
+                const questions = document.querySelectorAll('#questions_container > .array-item');
+                const qIdx = Array.prototype.indexOf.call(questions, questionEl);
+                if (qIdx < 0) return null;
+                const formGroup = textarea.closest('.form-group');
+                let isAnswer = false;
+                if (formGroup) {
+                    const label = formGroup.querySelector('label');
+                    if (label && /guide\s*answer|answer\s*images/i.test(label.textContent)) isAnswer = true;
+                }
+                return (isAnswer ? 'answer' : 'question') + '-' + qIdx;
+            }
+            return null;
+        }
+        // Produce crop canvas at native crop size (same crop logic: scale 1.5, padding 8, red rect). Does not append. Uses normalized record.
+        async function getBboxCropCanvas(bboxRecord) {
+            if (!bboxRecord) return null;
+            var rec = normalizeBboxRecord(bboxRecord);
+            if (!rec || !isValidBboxRecord(rec)) return null;
+            try {
+                var store = window.__bboxStore;
+                if (!store || !store.docs || !store.docs.text) return null;
+                var pdfDoc = store.docs.text.pdfDoc;
+                if (!pdfDoc) return null;
+                var pageNum = rec.pageNum;
+                var x0 = rec.x0, y0 = rec.y0, x1 = rec.x1, y1 = rec.y1;
+                var scale = 1.5;
+                var padding = 8;
+                var cache = getFpBboxPageCache();
+                var cacheKey = 'text-' + pageNum + '-' + scale;
+                var pageCanvas = cache.get(cacheKey);
+                if (!pageCanvas) {
+                    var page = null;
+                    try {
+                        page = await pdfDoc.getPage(pageNum);
+                    } catch (err) {
+                        if (pageNum > 0 && (err && (err.message || '').indexOf('Invalid') !== -1)) {
+                            page = await pdfDoc.getPage(pageNum - 1);
+                            pageNum = pageNum - 1;
+                            cacheKey = 'text-' + pageNum + '-' + scale;
+                        } else throw err;
+                    }
+                    var viewport = page.getViewport({ scale: scale });
+                    var w = Math.floor(viewport.width);
+                    var h = Math.floor(viewport.height);
+                    var c = document.createElement('canvas');
+                    c.width = w;
+                    c.height = h;
+                    var ctx = c.getContext('2d');
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    pageCanvas = { canvas: c, scale: scale };
+                    cache.set(cacheKey, pageCanvas);
+                }
+                var full = pageCanvas.canvas;
+                var s = pageCanvas.scale;
+                var left = Math.min(x0, x1) * s;
+                var right = Math.max(x0, x1) * s;
+                var top = Math.min(y0, y1) * s;
+                var bottom = Math.max(y0, y1) * s;
+                var bboxW = right - left;
+                var bboxH = bottom - top;
+                var cropL = Math.max(0, left - padding);
+                var cropT = Math.max(0, top - padding);
+                var cropR = Math.min(full.width, right + padding);
+                var cropB = Math.min(full.height, bottom + padding);
+                var cropW = cropR - cropL;
+                var cropH = cropB - cropT;
+                var out = document.createElement('canvas');
+                out.width = cropW;
+                out.height = cropH;
+                var outCtx = out.getContext('2d');
+                outCtx.drawImage(full, cropL, cropT, cropW, cropH, 0, 0, cropW, cropH);
+                var rx = left - cropL;
+                var ry = top - cropT;
+                outCtx.strokeStyle = '#cc0000';
+                outCtx.lineWidth = 2;
+                outCtx.strokeRect(rx, ry, bboxW, bboxH);
+                return out;
+            } catch (err) {
+                if (window.__DEBUG_BBOX_PREVIEW) console.debug('bbox-preview crop failed', err);
+                return null;
+            }
+        }
+
+        // Default inner box content when no bbox (dashed box + icon).
+        var __fpDefaultInnerHtml = '<span style="color: #999; font-size: 14px;">📷 Image</span>';
+
+        // ResizeObserver: one global, WeakMap innerBox -> { bboxRecord }. Debounced re-render on resize.
+        var __fpBoxResizeMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+        var __fpResizeObserver = null;
+        function getFpResizeObserver() {
+            if (__fpResizeObserver) return __fpResizeObserver;
+            if (typeof ResizeObserver === 'undefined') return null;
+            __fpResizeObserver = new ResizeObserver(function (entries) {
+                for (var i = 0; i < entries.length; i++) {
+                    var innerBox = entries[i].target;
+                    var data = __fpBoxResizeMap && __fpBoxResizeMap.get(innerBox);
+                    if (!data || !data.bboxRecord) continue;
+                    if (innerBox.__fpResizeTimeout) clearTimeout(innerBox.__fpResizeTimeout);
+                    innerBox.__fpResizeTimeout = setTimeout(function () {
+                        innerBox.__fpResizeTimeout = null;
+                        if (innerBox.querySelector('.fp-bbox-canvas')) renderBboxIntoBoxWhenSized(innerBox, data.bboxRecord);
+                        if (__fpBoxResizeMap) __fpBoxResizeMap.delete(innerBox);
+                    }, 100);
+                }
+            });
+            return __fpResizeObserver;
+        }
+
+        // Render bbox crop into innerBox when it has size. Preserve crop aspect ratio; avoid scaling into fixed box.
+        async function renderBboxIntoBoxWhenSized(innerBox, bboxRecord) {
+            if (!innerBox || !bboxRecord) return;
+            innerBox.__fpRenderToken = (innerBox.__fpRenderToken || 0) + 1;
+            var token = innerBox.__fpRenderToken;
+            var frame = 0;
+            var maxFrames = 10;
+            function waitSize() {
+                if (innerBox.__fpRenderToken !== token) return;
+                var rect = innerBox.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                    doRender();
+                    return;
+                }
+                frame++;
+                if (frame < maxFrames) requestAnimationFrame(waitSize);
+            }
+            function doRender() {
+                if (innerBox.__fpRenderToken !== token) return;
+                if (innerBox.__fpOriginalHtml == null) innerBox.__fpOriginalHtml = innerBox.innerHTML || __fpDefaultInnerHtml;
+                innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
+                innerBox.innerHTML = '';
+                getBboxCropCanvas(bboxRecord).then(function (cropCanvas) {
+                    if (innerBox.__fpRenderToken !== token) return;
+                    if (!cropCanvas || !innerBox.parentNode) {
+                        innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
+                        innerBox.style.height = '150px';
+                        innerBox.style.display = 'flex';
+                        if (window.__DEBUG_BBOX_PREVIEW) console.debug('bbox-preview crop result', false);
+                        return;
+                    }
+                    cropCanvas.className = 'fp-bbox-canvas';
+                    // Preserve crop aspect ratio; avoid scaling into fixed box.
+                    cropCanvas.style.width = '100%';
+                    cropCanvas.style.height = 'auto';
+                    cropCanvas.style.display = 'block';
+                    cropCanvas.style.borderRadius = '4px';
+                    innerBox.style.height = 'auto';
+                    innerBox.style.display = 'block';
+                    innerBox.appendChild(cropCanvas);
+                    var ro = getFpResizeObserver();
+                    if (ro && __fpBoxResizeMap) {
+                        __fpBoxResizeMap.set(innerBox, { bboxRecord: bboxRecord });
+                        ro.observe(innerBox);
+                    }
+                    triggerAutoSizeRecalc();
+                    if (window.__DEBUG_BBOX_PREVIEW) console.debug('bbox-preview crop result', true);
+                });
+            }
+            requestAnimationFrame(waitSize);
+        }
+
+        // Legacy: render into container (used as fallback). Preserve crop aspect ratio; avoid scaling into fixed box.
+        async function renderBboxCheckPreview(bboxRecord, container) {
+            if (!container) return;
+            var crop = await getBboxCropCanvas(bboxRecord);
+            if (!crop) return;
+            container.innerHTML = '';
+            crop.className = 'fp-bbox-canvas';
+            crop.style.width = '100%';
+            crop.style.height = 'auto';
+            crop.style.display = 'block';
+            crop.style.borderRadius = '4px';
+            container.appendChild(crop);
+        }
+
+        // Visibility check: skip rendering into hidden elements to avoid truncation when tab becomes visible.
+        function isElementVisible(el) {
+            if (!el || !el.offsetParent) return false;
+            var r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+        }
+
+        // Shared: get the inner image rectangle element of a placeholder container (preserves caption as sibling).
+        function getPlaceholderInnerBox(container) {
+            if (!container || !container.classList.contains('image-placeholder-container')) return null;
+            const first = container.firstElementChild;
+            if (!first) return null;
+            if (first.classList && first.classList.contains('image-description-math')) return null;
+            return first;
+        }
+        function getFpPlaceholderInnerBox(container) { return getPlaceholderInnerBox(container); }
+
+        // Shared: render bbox crop into inner box (size-aware, waits for layout). Same crop logic, scaled to box.
+        function renderBboxCropIntoInnerBox(bboxRecord, innerBox) {
+            return renderBboxIntoBoxWhenSized(innerBox, bboxRecord);
+        }
+
+        function normalizeBboxRecord(rec) {
+            if (rec == null || typeof rec !== 'object') return null;
+            var pageNum = parseInt(rec.pageNum, 10);
+            var x0 = Number(rec.x0), y0 = Number(rec.y0), x1 = Number(rec.x1), y1 = Number(rec.y1);
+            return { pageNum: pageNum, x0: x0, y0: y0, x1: x1, y1: y1 };
+        }
+
+        function isValidBboxRecord(rec) {
+            if (!rec || typeof rec !== 'object') return false;
+            var p = rec.pageNum;
+            var x0 = rec.x0, y0 = rec.y0, x1 = rec.x1, y1 = rec.y1;
+            if (!Number.isFinite(p) || p < 0) return false;
+            if (!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return false;
+            var minX = Math.min(x0, x1), maxX = Math.max(x0, x1);
+            var minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+            if (minX >= maxX || minY >= maxY) return false;
+            return true;
+        }
+
+        // Recompute data-fp-key for placeholders under root so keys match current bbox order/indices.
+        function retagPreviewPlaceholdersUnder(rootEl) {
+            if (!rootEl) return;
+            if (rootEl.id === 'final-preview-content') {
+                rootEl.querySelectorAll('.preview-section[data-target-element="content"]').forEach(function (previewSection) {
+                    var navigateTo = previewSection.getAttribute('data-navigate-to');
+                    if (!navigateTo || navigateTo.indexOf('content-section-') !== 0) return;
+                    var sectionIndex = parseInt(navigateTo.replace('content-section-', ''), 10);
+                    var livePreview = previewSection.querySelector('.live-preview');
+                    if (!livePreview) return;
+                    livePreview.querySelectorAll('.image-placeholder-container').forEach(function (container, idx) {
+                        var imageIndex = container.hasAttribute('data-image-index') ? container.getAttribute('data-image-index') : String(idx);
+                        container.setAttribute('data-fp-key', 'content-' + sectionIndex + '-' + imageIndex);
+                    });
+                });
+                rootEl.querySelectorAll('.final-preview-question').forEach(function (questionBlock, questionIndex) {
+                    var questionImgIndex = 0;
+                    var answerImgIndex = 0;
+                    questionBlock.querySelectorAll('.preview-section').forEach(function (previewSection) {
+                        var labelEl = previewSection.querySelector('.preview-section-label');
+                        var isGuideAnswer = !!(previewSection.querySelector('.guide-answer') || (labelEl && labelEl.textContent && labelEl.textContent.indexOf('Guide Answer') !== -1));
+                        var scope = isGuideAnswer ? 'answer' : 'question';
+                        previewSection.querySelectorAll('.live-preview').forEach(function (livePreview) {
+                            livePreview.querySelectorAll('.image-placeholder-container').forEach(function (container) {
+                                var imageIndex = isGuideAnswer ? answerImgIndex : questionImgIndex;
+                                container.setAttribute('data-fp-key', scope + '-' + questionIndex + '-' + imageIndex);
+                                if (isGuideAnswer) answerImgIndex++; else questionImgIndex++;
+                            });
+                        });
+                    });
+                });
+                return;
+            }
+            var textarea = null;
+            var el = rootEl.previousElementSibling;
+            while (el) {
+                if (el.tagName === 'TEXTAREA') { textarea = el; break; }
+                el = el.previousElementSibling;
+            }
+            if (!textarea && rootEl.closest) {
+                var container = rootEl.closest('.form-group') || rootEl.closest('.text-field-container');
+                if (container) textarea = container.querySelector('textarea');
+            }
+            if (!textarea) return;
+            var prefix = getBboxKeyPrefixForTextarea(textarea);
+            if (prefix == null) return;
+            rootEl.querySelectorAll('.image-placeholder-container').forEach(function (container, idx) {
+                var imageIndex = container.getAttribute('data-image-index');
+                if (imageIndex === null || imageIndex === '') imageIndex = String(idx);
+                container.setAttribute('data-fp-key', prefix + '-' + imageIndex);
+            });
+        }
+
+        // Ensure __fpFormState and __fpBboxMap from state (collect when DOM has content, else use cache).
+        function ensureFpFormStateAndBboxMap() {
+            try {
+                if (typeof collectFormDataWithoutValidation === 'function') {
+                    const state = collectFormDataWithoutValidation();
+                    if (state && (state.instructional_content && state.instructional_content.length > 0 || state.practice_questions && state.practice_questions.length > 0)) {
+                        window.__fpFormState = state;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+            const state = window.__fpFormState || null;
+            window.__fpBboxMap = typeof buildFpBboxMapFromState === 'function' ? buildFpBboxMapFromState(state) : {};
+        }
+
+        window.__DEBUG_BBOX_PREVIEW = false;
+
+        const FORCE_PLACEHOLDER_IMAGES = true; // TEMP: set true to disable bbox previews everywhere
+
+        // Shared: scan root for .image-placeholder-container[data-fp-key]. Valid bbox -> render into inner box. Invalid/missing -> restore placeholder.
+        function applyBboxesToPreviewRoot(rootEl) {
+            if (!rootEl) return;
+            if (FORCE_PLACEHOLDER_IMAGES) {
+                rootEl.querySelectorAll('.image-placeholder-container').forEach(function (container) {
+                    var innerBox = getPlaceholderInnerBox(container);
+                    if (!innerBox) return;
+                    container.classList.remove('has-bbox-preview');
+                    innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
+                    innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
+                    innerBox.style.height = '150px';
+                    innerBox.style.display = 'flex';
+                    var ro = getFpResizeObserver();
+                    if (ro && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
+                });
+                return;
+            }
+            attachBboxRefreshListeners();
+            ensureFpFormStateAndBboxMap();
+            const store = window.__bboxStore;
+            const pdfDoc = store && store.docs && store.docs.text && store.docs.text.pdfDoc;
+            const placeholders = Array.from(rootEl.querySelectorAll('.image-placeholder-container[data-fp-key]'));
+            const BATCH = 3;
+            let idx = 0;
+            function processBatch() {
+                for (let i = 0; i < BATCH && idx < placeholders.length; i++) {
+                    const container = placeholders[idx++];
+                    const key = container.getAttribute('data-fp-key');
+                    const raw = resolveBboxForFinalPreviewKey(key);
+                    const bboxRecord = normalizeBboxRecord(raw);
+                    const innerBox = getPlaceholderInnerBox(container);
+                    if (!innerBox) continue;
+                    if (!isElementVisible(innerBox)) continue;
+                    const valid = bboxRecord != null && isValidBboxRecord(bboxRecord);
+                    if (window.__DEBUG_BBOX_PREVIEW) console.debug('bbox-preview', { key: key, normalized: bboxRecord, valid: valid, pdfLoaded: !!pdfDoc });
+                    if (!pdfDoc || !valid) {
+                        container.classList.remove('has-bbox-preview');
+                        innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
+                        innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
+                        innerBox.style.height = '150px';
+                        innerBox.style.display = 'flex';
+                        var ro = getFpResizeObserver();
+                        if (ro && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
+                        continue;
+                    }
+                    container.classList.add('has-bbox-preview');
+                    innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
+                    renderBboxCropIntoInnerBox(bboxRecord, innerBox);
+                }
+                if (idx >= placeholders.length) {
+                    triggerAutoSizeRecalc();
+                } else {
+                    requestAnimationFrame(processBatch);
+                }
+            }
+            if (placeholders.length > 0) requestAnimationFrame(processBatch);
+        }
+
+        // Apply bbox rendering to all live previews and final preview. No per-image work; uses existing batching.
+        function applyBboxesEverywhere(opts) {
+            opts = opts || {};
+            var forceRetag = opts.forceRetag === true;
+            ensureFpFormStateAndBboxMap();
+            document.querySelectorAll('.live-preview').forEach(function (livePreview) {
+                if (forceRetag) retagPreviewPlaceholdersUnder(livePreview);
+                applyBboxesToPreviewRoot(livePreview);
+            });
+            var fpContent = document.getElementById('final-preview-content');
+            if (fpContent) {
+                if (forceRetag) retagPreviewPlaceholdersUnder(fpContent);
+                applyBboxesToPreviewRoot(fpContent);
+            }
+            triggerAutoSizeRecalc();
+        }
+
+        // Debounced post-layout bbox refresh: 2 rAFs then apply to active panel only (or everywhere if no scope).
+        var __bboxPostLayoutScheduled = false;
+        function schedulePostLayoutBboxRefresh(scopeEl) {
+            if (__bboxPostLayoutScheduled) return;
+            __bboxPostLayoutScheduled = true;
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    __bboxPostLayoutScheduled = false;
+                    var activeRoot = scopeEl || resolveActivePanelRoot();
+                    if (activeRoot) {
+                        activeRoot.querySelectorAll('.live-preview').forEach(function (preview) {
+                            retagPreviewPlaceholdersUnder(preview);
+                            applyBboxesToPreviewRoot(preview);
+                        });
+                        var fpContent = document.getElementById('final-preview-content');
+                        if (fpContent && (activeRoot.id === 'final-preview-content' || activeRoot.contains(fpContent))) {
+                            retagPreviewPlaceholdersUnder(fpContent);
+                            applyBboxesToPreviewRoot(fpContent);
+                        }
+                    } else {
+                        applyBboxesEverywhere({ forceRetag: false });
+                    }
+                    triggerAutoSizeRecalc();
+                });
+            });
+        }
+
+        // One-time tab-switch hook: after tab click, re-apply bboxes to the newly visible panel only (fixes truncation).
+        function attachBboxTabSwitchHook() {
+            if (window.__bboxTabSwitchHookAttached) return;
+            window.__bboxTabSwitchHookAttached = true;
+            document.addEventListener('click', function (e) {
+                var tab = e.target && e.target.closest && e.target.closest('.tab');
+                if (!tab) return;
+                schedulePostLayoutBboxRefresh();
+            });
+        }
+
+        // One-time global PDF-ready hook: when pdfDoc becomes available, apply bboxes everywhere (all tabs).
+        function scheduleBboxApplyWhenPdfReady() {
+            if (window.__bboxPdfReadyScheduled) return;
+            window.__bboxPdfReadyScheduled = true;
+            var tries = 0;
+            var MAX_TRIES = 10;
+            var interval = 300;
+            var t = setInterval(function () {
+                tries++;
+                var store = window.__bboxStore;
+                var pdfDoc = store && store.docs && store.docs.text && store.docs.text.pdfDoc;
+                if (pdfDoc) {
+                    clearInterval(t);
+                    window.__bboxPdfReadyScheduled = false;
+                    applyBboxesEverywhere({ forceRetag: false });
+                } else if (tries >= MAX_TRIES) {
+                    clearInterval(t);
+                    window.__bboxPdfReadyScheduled = false;
+                }
+            }, interval);
+        }
+
+        // Debounced refresh of all bbox previews when bbox inputs or order change. Single pending flush. Retag first so keys match current order.
+        var __bboxRefreshTimeout = null;
+        function scheduleBboxRefresh() {
+            if (__bboxRefreshTimeout) clearTimeout(__bboxRefreshTimeout);
+            __bboxRefreshTimeout = setTimeout(function () {
+                __bboxRefreshTimeout = null;
+                ensureFpFormStateAndBboxMap();
+                document.querySelectorAll('.live-preview').forEach(function (el) {
+                    retagPreviewPlaceholdersUnder(el);
+                    applyBboxesToPreviewRoot(el);
+                });
+                var fpContent = document.getElementById('final-preview-content');
+                if (fpContent) {
+                    retagPreviewPlaceholdersUnder(fpContent);
+                    applyBboxesToPreviewRoot(fpContent);
+                }
+            }, 150);
+        }
+
+        // One-time: attach delegated listener and MutationObserver for bbox UI changes.
+        function attachBboxRefreshListeners() {
+            if (window.__bboxRefreshListenersAttached) return;
+            window.__bboxRefreshListenersAttached = true;
+            function insideBboxContainer(el) {
+                return el && el.nodeType === 1 && el.closest && el.closest('.bbox-container') !== null;
+            }
+            function isBboxRowButton(el, texts) {
+                if (!el || el.tagName !== 'BUTTON') return false;
+                var t = (el.textContent || '').trim();
+                for (var i = 0; i < texts.length; i++) if (t.indexOf(texts[i]) !== -1) return true;
+                return false;
+            }
+            document.addEventListener('input', function (e) {
+                if (insideBboxContainer(e.target)) scheduleBboxRefresh();
+            });
+            document.addEventListener('change', function (e) {
+                if (insideBboxContainer(e.target)) scheduleBboxRefresh();
+            });
+            document.addEventListener('click', function (e) {
+                var btn = e.target && e.target.closest ? e.target.closest('button') : null;
+                if (!btn || !insideBboxContainer(btn)) return;
+                if (btn.classList && (btn.classList.contains('reorder-btn') || btn.classList.contains('remove-btn') || btn.classList.contains('add-before') || btn.classList.contains('add-after'))) { scheduleBboxRefresh(); return; }
+                if (isBboxRowButton(btn, ['Delete', 'Remove', '\u00D7', 'Before', 'After', 'Up', 'Down', 'Move'])) scheduleBboxRefresh();
+            });
+            var contentContainer = document.getElementById('content_sections_container');
+            var questionsContainer = document.getElementById('questions_container');
+            var observer = new MutationObserver(function (mutations) {
+                for (var i = 0; i < mutations.length; i++) {
+                    var m = mutations[i];
+                    if (m.removedNodes && m.removedNodes.length > 0 && (m.target.classList && m.target.classList.contains('bbox-container') || (m.target.closest && m.target.closest('.bbox-container')))) { scheduleBboxRefresh(); return; }
+                    var t = m.target;
+                    if (t.classList && t.classList.contains('bbox-container')) { scheduleBboxRefresh(); return; }
+                    if (t.closest && t.closest('.bbox-container')) { scheduleBboxRefresh(); return; }
+                }
+            });
+            if (contentContainer) observer.observe(contentContainer, { childList: true, subtree: true });
+            if (questionsContainer) observer.observe(questionsContainer, { childList: true, subtree: true });
+            attachBboxTabSwitchHook();
         }
 
         // Generate Final Preview
@@ -7003,6 +7627,13 @@
             
             previewContainer.innerHTML = html;
             
+            // Shared bbox rendering: placeholders already have data-fp-key from creation; apply in-place
+            ensureFpFormStateAndBboxMap();
+            applyBboxesToPreviewRoot(previewContainer);
+            if (!(window.__bboxStore && window.__bboxStore.docs && window.__bboxStore.docs.text && window.__bboxStore.docs.text.pdfDoc)) {
+                scheduleBboxApplyWhenPdfReady();
+            }
+
             // Apply current font size and line height to all live-preview elements in final preview
             const savedFontSize = localStorage.getItem('fontSize') || '14';
             const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
@@ -7062,7 +7693,7 @@
             previewContainer.querySelectorAll('.live-preview').forEach(preview => {
                 // Math rendering will be handled by existing KaTeX setup
                 if (window.renderMathInElement) {
-                    window.renderMathInElement(preview, {
+                    safeRenderMathInElement(preview, {
                         delimiters: [
                             {left: '$$', right: '$$', display: true},
                             {left: '$', right: '$', display: false}
@@ -7355,14 +7986,19 @@
                         let description = alt;
                         
                         // Description is in alt, index is in src (from markdown ![desc](index))
-                        // Create container matching original format
+                        // Create container matching original format (class/data for bbox key)
                         const container = document.createElement('div');
+                        container.className = 'image-placeholder-container';
+                        container.setAttribute('data-image-index', String(src));
+                        const fpPrefix = getBboxKeyPrefixForTextarea(textarea);
+                        if (fpPrefix != null) container.setAttribute('data-fp-key', fpPrefix + '-' + src);
                         container.style.display = 'block';
                         container.style.textAlign = 'center';
                         container.style.margin = '12px auto';
                         
-                        // Create placeholder matching original
+                        // Create placeholder matching original (class for responsive bbox CSS)
                         const placeholder = document.createElement('div');
+                        placeholder.className = 'image-placeholder-box';
                         placeholder.style.width = '200px';
                         placeholder.style.height = '150px';
                         placeholder.style.backgroundColor = '#f0f0f0';
@@ -7417,11 +8053,7 @@
                             try { 
                                 // Unescape HTML entities back to original symbols for KaTeX
                                 texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-                                window.katex.render(texToRender, node, { 
-                                    displayMode: true,
-                                    throwOnError: false,
-                                    output: 'html'
-                                }); 
+                                safeKatexRender(texToRender, node, { displayMode: true }); 
                                 // Force centering after rendering
                                 node.style.textAlign = 'center';
                                 node.style.margin = '1em auto';
@@ -7446,11 +8078,7 @@
                             try { 
                                 // Unescape HTML entities back to original symbols for KaTeX
                                 texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-                                window.katex.render(texToRender, node, { 
-                                    displayMode: false,
-                                    throwOnError: false,
-                                    output: 'html'
-                                });
+                                safeKatexRender(texToRender, node, { displayMode: false });
                             } catch (e) {
                                 console.error('KaTeX inline error:', e);
                             }
@@ -12239,12 +12867,16 @@
                 preview.innerHTML = html;
                 // Handle all images - replace with styled placeholder and show description
                 const imgs = preview.querySelectorAll('img[alt]');
-                imgs.forEach(img => {
+                imgs.forEach((img, imgIdx) => {
                     const alt = img.getAttribute('alt') || '';
                     let description = alt;
                     
-                    // Create a container div to wrap the image and description
+                    // Create a container div to wrap the image and description (class/data for bbox key)
                     const container = document.createElement('div');
+                    container.className = 'image-placeholder-container';
+                    container.setAttribute('data-image-index', String(imgIdx));
+                    const fpPrefix = getBboxKeyPrefixForTextarea(textarea);
+                    if (fpPrefix != null) container.setAttribute('data-fp-key', fpPrefix + '-' + imgIdx);
                     container.style.display = 'block';
                     container.style.textAlign = 'center';
                     container.style.margin = '0 auto';
@@ -12256,8 +12888,9 @@
                     captionSpan.style.marginTop = '4px';
                     captionSpan.style.direction = 'ltr';
                     
-                    // Replace the broken image with a styled placeholder div
+                    // Replace the broken image with a styled placeholder div (class for responsive bbox CSS)
                     const placeholder = document.createElement('div');
+                    placeholder.className = 'image-placeholder-box';
                     placeholder.style.width = '200px';
                     placeholder.style.height = '150px';
                     placeholder.style.backgroundColor = '#f0f0f0';
@@ -12342,11 +12975,7 @@
                         try { 
                             // Unescape HTML entities back to original symbols for KaTeX
                             texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-                            window.katex.render(texToRender, node, { 
-                                displayMode: true,
-                                throwOnError: false,
-                                output: 'html'
-                            }); 
+                            safeKatexRender(texToRender, node, { displayMode: true }); 
                             // Force centering after rendering
                             node.style.textAlign = 'center';
                             node.style.margin = '1em auto';
@@ -12367,18 +12996,14 @@
                         try { 
                             // Unescape HTML entities back to original symbols for KaTeX
                             texToRender = texToRender.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-                            window.katex.render(texToRender, node, { 
-                                displayMode: false,
-                                throwOnError: false,
-                                output: 'html'
-                            }); 
+                            safeKatexRender(texToRender, node, { displayMode: false }); 
                         } catch {}
                     });
                     applyKatexBidi(preview);
                 }
                 // Skip auto-render for $...$ since we handled it; still support \( ... \) and \[ ... ]
                 if (window.renderMathInElement) {
-                    window.renderMathInElement(preview, {
+                    safeRenderMathInElement(preview, {
                         delimiters: [
                             { left: '\\(', right: '\\)', display: false },
                             { left: '\\[', right: '\\]', display: true }
@@ -12386,6 +13011,7 @@
                     });
                     applyKatexBidi(preview);
                 }
+                applyBboxesToPreviewRoot(preview);
             } catch (e) {
                 // fail silent to avoid blocking typing
             }
@@ -15123,6 +15749,9 @@
                 triggerAutoSave();
                 
                 closeModal();
+                // Use Selected updates bbox inputs programmatically, so input/change and MutationObserver
+                // never fire; trigger preview refresh so live + final preview show the new crop.
+                if (typeof scheduleBboxRefresh === 'function') scheduleBboxRefresh();
             };
             cancelBtn.onclick = ()=>{
                 if (collected.length > 0 || lastDrawn) {
@@ -18132,7 +18761,7 @@
                         
                         if (window.katex && window.renderMathInElement) {
                             try {
-                                window.renderMathInElement(preview, {
+                                safeRenderMathInElement(preview, {
                                     delimiters: [
                                         { left: '$$', right: '$$', display: true },
                                         { left: '$', right: '$', display: false },
@@ -20976,6 +21605,7 @@
                 } finally {
                     isFormUndoRedoInProgress = false;
                 }
+                window.__fpFormState = data;
                 
                 // Start a new session when JSON is loaded (user is starting new work)
                 // Clear previous undo history but keep the LOAD_JSON action we just recorded
@@ -20996,11 +21626,12 @@
                     if (AutoSizeManager.finalizeSpawn) {
                         AutoSizeManager.finalizeSpawn(activeRoot);
                     }
-                    if (AutoSizeManager.fitPending) {
-                        AutoSizeManager.fitPending(activeRoot);
-                    }
+                if (AutoSizeManager.fitPending) {
+                    AutoSizeManager.fitPending(activeRoot);
                 }
-                
+            }
+                applyBboxesEverywhere({ forceRetag: true });
+            
                 // Mark form as changed and trigger autosave after loading JSON
                 // This ensures autosave flow runs (with validation gating)
                 markFormAsChanged();
@@ -21815,6 +22446,8 @@
         // Manual save function - uses the same generateJSON logic
         // Optional parameter: isAutoSave - if true, suppress some alerts for validation warnings
         function saveProgress(isAutoSave = false) {
+            if (window.__saveInProgress) return;
+            window.__saveInProgress = true;
             try {
                 // Use the exact same logic as generateJSON() to create the JSON structure
                 const textbookPage = document.getElementById('textbook_page').value;
@@ -22228,7 +22861,8 @@
 
                 // Add timestamp for tracking
                 jsonData._save_timestamp = new Date().toISOString();
-                
+                window.__fpFormState = jsonData;
+
                 const dataString = JSON.stringify(jsonData);
                 
                 localStorage.setItem(SAVE_KEY, dataString);
@@ -22252,6 +22886,8 @@
             } catch (e) {
                 console.error('Failed to save form data:', e);
                 alert('Failed to save progress: ' + e.message);
+            } finally {
+                window.__saveInProgress = false;
             }
         }
         
@@ -22341,10 +22977,11 @@
                     if (AutoSizeManager.finalizeSpawn) {
                         AutoSizeManager.finalizeSpawn(activeRoot);
                     }
-                    if (AutoSizeManager.fitPending) {
-                        AutoSizeManager.fitPending(activeRoot);
-                    }
+                if (AutoSizeManager.fitPending) {
+                    AutoSizeManager.fitPending(activeRoot);
                 }
+            }
+                applyBboxesEverywhere({ forceRetag: true });
                 
                 // Mark form as changed and trigger autosave after restore
                 // This ensures autosave flow runs (with validation gating)
@@ -22369,7 +23006,9 @@
         function attachChangeTrackers() {
             const container = document.querySelector('.container');
             if (!container) return;
-            
+            if (window.__changeTrackersAttached) return;
+            window.__changeTrackersAttached = true;
+            // One-time registration so one user action does not trigger multiple handlers
             // Track initial values when fields get focus
             container.addEventListener('focusin', (e) => {
                 if (e.target.matches('input, textarea, select')) {
@@ -22438,6 +23077,8 @@
         
         // Warn user about unsaved changes on page reload/close
         function attachUnloadWarning() {
+            if (window.__unloadWarningAttached) return;
+            window.__unloadWarningAttached = true;
             window.addEventListener('beforeunload', (e) => {
                 if (hasUnsavedChanges) {
                     // Prompt to save before leaving
@@ -22459,6 +23100,8 @@
         
         // Add keyboard shortcut for save (Ctrl+S)
         function attachSaveKeyboardShortcut() {
+            if (window.__saveShortcutAttached) return;
+            window.__saveShortcutAttached = true;
             document.addEventListener('keydown', (e) => {
                 // Ctrl+S or Cmd+S
                 if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -22509,10 +23152,12 @@
 
         // Function to attach duplicate question ID validation listeners
         function attachQuestionIdValidation() {
-            // Use event delegation on the questions container
             const questionsContainer = document.getElementById('questions_container');
-            if (questionsContainer) {
-                questionsContainer.addEventListener('blur', function(event) {
+            if (!questionsContainer) return;
+            if (window.__questionIdValidationAttached) return;
+            window.__questionIdValidationAttached = true;
+            // Use event delegation on the questions container (one-time so one blur/input does not double-fire)
+            questionsContainer.addEventListener('blur', function(event) {
                     // Check if the blurred element is a question ID input
                     const target = event.target;
                     if (target && target.matches('input[type="text"]')) {
@@ -22544,7 +23189,6 @@
                         }
                     }
                 }, true);
-            }
         }
 
         /**
@@ -22839,7 +23483,7 @@
                                 AutoSizeManager.fitPending(activeRoot);
                             }
                         }
-                        
+                        applyBboxesEverywhere({ forceRetag: true });
                         alert('Your previous work has been restored!');
                     } catch (e) {
                         console.error('Failed to restore saved data:', e);
@@ -22852,6 +23496,7 @@
                     clearSavedData();
                 }
             }
+            applyBboxesEverywhere({ forceRetag: true });
             
             // Autosize input handler (event-driven, works for dynamic sections)
             attachAutoResizeInputHandler();
@@ -23187,8 +23832,13 @@
 
         // Initialize PDF Viewer
         function initializePdfViewer() {
+            if (window.__mainPdfViewer.__pdfViewerInitializing) return;
+            window.__mainPdfViewer.__pdfViewerInitializing = true;
             const pdfPanel = document.getElementById('pdf-viewer-panel');
-            if (!pdfPanel) return;
+            if (!pdfPanel) {
+                window.__mainPdfViewer.__pdfViewerInitializing = false;
+                return;
+            }
             
             // Create controls HTML
             const controlsHtml = `
@@ -23374,6 +24024,8 @@
                     toggleBtn.style.backgroundColor = autoNavEnabled ? '#28a745' : '';
                     toggleBtn.style.color = autoNavEnabled ? 'white' : '';
                 }
+                
+                window.__mainPdfViewer.__pdfViewerInitializing = false;
                 
                 // Load PDF from existing store if available (now that canvas is ready)
                 // Wait a tiny bit more to ensure everything is set
@@ -23581,6 +24233,9 @@
             const currentPage = state.currentPage || 1;
             const currentScale = state.scale || 1.0;
             const currentSource = state.source || 'textbook';
+            const renderingPdfDoc = state.pdfDoc;
+            state.renderToken = (state.renderToken || 0) + 1;
+            const thisRenderToken = state.renderToken;
             
             // Skip render if page, scale, and source haven't changed
             if (lastRendered.page === currentPage && 
@@ -23631,7 +24286,8 @@
                 if (!state.renderTask) {
                     state.isRendering = false;
                 } else {
-                return;
+                    state.pendingRender = true;
+                    return;
                 }
             }
             
@@ -23755,6 +24411,17 @@
                 
                 await renderTask.promise;
                 
+                // Stale-check: only apply completion if this render is still current
+                if (thisRenderToken !== state.renderToken || state.pdfDoc !== renderingPdfDoc || state.currentPage !== currentPage || state.source !== currentSource) {
+                    state.renderTask = null;
+                    state.isRendering = false;
+                    if (state.pendingRender) {
+                        state.pendingRender = false;
+                        setTimeout(() => renderMainPdfPage(), 0);
+                    }
+                    return;
+                }
+                
                 // Clear render task after successful completion
                 state.renderTask = null;
                 state.isRendering = false;
@@ -23768,6 +24435,11 @@
                 };
                 
                 updatePdfControls();
+                
+                if (state.pendingRender) {
+                    state.pendingRender = false;
+                    setTimeout(() => renderMainPdfPage(), 0);
+                }
                 
                 // Restore main PDF viewer scroll position after rendering BEFORE calling updatePdfStore
                 // This ensures we don't save the wrong scroll position
@@ -23815,17 +24487,22 @@
                 state.isRendering = false;
                 state.renderTask = null;
                 
+                if (state.pendingRender) {
+                    state.pendingRender = false;
+                    setTimeout(() => renderMainPdfPage(), 0);
+                }
+                
                 // Don't show error if it was just a cancellation
                 if (error.name === 'RenderingCancelledException') {
                     return;
                 }
                 
                 // Handle canvas conflict error - this can happen when uploading new PDFs
-                // Retry after a delay to allow the canvas to be released
+                // Retry after a delay to allow the canvas to be released (only if still same doc)
                 if (error.message && error.message.includes('Cannot use the same canvas')) {
-                    // Wait a bit longer and retry
+                    const retryPdfDoc = renderingPdfDoc;
                     setTimeout(() => {
-                        if (state.pdfDoc && state.canvas && state.context && !state.isRendering) {
+                        if (state.pdfDoc === retryPdfDoc && state.canvas && state.context && !state.isRendering) {
                             renderMainPdfPage();
                         }
                     }, 200);
@@ -24750,6 +25427,9 @@
         }
 
         function attachContextListeners() {
+            if (window.__contextListenersAttached) return;
+            window.__contextListenersAttached = true;
+            // One-time registration so PDF auto-sync handlers do not run twice per event
             // Listen to focus events on form fields (but ignore PDF canvas and its container)
             document.addEventListener('focusin', (e) => {
                 if (window.__mainPdfViewer.visible && window.__mainPdfViewer.autoSyncEnabled) {
