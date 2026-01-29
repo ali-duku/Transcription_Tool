@@ -1913,6 +1913,7 @@
             // Build fresh question DOM
             const newQuestion = document.createElement('div');
             newQuestion.className = 'array-item';
+            newQuestion.setAttribute('data-item-type', 'question');
             // Mark as a true section for navigation (canonical section marker)
             newQuestion.setAttribute('data-section-id', `question-${questionCount}`);
             newQuestion.innerHTML = getQuestionHTML(questionCount);
@@ -1948,8 +1949,10 @@
                 toggleQuestionType(questionTypeSelect);
             }
             
-            // Force render all previews after building from state (ISSUE A fix)
-            PreviewBox.refreshAll(newQuestion);
+            // Render previews for this restored question only (scoped)
+            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                PreviewBox.ensureRendered(newQuestion);
+            }
             
             // Set text fields
             const setupTextarea = findFieldByLabel(newQuestion, 'Set-up Text', 'textarea');
@@ -2279,31 +2282,36 @@
         }
 
         html {
+            height: 100%;
             width: 100%;
-            max-width: 100%;
-            overflow-x: hidden; /* Prevent horizontal scrollbar */
+            margin: 0;
+            padding: 0;
+            overflow: hidden !important; /* absolute: no page scroll */
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg-primary);
-            min-height: 100vh;
-            padding: 0;
-            margin: 0;
+            height: 100%;
             width: 100%;
-            max-width: 100%;
-            overflow-x: hidden; /* Prevent horizontal scrollbar */
+            margin: 0;
+            padding: 0;
+            overflow: hidden !important; /* absolute: no page scroll */
         }
 
         .container {
-            width: 100%;
-            max-width: 100%;
+            height: 100vh;
+            width: 100vw;
             margin: 0;
+            padding: 0;
             background: white;
             border-radius: 0;
             box-shadow: none;
-            overflow: hidden;
-            min-height: 100vh;
+            overflow: hidden; /* app itself doesn't scroll */
+            display: flex;
+            flex-direction: column; /* top bar + workspace */
+            min-height: 0; /* critical */
+            min-width: 0; /* critical */
         }
 
         .header {
@@ -2311,10 +2319,14 @@
             color: white;
             padding: 4px 15px;
             text-align: center;
+            flex: 0 0 auto; /* non-scrolling top area */
+            overflow: hidden; /* no scroll, must wrap/collapse */
+            min-width: 0;
         }
 
         .header-content {
             display: flex;
+            flex-wrap: wrap; /* critical for zoom */
             justify-content: space-between;
             align-items: center;
             width: 100%;
@@ -2322,6 +2334,41 @@
             max-width: 100%;
             margin: 0;
             gap: min(15px, 1.5vw); /* Responsive gap */
+            min-width: 0;
+        }
+        
+        /* Toolbar items that should wrap */
+        .header-content > div {
+            flex: 0 1 auto;
+            min-width: 0;
+            max-width: 100%;
+        }
+        
+        /* Search input wrapper: only this one grows so Quick Jump + Save stay tight; cap width */
+        .header-content .quick-jump:has(#searchFilter) {
+            flex: 1 1 220px;
+            min-width: 0;
+            max-width: 270px;
+        }
+        /* Quick Jump dropdown: do not grow, avoid dead space between Search and Save */
+        .header-content .quick-jump:has(#quickJumpSelect) {
+            flex: 0 0 auto;
+        }
+        
+        .header-content .quick-jump > div {
+            min-width: 0;
+        }
+        
+        .header-content .quick-jump input[type="text"] {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* Button clusters */
+        .header-content #topbar-actions,
+        .header-content #topbar-undo-redo {
+            flex: 0 1 auto;
+            max-width: 100%;
         }
         
         /* Optimize header spacing for zoomed states */
@@ -2340,7 +2387,8 @@
         }
 
         .header-text {
-            flex: 1;
+            flex: 1 1 220px; /* allows shrinking instead of overflow */
+            min-width: 0;
             text-align: left;
             display: flex;
             align-items: center;
@@ -2467,55 +2515,106 @@
         }
 
         .workflow-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+            flex: 1 1 auto; /* main workspace area */
+            min-height: 0; /* critical */
+            min-width: 0; /* critical */
+            overflow: hidden; /* columns own scroll */
+            display: flex;
             gap: min(15px, 1.5vw); /* Responsive gap that scales with viewport */
             padding: min(15px, 1.5vw); /* Responsive padding */
-            width: 100%;
-            max-width: 100%;
             box-sizing: border-box;
-            align-items: start; /* Align items to top */
-            min-height: calc(100vh - 200px); /* Ensure container has minimum height */
         }
         
         /* Ensure columns don't grow beyond their allocated space */
         .workflow-container > * {
             min-width: 0; /* Allow flex/grid children to shrink below content size */
+            min-height: 0;
             max-width: 100%;
             box-sizing: border-box;
         }
         
         /* Left column - scrollable */
         .workflow-container > .form-section:not(.toggle-section) {
-            max-height: calc(100vh - 75px);
-            overflow-y: auto;
-            overflow-x: hidden;
-            position: relative;
-        }
-        
-        /* Right column - sticky and independently scrollable */
-        .workflow-container > .form-section.toggle-section {
-            position: sticky;
-            top: min(15px, 1.5vw); /* Responsive top offset */
-            align-self: start;
-            max-height: calc(200vh - 75px); /* Increased to 2x viewport for more expansion */
-            height: calc(100vh - 75px);
-            overflow: hidden; /* Let child panels handle scrolling */
+            flex: 1 1 0;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
+            /* Ensure solid background behind sticky bars */
+            background: var(--tabs-bg, #f8f9fa);
+            /* Top padding for breathing room above main tabs */
+            padding-top: var(--workspace-top-pad);
+        }
+        
+        /* Make the main tab content area use flex layout (not scrollable itself) */
+        .workflow-container > .form-section:not(.toggle-section) .main-tab-content.active {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden; /* No scrolling on main-tab-content */
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Universal scroll container for all Input Form sub-tabs */
+        .input-form-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            /* Disable scroll anchoring to prevent auto-scroll to bottom when content height changes */
+            overflow-anchor: none;
+        }
+        
+        /* Tab content panels must NOT scroll independently */
+        .workflow-container > .form-section:not(.toggle-section) .tab-content {
+            overflow: visible; /* No independent scrolling */
+            min-height: 0;
+        }
+        
+        .workflow-container > .form-section:not(.toggle-section) .tab-content.active {
+            display: block; /* Show active panel */
+        }
+        
+        /* Right column - independently scrollable */
+        .workflow-container > .form-section.toggle-section {
+            flex: 1 1 0;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Right column view panels and preview content scroll */
+        .workflow-container > .form-section.toggle-section .view-panel.active,
+        .workflow-container > .form-section.toggle-section #final-preview-content,
+        .workflow-container > .form-section.toggle-section .final-preview-container {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        /* Guardrail: prevent accidental global overflow from any child */
+        .workflow-container, .workflow-container > .form-section {
+            min-width: 0;
+            min-height: 0;
+        }
+        
+        /* Ensure code blocks don't overflow */
+        pre, code, .json-preview {
+            max-width: 100%;
+            overflow-x: auto; /* inside right column only */
         }
         
         /* Use full width at all zoom levels - remove max-width restrictions */
         @media (min-width: 1920px) {
             .workflow-container {
-                max-width: 100%; /* Use full width instead of 95% */
-                margin: 0;
                 padding: min(20px, 2vw); /* Slightly more padding on very large screens */
             }
             
             .header-content {
-                max-width: 100%; /* Use full width instead of 95% */
-                margin: 0;
                 padding: 0 min(30px, 3vw); /* Responsive padding */
             }
         }
@@ -2525,10 +2624,6 @@
             .workflow-container {
                 gap: 10px;
                 padding: 10px;
-            }
-            
-            .workflow-container > .form-section.toggle-section {
-                top: 10px;
             }
         }
         
@@ -3018,11 +3113,7 @@
         .live-preview .katex-html,
         .live-preview .katex-display .katex-html,
         .live-preview[dir="rtl"] .katex-html,
-        .live-preview[dir="rtl"] .katex-display .katex-html,
-        .choice-preview-mini .katex-html,
-        .choice-preview-mini .katex-display .katex-html,
-        .choice-preview-mini[dir="rtl"] .katex-html,
-        .choice-preview-mini[dir="rtl"] .katex-display .katex-html {
+        .live-preview[dir="rtl"] .katex-display .katex-html {
             direction: ltr !important;
             unicode-bidi: bidi-override !important;
         }
@@ -3031,18 +3122,12 @@
         .live-preview .katex .mtext,
         .live-preview .katex-display .mtext,
         .live-preview[dir="rtl"] .katex .mtext,
-        .live-preview[dir="rtl"] .katex-display .mtext,
-        .choice-preview-mini .katex .mtext,
-        .choice-preview-mini .katex-display .mtext,
-        .choice-preview-mini[dir="rtl"] .katex .mtext,
-        .choice-preview-mini[dir="rtl"] .katex-display .mtext {
+        .live-preview[dir="rtl"] .katex-display .mtext {
             unicode-bidi: isolate !important;
         }
         /* Force image descriptions to always be LTR regardless of parent direction */
         .live-preview .image-description-math,
-        .live-preview[dir="rtl"] .image-description-math,
-        .choice-preview-mini .image-description-math,
-        .choice-preview-mini[dir="rtl"] .image-description-math {
+        .live-preview[dir="rtl"] .image-description-math {
             direction: ltr !important;
             unicode-bidi: isolate !important;
         }
@@ -3117,41 +3202,6 @@
         /* Make math reflect Markdown emphasis when wrapped by <strong>/<em> */
         .live-preview strong .katex, .live-preview b .katex { font-weight: 700; }
         .live-preview em .katex, .live-preview i .katex { font-style: italic; }
-
-        /* Ensure LaTeX in Correct Answer Position preview is always LTR */
-        /* Only apply block styles to actual block math elements */
-        .choice-preview-mini .__math_block,
-        .choice-preview-mini .katex-display {
-            text-align: center !important;
-            margin: 1em auto !important;
-            display: block !important;
-            direction: ltr !important;
-            unicode-bidi: isolate !important;
-        }
-        /* Completely remove any direction forcing on KaTeX in choice previews */
-        /* KaTeX elements should determine direction from their content via dir="auto" attribute */
-        .choice-preview-mini[dir="rtl"] .__math_block,
-        .choice-preview-mini[dir="rtl"] .__math_inline,
-        .choice-preview-mini[dir="rtl"] .katex,
-        .choice-preview-mini[dir="rtl"] .katex-display {
-            text-align: center !important;
-            direction: ltr !important;
-            unicode-bidi: isolate !important;
-        }
-        /* No direction rules for KaTeX content - let browser handle it naturally */
-        /* Exclude array cells from center alignment in choice previews */
-        .choice-preview-mini .katex table td,
-        .choice-preview-mini .katex table th {
-            text-align: inherit !important;
-        }
-        /* Inline math should stay inline and flow with text */
-        .choice-preview-mini .__math_inline {
-            display: inline !important;
-        }
-        /* Don't apply block styles to katex-html (used in inline math) */
-        .choice-preview-mini .katex-html {
-            direction: ltr !important;
-        }
 
         .markdown-btn {
             background: var(--bg-secondary);
@@ -3293,14 +3343,20 @@
             color: #e2e8f0;
             border-radius: 15px;
             padding: 25px;
-            font-family: 'Courier New', monospace;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 13px;
             line-height: 1.6;
-            overflow-x: auto;
-            max-height: 600px;
+            overflow-x: auto; /* inside right column only */
             overflow-y: auto;
             border: 1px solid #4a5568;
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            text-align: left;
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .json-key {
@@ -3349,13 +3405,6 @@
             user-select: none;
         }
         
-        /* Improve overall JSON readability */
-        .json-preview {
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
         
         /* JSON syntax highlighting improvements */
         .json-key {
@@ -3455,94 +3504,116 @@
         }
 
         /* ============================================================
-         * SHARED STICKY TAB SYSTEM
-         * Used by both Input Form and Final Preview tabs.
+         * STICKY TABS SYSTEM
+         * Main tabs (Input Form / Final Preview) are sticky at form-section level.
+         * Sub tabs (Basic Info / Lesson Preamble / Content / Questions) are sticky 
+         * inside Input Form only, wrapped in .sticky-tabs-stack.
          * 
          * Structure:
-         *   - .sticky-tab-bar: Makes any tab bar sticky within its scroll container
-         *   - .sticky-tab-bar--main: Primary tab bar (sticks at top: 0)
-         *   - .sticky-tab-bar--sub: Secondary tab bar (sticks below main tabs)
+         *   - .sticky-tab-bar--main: Main tab bar (sticky at top of form-section)
+         *   - #input-form .sticky-tabs-stack: Sub-tabs wrapper (sticky inside Input Form)
+         *   - .sticky-tab-bar--sub: Sub tab bar (inside stack, normal flow)
          * 
          * The scroll container is .form-section:not(.toggle-section) with overflow-y: auto.
-         * Both Input Form and Final Preview share this layout; sticky bars stay above 
-         * content (z-index: 10) but below modals (z-index: 1000+).
+         * Sub-tabs are scoped to Input Form only and do not appear in Final Preview.
          * 
-         * JS sets --main-tabs-height on :root for dynamic sub-tab positioning.
+         * JS sets --sticky-stack-height on :root for scroll offset calculations.
          * ============================================================ */
         :root {
-            --main-tabs-height: 0px; /* Set dynamically by JS */
-            /* Spacing between sticky bars and content - reused across breakpoints */
-            --sticky-spacing: 12px;
-            /* Standard section spacing - matches form-group margin-bottom and original tabs spacing */
-            --section-spacing: 20px;
+            /* Shared background for tab bars */
+            --tabs-bg: var(--bg-secondary, #f8f9fa);
+            /* Spacing below sub-tabs - applied to content, not bars */
+            --subtabs-content-pad: 20px;
+            /* Top padding for workspace (above main tabs) */
+            --workspace-top-pad: 16px;
+            /* Gap between main tabs and sub tabs */
+            --main-to-subtabs-gap: 6px;
         }
         
-        .sticky-tab-bar {
+        /* Main tab bar - sticky at top of form section */
+        .sticky-tab-bar--main {
             position: sticky;
-            background: var(--bg-secondary, #f8f9fa);
-            z-index: 10; /* Above content, below modals (modals use z-index: 1000+) */
+            top: 0;
+            z-index: 60;
+            background: var(--tabs-bg) !important;
+            margin: 0;
+            padding: 0;
             /* Extend background to full width by using negative margin + padding */
             margin-left: calc(-1 * min(15px, 1.5vw));
             margin-right: calc(-1 * min(15px, 1.5vw));
             padding-left: min(15px, 1.5vw);
             padding-right: min(15px, 1.5vw);
-            /* Remove default margin-bottom from .tabs when sticky - ensures bars stack flush */
-            margin-bottom: 0 !important;
+            /* Extend background upward to cover top edge and workspace padding */
+            margin-top: calc(-1 * (min(15px, 1.5vw) + var(--workspace-top-pad)));
+            padding-top: calc(min(15px, 1.5vw) + var(--workspace-top-pad));
+            /* Controlled gap between main tabs and sub tabs */
+            margin-bottom: var(--main-to-subtabs-gap);
+            padding-bottom: 0;
+            border-bottom: 3px solid #667eea; /* Keep main tab border */
         }
         
-        /* Main tab bar - sticks at the very top of scroll container */
-        .sticky-tab-bar--main {
-            top: 0;
-            z-index: 11; /* Main tabs above sub-tabs */
-            /* Extend background upward to cover top edge completely */
-            /* Negative margin pulls element up, padding restores spacing and extends background */
-            margin-top: calc(-1 * min(15px, 1.5vw));
-            padding-top: min(15px, 1.5vw);
-            /* Ensure solid background (no transparency) */
-            background: var(--bg-secondary, #f8f9fa) !important;
-            /* No shadow on main bar - shadow only on sub-bar for seamless look */
+        /* Sticky tabs stack - sub-tabs only, scoped to Input Form */
+        #input-form .sticky-tabs-stack {
+            position: sticky;
+            top: 0; /* Sticky within the left column scroll container */
+            z-index: 30;
+            background: var(--tabs-bg);
+            margin: 0;
+            padding: 0;
+            /* Extend background to full width by using negative margin + padding */
+            margin-left: calc(-1 * min(15px, 1.5vw));
+            margin-right: calc(-1 * min(15px, 1.5vw));
+            padding-left: min(15px, 1.5vw);
+            padding-right: min(15px, 1.5vw);
+            /* No top margin/padding - gap is controlled by main tabs margin-bottom */
+            margin-top: 0;
+            padding-top: 0;
         }
         
-        /* Responsive adjustments for main tabs top extension */
-        @media (max-width: 1400px) {
-            .sticky-tab-bar--main {
-                margin-top: -10px;
-                padding-top: 10px;
-            }
+        /* Tab bars inside stack - normal flow, not sticky */
+        .sticky-tab-bar {
+            position: relative; /* NOT sticky */
+            top: auto;
+            background: var(--tabs-bg);
+            margin: 0;
+            padding: 0;
+            /* Extend background to full width */
+            margin-left: 0;
+            margin-right: 0;
+            padding-left: 0;
+            padding-right: 0;
         }
         
-        @media (max-width: 1200px) {
-            .sticky-tab-bar--main {
-                margin-top: -8px;
-                padding-top: 8px;
-            }
-        }
-        
-        /* Sub tab bar - sticks directly below the main tabs */
+        /* Sub tab bar - no vertical spacing, no top border */
         .sticky-tab-bar--sub {
-            /* Stable top position - based only on main tabs height, never changes */
-            top: var(--main-tabs-height, 35px);
-            /* Add spacing above sub-tabs: negative margin pulls up, padding extends background */
-            margin-top: calc(-1 * var(--sticky-spacing));
-            padding-top: var(--sticky-spacing);
-            /* Shadow only on the sub-bar's bottom edge for depth */
+            margin-top: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            border-top: none; /* No border between bars */
+            border-bottom: 2px solid #e9ecef; /* Keep sub tab border */
             box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
         
-        /* Dark mode background for sticky bars */
-        [data-theme="dark"] .sticky-tab-bar {
-            background: var(--bg-secondary, #2d3748);
+        /* Dark mode background for sticky stack */
+        [data-theme="dark"] {
+            --tabs-bg: var(--bg-secondary, #2d3748);
         }
         [data-theme="dark"] .sticky-tab-bar--sub {
             box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.3);
         }
         
-        /* Responsive adjustments for sticky offsets and spacing */
+        /* Responsive adjustments for main tab bar */
         @media (max-width: 1400px) {
-            :root {
-                --sticky-spacing: 10px;
+            .sticky-tab-bar--main {
+                margin-left: -10px;
+                margin-right: -10px;
+                padding-left: 10px;
+                padding-right: 10px;
+                /* Account for workspace top padding in upward extension */
+                margin-top: calc(-1 * (10px + var(--workspace-top-pad)));
+                padding-top: calc(10px + var(--workspace-top-pad));
             }
-            .sticky-tab-bar {
+            #input-form .sticky-tabs-stack {
                 margin-left: -10px;
                 margin-right: -10px;
                 padding-left: 10px;
@@ -3551,10 +3622,16 @@
         }
         
         @media (max-width: 1200px) {
-            :root {
-                --sticky-spacing: 8px;
+            .sticky-tab-bar--main {
+                margin-left: -8px;
+                margin-right: -8px;
+                padding-left: 8px;
+                padding-right: 8px;
+                /* Account for workspace top padding in upward extension */
+                margin-top: calc(-1 * (8px + var(--workspace-top-pad)));
+                padding-top: calc(8px + var(--workspace-top-pad));
             }
-            .sticky-tab-bar {
+            #input-form .sticky-tabs-stack {
                 margin-left: -8px;
                 margin-right: -8px;
                 padding-left: 8px;
@@ -3568,30 +3645,25 @@
 
         .tab-content.active {
             display: block;
-            /* Add spacing below sticky sub-tabs - matches original tabs margin-bottom and form-group spacing */
-            padding-top: var(--section-spacing);
+        }
+        
+        /* Spacing below sub-tabs - applied to first tab content in input-form-scroll */
+        .input-form-scroll > .tab-content.active {
+            padding-top: var(--subtabs-content-pad);
         }
         .main-tab-content {
             display: none;
         }
         .main-tab-content.active {
             display: block;
-            /* Restore top spacing that was removed from .form-section top padding */
-            /* This ensures content below sticky bars has proper spacing */
-            padding-top: min(15px, 1.5vw);
+            /* No top padding - spacing comes from tab content below */
+            padding-top: 0;
         }
         
-        /* Responsive padding-top for main tab content */
-        @media (max-width: 1400px) {
-            .main-tab-content.active {
-                padding-top: 10px;
-            }
-        }
-        
-        @media (max-width: 1200px) {
-            .main-tab-content.active {
-                padding-top: 8px;
-            }
+        /* Override for left column - use flex for scrolling */
+        .workflow-container > .form-section:not(.toggle-section) .main-tab-content.active {
+            display: flex;
+            flex-direction: column;
         }
         /* Final Preview achieves "sticky" header behavior through structure:
            The main tabs are outside .final-preview-container (the scroll container),
@@ -3601,15 +3673,18 @@
         .main-tab-content#final-preview.active {
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 135px); /* 75px (header) + 60px (main tabs + margin) */
+            flex: 1 1 auto;
             min-height: 0;
         }
         .final-preview-container {
-            flex: 1;
+            flex: 1 1 auto;
             min-height: 0;
             overflow-y: auto;
+            overflow-x: hidden;
             padding: 16px;
             background: var(--bg-primary);
+            /* Disable scroll anchoring to prevent auto-scroll when content height changes */
+            overflow-anchor: none;
         }
         .final-preview-section {
             margin-bottom: 32px;
@@ -3721,6 +3796,11 @@
         .preview-section > * {
             position: relative;
             z-index: 1; /* Ensure all direct children are above background */
+        }
+        /* Edit pen in Final Preview: on top and fully clickable (buildPreviewBox output) */
+        .preview-section .preview-edit-pen {
+            z-index: 10;
+            pointer-events: auto;
         }
         
         /* Choice row layout - flex container with dedicated actions column */
@@ -5059,7 +5139,7 @@
         }
         
         #json-preview-panel .json-preview {
-            flex: 1;
+            flex: 1 1 auto;
             min-height: 200px;
             max-height: 2000px; /* Allow expansion up to 2000px (much larger than before) */
             overflow-y: auto;
@@ -5314,7 +5394,7 @@
                             <span>No changes</span>
                         </div>
                         <div class="quick-jump" style="display: flex; gap: 8px; align-items: center; position: relative;">
-                            <div style="position: relative; width: 400px;">
+                            <div style="position: relative; width: 270px;">
                                 <div style="position: relative;">
                                     <input type="text" id="searchFilter" placeholder="Search content & questions..." title="Search across all content sections and questions" style="padding: 6px 12px; padding-right: 80px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; width: 100%; outline: none; text-align: left; direction: ltr;" oninput="performSearch(this.value)" onfocus="handleSearchFocus()" onblur="handleSearchBlur()" onkeydown="handleSearchKeydown(event)">
                                     <span id="searchResultsCount" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 0.85rem; pointer-events: none; display: none;"></span>
@@ -5356,12 +5436,18 @@
                 
                 <!-- Input Form Tab Content -->
                 <div id="input-form" class="main-tab-content active">
-                <div class="tabs sticky-tab-bar sticky-tab-bar--sub" id="sub-tabs-container">
-                    <!-- Buttons will be hydrated by JS -->
-                </div>
-
-                <!-- Basic Info Tab -->
-                <div id="basic" class="tab-content active">
+                    <!-- Sticky Tabs Stack: Sub tabs only, inside Input Form (outside scroll container) -->
+                    <div class="sticky-tabs-stack">
+                        <!-- Sub Tab Navigation: Basic Info / Lesson Preamble / Content / Questions -->
+                        <div class="tabs sticky-tab-bar sticky-tab-bar--sub" id="sub-tabs-container">
+                            <!-- Buttons will be hydrated by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Universal scroll container for all sub-tab panels -->
+                    <div class="input-form-scroll">
+                        <!-- Basic Info Tab -->
+                        <div id="basic" class="tab-content active">
                     <!-- Textbook Page Number - Refactored to use createFormControl -->
                     <div id="textbook_page_container"></div>
                      
@@ -5513,6 +5599,8 @@
                         <p>• <strong>Copy/Paste:</strong> Use <i class="fas fa-copy"></i> to copy a question. Yellow <i class="fas fa-paste"></i> replaces current question, blue Paste button adds new question</p>
                     </div>
                 </div>
+                    </div>
+                    <!-- End universal scroll container -->
                 </div>
                 <!-- End Input Form Tab Content -->
 
@@ -5968,71 +6056,9 @@
         // ============================================================================
         const AutoSizeManager = (function() {
             const FUDGE_PX = 8; // Single source of truth for sizing padding
-            const MAX_SETTLE_PASSES = 12;
-            const DEBOUNCE_MS = 60;
-            
-            // Per-root state for debouncing
-            const _settleState = new WeakMap();
-            
-            // Track registered targets for mutation observation
-            const _observedRoots = new WeakSet();
-            
-            // Single shared ResizeObserver for layout changes
-            let _resizeObserver = null;
-            let _resizeObserverTargets = new WeakSet();
-            
-            // Single shared MutationObserver for DOM changes (KaTeX/markdown)
-            let _mutationObserver = null;
-            
-            // Pending roots that need settle after observer triggers
-            const _pendingSettleRoots = new Set();
-            let _observerSettleScheduled = false;
-            
-            // Initialize observers once
-            function initObservers() {
-                if (_resizeObserver) return;
-                
-                // ResizeObserver: detect size changes that might affect scrollHeight
-                if (typeof ResizeObserver !== 'undefined') {
-                    _resizeObserver = new ResizeObserver((entries) => {
-                        if (!autoResizeEnabled) return;
-                        entries.forEach(entry => {
-                            const el = entry.target;
-                            const root = resolveRootFor(el);
-                            if (root) _pendingSettleRoots.add(root);
-                        });
-                        scheduleObserverSettle();
-                    });
-                }
-                
-                // MutationObserver: detect preview DOM changes (KaTeX/markdown rendering)
-                if (typeof MutationObserver !== 'undefined') {
-                    _mutationObserver = new MutationObserver((mutations) => {
-                        if (!autoResizeEnabled) return;
-                        mutations.forEach(m => {
-                            const el = m.target;
-                            if (el.closest && el.closest('.live-preview')) {
-                                const root = resolveRootFor(el);
-                                if (root) _pendingSettleRoots.add(root);
-                            }
-                        });
-                        scheduleObserverSettle();
-                    });
-                }
-            }
-            
-            // Schedule a debounced settle for observer-triggered changes
-            function scheduleObserverSettle() {
-                if (_observerSettleScheduled) return;
-                _observerSettleScheduled = true;
-                requestAnimationFrame(() => {
-                    _observerSettleScheduled = false;
-                    _pendingSettleRoots.forEach(root => {
-                        scheduleSettle(root);
-                    });
-                    _pendingSettleRoots.clear();
-                });
-            }
+            const registeredTargets = new WeakSet();
+            const fittedOnce = new WeakSet();    // Tracks elements that have ever been successfully fitted
+            const pendingFit = new Set();        // Elements waiting for first measurable fit (small, iterable set)
             
             // Resolve the autosize root container for an element
             function resolveRootFor(el) {
@@ -6060,191 +6086,178 @@
                 return true;
             }
             
-            // Fit all targets within a root
-            function fitAllTargets(rootEl) {
-                if (!rootEl) return;
-                
-                // Textareas
-                const textareas = rootEl.querySelectorAll('textarea:not(#json_input)');
+            // Find coupled .live-preview for a textarea (same form-group / text-field-container)
+            function findCoupledPreview(textarea) {
+                if (!textarea || textarea.tagName !== 'TEXTAREA') return null;
+                const container = textarea.closest('.form-group') || textarea.closest('.text-field-container');
+                if (!container) return null;
+                const pv = container.querySelector('.live-preview');
+                return pv && pv.isConnected ? pv : null;
+            }
+            
+            function markFitted(el) {
+                if (!el) return;
+                fittedOnce.add(el);
+                pendingFit.delete(el);
+            }
+            
+            // Force one element to be fitted with current content (used after spawn/replace when values are set).
+            // If measurable: fit and mark fitted. If not: add to pendingFit. Does not skip if already fittedOnce.
+            function forceFitNow(el) {
+                if (!el || !el.isConnected) return;
+                registeredTargets.add(el);
+                if (isMeasurable(el)) {
+                    if (fitHeightToContent(el)) markFitted(el);
+                } else {
+                    pendingFit.add(el);
+                }
+            }
+            
+            // Canonical spawn finalization: call after DOM is built, values set, and previews attached.
+            // Registers subtree then force-fits all textareas and previews with current content (ignores fittedOnce).
+            function finalizeSpawn(rootSubtree) {
+                if (!autoResizeEnabled || !rootSubtree || !rootSubtree.querySelectorAll) return;
+                register(rootSubtree);
+                const textareas = rootSubtree.querySelectorAll('textarea:not(#json_input)');
+                const previews = rootSubtree.querySelectorAll('.live-preview');
+                const seen = new Set();
                 textareas.forEach(ta => {
-                    if (isMeasurable(ta)) {
-                        fitHeightToContent(ta);
+                    if (!ta.isConnected || seen.has(ta)) return;
+                    seen.add(ta);
+                    forceFitNow(ta);
+                    const coupled = findCoupledPreview(ta);
+                    if (coupled && !seen.has(coupled)) {
+                        seen.add(coupled);
+                        forceFitNow(coupled);
                     }
                 });
-                
-                // Preview boxes
-                const previews = rootEl.querySelectorAll('.live-preview');
                 previews.forEach(pv => {
-                    if (isMeasurable(pv)) {
-                        fitHeightToContent(pv);
-                    }
+                    if (!pv.isConnected || seen.has(pv)) return;
+                    seen.add(pv);
+                    forceFitNow(pv);
                 });
             }
             
-            // Check if any target is overflowing
-            function hasOverflow(rootEl) {
-                if (!rootEl) return false;
-                const elements = rootEl.querySelectorAll('textarea:not(#json_input), .live-preview');
-                for (const el of elements) {
-                    if (!isMeasurable(el)) continue;
-                    if (el.scrollHeight > el.clientHeight + FUDGE_PX + 1) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            
-            // Collect height metrics for stability check
-            function collectMetrics(rootEl) {
-                const map = new Map();
-                if (!rootEl) return map;
-                const elements = rootEl.querySelectorAll('textarea:not(#json_input), .live-preview');
-                elements.forEach(el => {
-                    if (!isMeasurable(el)) return;
-                    map.set(el, { scroll: el.scrollHeight || 0, client: el.clientHeight || 0 });
-                });
-                return map;
-            }
-            
-            // Compare two metric maps
-            function metricsChanged(before, after) {
-                if (before.size !== after.size) return true;
-                for (const [el, m] of after) {
-                    const prev = before.get(el);
-                    if (!prev || prev.scroll !== m.scroll || prev.client !== m.client) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            
-            // The actual settle loop - runs passes until stable
-            function runSettle(rootEl) {
-                if (!rootEl || !rootEl.isConnected) return;
+            // Register a subtree: scan only that subtree, add eligible elements to set,
+            // and ensure every target is fitted at least once when measurable.
+            function register(rootSubtree) {
+                if (!autoResizeEnabled || !rootSubtree || !rootSubtree.querySelectorAll) return;
+                const textareas = rootSubtree.querySelectorAll('textarea:not(#json_input)');
+                const previews = rootSubtree.querySelectorAll('.live-preview');
+                const seen = new Set();
                 
-                let pass = 0;
-                let stableCount = 0;
-                let lastMetrics = new Map();
-                
-                const runPass = () => {
-                    if (!rootEl.isConnected) return;
-                    if (pass >= MAX_SETTLE_PASSES) return;
+                textareas.forEach(ta => {
+                    if (!ta.isConnected || seen.has(ta)) return;
+                    seen.add(ta);
+                    registeredTargets.add(ta); // idempotent
                     
-                    const before = collectMetrics(rootEl);
-                    fitAllTargets(rootEl);
-                    pass++;
+                    if (fittedOnce.has(ta)) {
+                        // Already had a correct first fit at some point
+                        return;
+                    }
                     
-                    const after = collectMetrics(rootEl);
-                    const changed = metricsChanged(before, after) || metricsChanged(lastMetrics, after);
-                    const overflow = hasOverflow(rootEl);
-                    lastMetrics = after;
-                    
-                    // Need 2 consecutive stable passes with no overflow
-                    if (!overflow && !changed) {
-                        stableCount++;
-                        if (stableCount >= 2) return;
+                    if (isMeasurable(ta)) {
+                        if (fitHeightToContent(ta)) {
+                            markFitted(ta);
+                        }
                     } else {
-                        stableCount = 0;
+                        // Defer first fit until it becomes measurable
+                        pendingFit.add(ta);
+                    }
+                });
+                
+                previews.forEach(pv => {
+                    if (!pv.isConnected || seen.has(pv)) return;
+                    seen.add(pv);
+                    registeredTargets.add(pv); // idempotent
+                    
+                    if (fittedOnce.has(pv)) {
+                        return;
                     }
                     
-                    requestAnimationFrame(runPass);
-                };
-                
-                // Start with 2 rAF delay for initial paint
-                requestAnimationFrame(() => requestAnimationFrame(runPass));
+                    if (isMeasurable(pv)) {
+                        if (fitHeightToContent(pv)) {
+                            markFitted(pv);
+                        }
+                    } else {
+                        pendingFit.add(pv);
+                    }
+                });
             }
             
-            // Debounced settle scheduler (per root, coalesces multiple triggers)
-            function scheduleSettle(rootEl) {
-                if (!rootEl || !autoResizeEnabled) return;
+            // Mark one element dirty and fit it immediately (and coupled preview if textarea). No root scan.
+            function markDirty(el) {
+                if (!autoResizeEnabled || !el) return;
                 
-                let state = _settleState.get(rootEl);
-                if (!state) {
-                    state = { pending: false, fontHooked: false };
-                    _settleState.set(rootEl, state);
+                if (el.tagName === 'TEXTAREA' && el.id !== 'json_input') {
+                    if (isMeasurable(el) && fitHeightToContent(el)) {
+                        markFitted(el);
+                    }
+                    const coupled = findCoupledPreview(el);
+                    if (coupled && isMeasurable(coupled) && fitHeightToContent(coupled)) {
+                        markFitted(coupled);
+                    }
+                    return;
                 }
                 
-                if (state.pending) return;
-                state.pending = true;
-                
-                const execute = () => {
-                    state.pending = false;
-                    runSettle(rootEl);
-                };
-                
-                // Debounce: wait for layout to settle
-                setTimeout(() => {
-                    requestAnimationFrame(() => requestAnimationFrame(execute));
-                }, DEBOUNCE_MS);
-                
-                // Also trigger after fonts load (once per root)
-                if (!state.fontHooked && document.fonts && document.fonts.ready) {
-                    state.fontHooked = true;
-                    document.fonts.ready.then(() => {
-                        if (autoResizeEnabled) {
-                            state.pending = false; // Allow re-schedule
-                            scheduleSettle(rootEl);
-                        }
-                    });
+                if (el.classList && el.classList.contains('live-preview') && isMeasurable(el)) {
+                    if (fitHeightToContent(el)) {
+                        markFitted(el);
+                    }
                 }
             }
             
-            // Register targets for observation (previews only - textareas don't need it)
-            function registerTargets(rootEl) {
-                if (!rootEl) return;
+            // Re-fit only already-registered targets within root (for style changes). No new scan for "all" targets.
+            function refreshStyleChange(rootEl) {
+                if (!autoResizeEnabled || !rootEl) return;
+                const textareas = rootEl.querySelectorAll('textarea:not(#json_input)');
+                const previews = rootEl.querySelectorAll('.live-preview');
                 
-                initObservers();
-                
-                // Observe preview elements for DOM mutations (KaTeX/markdown)
-                if (_mutationObserver) {
-                    const previews = rootEl.querySelectorAll('.live-preview');
-                    previews.forEach(pv => {
-                        if (!_observedRoots.has(pv)) {
-                            _mutationObserver.observe(pv, { 
-                                childList: true, 
-                                subtree: true, 
-                                characterData: true 
-                            });
-                            _observedRoots.add(pv);
-                        }
-                    });
-                }
-                
-                // Observe resize on textareas and previews
-                if (_resizeObserver) {
-                    const targets = rootEl.querySelectorAll('textarea:not(#json_input), .live-preview');
-                    targets.forEach(el => {
-                        if (!_resizeObserverTargets.has(el)) {
-                            _resizeObserver.observe(el);
-                            _resizeObserverTargets.add(el);
-                        }
-                    });
-                }
+                textareas.forEach(ta => {
+                    if (registeredTargets.has(ta) && isMeasurable(ta) && fitHeightToContent(ta)) {
+                        markFitted(ta);
+                    }
+                });
+                previews.forEach(pv => {
+                    if (registeredTargets.has(pv) && isMeasurable(pv) && fitHeightToContent(pv)) {
+                        markFitted(pv);
+                    }
+                });
             }
             
-            // PUBLIC API: Single entry point for all autosize operations
+            // Fit only elements that are pending their first measurable fit within a specific root.
+            // This is used when a panel becomes visible (e.g., on tab activation).
+            function fitPending(rootSubtree) {
+                if (!autoResizeEnabled || !rootSubtree || pendingFit.size === 0) return;
+                
+                // Iterate ONLY the small pending set, never scan entire DOM.
+                pendingFit.forEach(el => {
+                    if (!el || !el.isConnected) {
+                        pendingFit.delete(el);
+                        return;
+                    }
+                    if (!rootSubtree.contains(el)) return;
+                    
+                    if (isMeasurable(el) && fitHeightToContent(el)) {
+                        markFitted(el);
+                    }
+                });
+            }
+            
+            // No-op for tab switch: do not scan or fit. Tab switching must not trigger full autosize.
             function refresh(rootEl) {
-                if (!rootEl) {
-                    rootEl = resolveRootFor(document.activeElement) || document.body;
-                }
-                
-                // 1. Ensure previews are rendered (delegate to PreviewBox)
-                if (typeof PreviewBox !== 'undefined' && PreviewBox.refreshAll) {
-                    PreviewBox.refreshAll(rootEl);
-                }
-                
-                // 2. Register targets for observation
-                registerTargets(rootEl);
-                
-                // 3. Trigger debounced settle
-                scheduleSettle(rootEl);
+                // Intentionally empty: callers use register() for new subtrees and refreshStyleChange() for style changes only
             }
             
             // Expose FUDGE_PX for backward compatibility with any external code
             return {
                 refresh: refresh,
+                register: register,
+                finalizeSpawn: finalizeSpawn,
+                markDirty: markDirty,
+                refreshStyleChange: refreshStyleChange,
+                fitPending: fitPending,
                 FUDGE_PX: FUDGE_PX,
-                // For manual single-element sizing (used by toggleAutoResize)
                 fitHeightToContent: fitHeightToContent
             };
         })();
@@ -6259,10 +6272,10 @@
         // Hydration flag: true ONLY during loadJSON() and initial restore flow
         let isDocumentHydrating = false;
         
-        // Get Input Form scroll container
+        // Get Input Form scroll container (for quick jump - uses universal scroller)
         function getInputFormScrollContainer() {
-            const inputFormTab = document.getElementById('input-form');
-            return inputFormTab?.closest('.form-section:not(.toggle-section)') || null;
+            // Use the universal scroller for Input Form
+            return getInputFormScroller();
         }
         
         // Get Final Preview scroll container
@@ -6305,15 +6318,18 @@
             let offset = 0;
             
             // Get main tabs height (stored in CSS variable)
-            const mainTabsHeight = parseFloat(getComputedStyle(document.documentElement)
-                .getPropertyValue('--main-tabs-height')) || 0;
-            offset += mainTabsHeight;
-            
-            // Get sub tabs height if they exist
-            const subTabs = document.querySelector('.sticky-tab-bar--sub');
-            if (subTabs) {
-                const subTabsRect = subTabs.getBoundingClientRect();
-                offset += subTabsRect.height;
+            // Get sticky stack height for scroll offset calculation
+            const stickyStackHeight = parseFloat(getComputedStyle(document.documentElement)
+                .getPropertyValue('--sticky-stack-height')) || 0;
+            if (stickyStackHeight > 0) {
+                offset += stickyStackHeight;
+            } else {
+                // Fallback: measure stack directly if variable not set
+                const stickyStack = document.querySelector('.sticky-tabs-stack');
+                if (stickyStack) {
+                    const stackRect = stickyStack.getBoundingClientRect();
+                    offset += stackRect.height;
+                }
             }
             
             // Add a small padding for visual spacing
@@ -6411,16 +6427,12 @@
             if (!mainKey) return;
             
             if (mainKey === 'input') {
-                const inputScroller = getInputFormScrollContainer();
-                if (inputScroller) {
-                    const currentScroll = inputScroller.scrollTop;
-                    // Save to main input state
-                    scrollState.main.input = currentScroll;
-                    // Also save to the CURRENT active sub-tab's state
-                    const subKey = getActiveSubTabKey();
-                    if (subKey) {
-                        scrollState.sub[subKey] = currentScroll;
-                    }
+                // Save sub-tab scroll position using the universal scroller
+                saveSubTabScrollPosition();
+                // Also save the universal scroller position for main tab switching
+                const scroller = getInputFormScroller();
+                if (scroller) {
+                    scrollState.main.input = scroller.scrollTop;
                 }
             } else if (mainKey === 'preview') {
                 const previewScroller = getFinalPreviewScrollContainer();
@@ -6437,21 +6449,16 @@
                 if (!mainKey) return;
                 
                 if (mainKey === 'input') {
-                    const inputScroller = getInputFormScrollContainer();
-                    if (inputScroller) {
-                        // Get the NEW active sub-tab (after the switch)
-                        const subKey = getActiveSubTabKey();
-                        
-                        // Restore main input scroll first as a base
-                        const maxScroll = Math.max(0, inputScroller.scrollHeight - inputScroller.clientHeight);
-                        const baseScroll = Math.min(Math.max(0, scrollState.main.input), maxScroll);
-                        inputScroller.scrollTop = baseScroll;
-                        
-                        // Then restore the active sub-tab scroll (if available) to ensure it wins
-                        if (subKey && subKey in scrollState.sub) {
-                            const targetScroll = Math.min(Math.max(0, scrollState.sub[subKey]), maxScroll);
-                            inputScroller.scrollTop = targetScroll;
-                        }
+                    // Restore sub-tab scroll position using the universal scroller
+                    const subKey = getActiveSubTabKey();
+                    if (subKey) {
+                        restoreSubTabScrollPosition(subKey);
+                    }
+                    // Also restore the universal scroller position (for main tab switching)
+                    const scroller = getInputFormScroller();
+                    if (scroller) {
+                        const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+                        scroller.scrollTop = Math.min(Math.max(0, scrollState.main.input), maxScroll);
                     }
                 } else if (mainKey === 'preview') {
                     const previewScroller = getFinalPreviewScrollContainer();
@@ -6474,7 +6481,7 @@
             scrollState.sub.questions = 0;
             
             // Force actual scrollers to top immediately (even if currently visible)
-            const inputScroller = getInputFormScrollContainer();
+            const inputScroller = getInputFormScroller();
             const previewScroller = getFinalPreviewScrollContainer();
             
             if (inputScroller) inputScroller.scrollTop = 0;
@@ -6484,35 +6491,112 @@
             window.scrollTo(0, 0);
         }
         
+        // Get the universal Input Form scroll container (single source of truth)
+        function getInputFormScroller() {
+            const scroller = document.querySelector('.input-form-scroll');
+            if (!scroller) {
+                console.error('Input Form scroller (.input-form-scroll) not found');
+                return null;
+            }
+            return scroller;
+        }
+        
+        // Save scroll position for the currently active sub-tab
+        function saveSubTabScrollPosition() {
+            const activeSubTabKey = getActiveSubTabKey();
+            if (!activeSubTabKey) return;
+            
+            const scroller = getInputFormScroller();
+            if (scroller) {
+                scrollState.sub[activeSubTabKey] = scroller.scrollTop;
+            }
+        }
+        
+        // Restore scroll position for a specific sub-tab
+        function restoreSubTabScrollPosition(tabName) {
+            if (!tabName || !(tabName in scrollState.sub)) return;
+            
+            const scroller = getInputFormScroller();
+            if (!scroller) return;
+            
+            // Use requestAnimationFrame to ensure DOM updates are complete
+            requestAnimationFrame(() => {
+                const savedScroll = scrollState.sub[tabName];
+                if (savedScroll !== undefined) {
+                    // Clamp scroll position to valid range
+                    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+                    const clampedScroll = Math.min(Math.max(0, savedScroll), maxScroll);
+                    scroller.scrollTop = clampedScroll;
+                }
+            });
+        }
+        
+        function resolveActivePanelRoot() {
+            const mainActive = document.querySelector('.main-tab-content.active');
+            if (!mainActive) return document.body;
+            if (mainActive.id === 'input-form') {
+                const innerActive = mainActive.querySelector('.tab-content.active');
+                return innerActive || mainActive;
+            }
+            return mainActive;
+        }
+        
+        function refreshActivePanel(rootEl) {
+            const root = rootEl || resolveActivePanelRoot();
+            // Tab switch: only ensure previews are rendered. Do NOT run autosize (no full scan).
+            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                PreviewBox.ensureRendered(root);
+            }
+        }
+        
         function showTab(tabName) {
-            // Save current scroll position (skip during hydration)
+            // Get the universal scroller (single source of truth)
+            const scroller = getInputFormScroller();
+            if (!scroller) return;
+            
+            // Save scroll position of currently active sub-tab (skip during hydration)
             if (!isDocumentHydrating) {
-                saveActiveScrollPositions();
+                saveSubTabScrollPosition();
             }
             
-            // Switch sub tab UI
+            // Switch sub tab UI - scoped to Input Form only
             const inputFormTab = document.getElementById('input-form');
-            if (inputFormTab) {
-                // Hide all tab contents
-                const tabContents = inputFormTab.querySelectorAll('.tab-content');
-                tabContents.forEach(content => content.classList.remove('active'));
-                
-                // Remove active class from all tabs within input-form
-                const tabs = inputFormTab.querySelectorAll('.tabs:not(.main-tabs) .tab');
-                tabs.forEach(tab => tab.classList.remove('active'));
+            if (!inputFormTab) return;
+            
+            // Hide all tab contents inside .input-form-scroll (avoid nested .tab-content inside questions)
+            const scrollContainer = inputFormTab.querySelector('.input-form-scroll');
+            if (scrollContainer) {
+                const tabContents = scrollContainer.querySelectorAll('.tab-content');
+                tabContents.forEach(content => {
+                    // Only toggle direct children of .input-form-scroll (avoid nested tabs)
+                    if (content.parentElement === scrollContainer) {
+                        content.classList.remove('active');
+                    }
+                });
             }
             
-            // Show selected tab content
+            // Remove active class from all sub-tab buttons within #sub-tabs-container
+            const subTabsContainer = document.getElementById('sub-tabs-container');
+            if (subTabsContainer) {
+                const subTabButtons = subTabsContainer.querySelectorAll('.tab');
+                subTabButtons.forEach(tab => tab.classList.remove('active'));
+            }
+            
+            // Show selected tab content (must be inside .input-form-scroll)
             const targetTabContent = document.getElementById(tabName);
-            if (targetTabContent) {
+            if (targetTabContent && scrollContainer && targetTabContent.parentElement === scrollContainer) {
                 targetTabContent.classList.add('active');
-                AutoSizeManager.refresh(targetTabContent);
+                refreshActivePanel(targetTabContent);
+                // Cheap first-fit for any pending autosize targets in this newly activated panel
+                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.fitPending) {
+                    AutoSizeManager.fitPending(targetTabContent);
+                }
             }
             
-            // Add active class to corresponding tab button
-            if (inputFormTab) {
-                const tabButtons = inputFormTab.querySelectorAll('.tabs:not(.main-tabs) .tab');
-                tabButtons.forEach(tab => {
+            // Add active class to corresponding sub-tab button
+            if (subTabsContainer) {
+                const subTabButtons = subTabsContainer.querySelectorAll('.tab');
+                subTabButtons.forEach(tab => {
                     if (tab.getAttribute('onclick')?.includes(`'${tabName}'`) || 
                         tab.getAttribute('onclick')?.includes(`"${tabName}"`)) {
                         tab.classList.add('active');
@@ -6520,9 +6604,10 @@
                 });
             }
             
-            // Restore scroll position (skip during hydration)
+            // Restore scroll position for the newly active sub-tab (skip during hydration)
+            // Only restore scrollTop on the universal scroller - no scrollIntoView, no focus
             if (!isDocumentHydrating) {
-                restoreActiveScrollPositions();
+                restoreSubTabScrollPosition(tabName);
             }
         }
 
@@ -6548,8 +6633,12 @@
                 if (tabName === 'final-preview') {
                     generateFinalPreview();
                 }
-                
-                AutoSizeManager.refresh(targetMainTabContent);
+                const activeRoot = resolveActivePanelRoot();
+                refreshActivePanel(activeRoot);
+                // When switching back to Input Form, cheaply first-fit any pending autosize targets in the active panel
+                if (tabName === 'input-form' && typeof AutoSizeManager !== 'undefined' && AutoSizeManager.fitPending) {
+                    AutoSizeManager.fitPending(activeRoot);
+                }
             }
             
             // Add active class to corresponding main tab button
@@ -7126,9 +7215,9 @@
                 dataAttrsStr += ` data-${key}="${value}"`;
             }
             
-            // Edit pen HTML (consistent across all preview boxes)
+            // Edit pen HTML (consistent across all preview boxes); z-index so it sits above content and is fully clickable
             const editPenHTML = editTarget 
-                ? `<div style="position: absolute; top: 8px; right: 8px; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="${editTarget}" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`
+                ? `<div class="preview-edit-pen" style="position: absolute; top: 8px; right: 8px; z-index: 10; color: var(--accent); font-size: 0.85rem; opacity: 0.7; cursor: pointer; padding: 4px; border-radius: 4px; transition: all 0.2s ease;" onclick="${editTarget}" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`
                 : '';
             
             return `<div class="preview-section" style="position: relative;"${dataAttrsStr}>${editPenHTML}<h5 class="preview-section-label">${title}</h5><div class="${bodyClass}">${bodyHTML}</div></div>`;
@@ -7198,6 +7287,8 @@
                     if (window.marked.setOptions) {
                         window.marked.setOptions({ gfm: true, breaks: true });
                     }
+                    // Normalize list spacing and empty list items before markdown parsing
+                    md = normalizeEmptyListItemsForPreview(md);
                     // Mark trailing spaces before markdown parsing
                     md = markTrailingSpaces(md);
                     let html = window.marked.parse(md);
@@ -9138,9 +9229,10 @@
             
             // Reinitialize previews for all textareas in this question after type change
             // This ensures newly shown fields get previews and direction is properly set
-                attachPreviews(questionEl);
-            // Force render all previews after question type change (ISSUE A fix)
-            PreviewBox.refreshAll(questionEl);
+            attachPreviews(questionEl);
+            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                PreviewBox.ensureRendered(questionEl);
+            }
             
             // Track question type change
         }
@@ -9166,6 +9258,7 @@
             
             const choiceItem = document.createElement('div');
             choiceItem.className = 'array-item choice-item';
+            choiceItem.setAttribute('data-item-type', 'choice');
             choiceItem.innerHTML = getChoiceRowHTML({ questionType, choiceId: '', choiceText: '' });
             
             // Add choice at the specified position
@@ -9228,10 +9321,6 @@
                 // Add listener to choice text for real-time radio button updates
                 const choiceTextArea = choiceItem.querySelector('.choice-text');
                 if (choiceTextArea) {
-                    // Clear any existing timeout for this textarea
-                    if (choiceTextArea.__updateRadiosTimeout) {
-                        clearTimeout(choiceTextArea.__updateRadiosTimeout);
-                    }
                     choiceTextArea.addEventListener('input', () => {
                         // Ensure the live preview is rendered first
                         if (choiceTextArea.__livePreviewHandler) {
@@ -9239,10 +9328,7 @@
                         } else {
                             renderLivePreview(choiceTextArea);
                         }
-                        // Wait a moment for KaTeX to finish rendering, then update the radio previews
-                        choiceTextArea.__updateRadiosTimeout = setTimeout(() => {
-                            syncChoiceUI(questionEl);
-                        }, 100);
+                        syncChoiceUI(questionEl);
                     });
                 }
                 // Add listener to choice ID for real-time radio button updates
@@ -9494,7 +9580,7 @@
                     
                     const positionBadge = document.createElement('strong');
                     positionBadge.textContent = `(${position})`;
-                    positionBadge.style.cssText = 'color: var(--accent); margin-right: 0; font-size: 1em;';
+                    positionBadge.style.cssText = 'color: var(--accent); margin-right: 0;';
                     
                     const idBadge = choiceId ? document.createElement('span') : null;
                     if (idBadge) {
@@ -9505,100 +9591,19 @@
                     headerDiv.appendChild(positionBadge);
                     if (idBadge) headerDiv.appendChild(idBadge);
                     
-                    // Rendered preview (mini preview that follows the same LTR/RTL logic as choice previews)
+                    // Rendered preview (same pipeline as choice previews)
                     const previewDiv = document.createElement('div');
-                    previewDiv.className = 'choice-preview-mini';
-                    previewDiv.style.cssText = 'padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.9em; line-height: 1.4;';
+                    previewDiv.className = 'live-preview';
                     // Match the same behavior as the main choice preview: use dir + textAlign based on direction
                     const isRTL = currentDirection === 'rtl';
                     previewDiv.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
                     previewDiv.style.textAlign = isRTL ? 'right' : 'left';
                     
-                    if (choiceText) {
-                        // Copy the already-rendered preview from the choice text field's live preview
-                        // Use the exact same logic as renderLivePreview to find the preview
-                        let choiceLivePreview = null;
-                        if (choiceTextArea) {
-                            // Find preview box by walking through siblings (skip buttons and labels) - same as renderLivePreview
-                            let nextSibling = choiceTextArea.nextElementSibling;
-                            while (nextSibling) {
-                                if (nextSibling.tagName === 'BUTTON') {
-                                    // Skip buttons
-                                    nextSibling = nextSibling.nextElementSibling;
-                                } else if (nextSibling.classList && (
-                                    nextSibling.classList.contains('preview-label') ||
-                                    nextSibling.classList.contains('table-validation-errors') ||
-                                    nextSibling.classList.contains('list-validation-errors') ||
-                                    nextSibling.classList.contains('blockquote-validation-errors') ||
-                                    nextSibling.classList.contains('latex-validation-errors') ||
-                                    nextSibling.classList.contains('image-validation-errors') ||
-                                    nextSibling.classList.contains('quote-validation-errors') ||
-                                    nextSibling.classList.contains('br-validation-errors')
-                                )) {
-                                    // Skip labels and error validation divs, continue to preview
-                                    nextSibling = nextSibling.nextElementSibling;
-                                } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
-                                    // Found preview!
-                                    choiceLivePreview = nextSibling;
-                                    break;
-                                } else {
-                                    // Unknown element, stop looking
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (choiceLivePreview && choiceLivePreview.innerHTML.trim()) {
-                            // Copy the exact rendered HTML from the live preview - don't modify structure
-                            previewDiv.innerHTML = choiceLivePreview.innerHTML;
-                            
-                            // Only set direction to LTR for LaTeX elements - don't change display or text-align
-                            // Don't force direction on KaTeX - let it handle bidirectional text naturally
-                            // This preserves the exact inline/block structure from the original preview
-                            // Let KaTeX handle bidirectional text naturally - no intervention needed
-                            
-                            // Only for block math, ensure centering (but don't force display)
-                            const mathBlocks = previewDiv.querySelectorAll('.__math_block, .katex-display');
-                            mathBlocks.forEach(mathEl => {
-                                mathEl.style.textAlign = 'center';
-                            });
-                        } else {
-                            // Fallback: if live preview doesn't exist yet, trigger render and wait
-                            if (choiceTextArea) {
-                                // Ensure the preview is rendered
-                                renderLivePreview(choiceTextArea);
-                                // Wait for KaTeX to finish rendering
-                                setTimeout(() => {
-                                    // Find preview using same logic as renderLivePreview
-                                    let nextSibling = choiceTextArea.nextElementSibling;
-                                    while (nextSibling) {
-                                        if (nextSibling.tagName === 'BUTTON') {
-                                            nextSibling = nextSibling.nextElementSibling;
-                                        } else if (nextSibling.classList && nextSibling.classList.contains('preview-label')) {
-                                            nextSibling = nextSibling.nextElementSibling;
-                                        } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
-                                            // Copy the exact rendered HTML - preserve structure exactly
-                                            previewDiv.innerHTML = nextSibling.innerHTML;
-                                            
-                                            // Let KaTeX handle bidirectional text naturally - no intervention needed
-                                            
-                                            // Only for block math, ensure centering
-                                            const mathBlocks = previewDiv.querySelectorAll('.__math_block, .katex-display');
-                                            mathBlocks.forEach(mathEl => {
-                                                mathEl.style.textAlign = 'center';
-                                            });
-                                            break;
-                                        } else {
-                                            break;
-                                        }
-                                    }
-                                }, 100);
-                            } else {
-                                previewDiv.textContent = '(empty)';
-                                previewDiv.style.opacity = '0.5';
-                                previewDiv.style.fontStyle = 'italic';
-                            }
-                        }
+                    if (choiceText && choiceTextArea) {
+                        // Use the same renderer function as choice preview boxes
+                        renderLivePreview(choiceTextArea, previewDiv);
+                        previewDiv.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
+                        previewDiv.style.textAlign = isRTL ? 'right' : 'left';
                     } else {
                         previewDiv.textContent = '(empty)';
                         previewDiv.style.opacity = '0.5';
@@ -9613,6 +9618,10 @@
                     
                     radiosContainer.appendChild(radioWrapper);
                 });
+            }
+            // Apply universal font settings to this subtree so Correct Answer labels/previews match other output (same pipeline)
+            if (typeof applyFontSettings === 'function') {
+                applyFontSettings(questionEl);
             }
         }
 
@@ -9662,13 +9671,7 @@
                             } else {
                                 renderLivePreview(choiceTextArea);
                             }
-                            // Wait a moment for KaTeX to finish rendering, then update the radio previews
-                            if (choiceTextArea.__updateRadiosTimeout) {
-                                clearTimeout(choiceTextArea.__updateRadiosTimeout);
-                            }
-                            choiceTextArea.__updateRadiosTimeout = setTimeout(() => {
-                                syncChoiceUI(questionEl);
-                            }, 100);
+                            syncChoiceUI(questionEl);
                         });
                         choiceTextArea.dataset.listenerAttached = 'true';
                     }
@@ -9807,148 +9810,94 @@
         }
 
         function removeArrayItem(button) {
-            // Check if this is a main array item (question or content section) or a nested item
-            const parentArrayItem = button.closest('.array-item');
-            // Exclude bbox rows (they have .bbox-inputs) from being treated as main items
-            const isBboxRow = parentArrayItem && parentArrayItem.querySelector('.bbox-inputs');
-            if (parentArrayItem && !isBboxRow && (parentArrayItem.querySelector('.array-item-header') || parentArrayItem.closest('#questions_container, #content_sections_container'))) {
-                // This is a main array item (question or content section), ask for confirmation
-                const isQuestion = !!parentArrayItem.closest('#questions_container');
-                const itemType = isQuestion ? 'question' : 'content section';
-                const itemTitle = parentArrayItem.querySelector('h4')?.textContent || itemType;
-                
-                if (confirm(`Are you sure you want to remove this ${itemType}?\n\n"${itemTitle}"`)) {
-                    // Record action for undo/redo
+            // Single source of truth: the row being removed is the nearest .array-item to the button.
+            const row = button.closest('.array-item');
+            if (!row) {
+                const listItem = button.closest('.bbox-item, .choice-item');
+                if (listItem && confirm('Are you sure you want to remove this item?\n\nThis action cannot be undone.')) {
+                    let containerId = button.closest('#questions_container') ? 'questions_container' : (button.closest('#content_sections_container') ? 'content_sections_container' : null);
+                    recordFormAction({ type: ACTION_TYPES.REMOVE_ITEM, element: listItem.cloneNode(true), parent: listItem.parentNode, nextSibling: listItem.nextSibling, containerId: containerId, updateNumbers: false });
+                    listItem.remove();
+                    afterListMutation(containerId);
+                    markFormAsChanged();
+                }
+                return;
+            }
+
+            // Type from this row only (data-item-type on the row being removed)
+            const rawType = (row.getAttribute('data-item-type') || '').trim().toLowerCase();
+            const labelMap = { 'content-section': 'content section', 'question': 'question', 'image': 'image', 'terminology': 'terminology', 'standard': 'standard', 'choice': 'choice' };
+            let itemTypeLabel = labelMap[rawType] || (rawType || '');
+
+            // Fallback: if row has no data-item-type, classify by where this row lives (not ancestors)
+            if (!itemTypeLabel) {
+                if (row.parentElement && row.parentElement.id === 'content_sections_container') {
+                    itemTypeLabel = 'content section';
+                } else if (row.parentElement && row.parentElement.id === 'questions_container') {
+                    itemTypeLabel = 'question';
+                } else if (row.closest('.bbox-container') !== null) {
+                    itemTypeLabel = 'image';
+                } else if (row.closest('#lesson_standards')) {
+                    itemTypeLabel = 'standard';
+                } else if (row.closest('#terminology')) {
+                    itemTypeLabel = 'terminology';
+                } else if (row.closest('[id^="choices-list-"]')) {
+                    itemTypeLabel = 'choice';
+                } else {
+                    itemTypeLabel = 'item';
+                }
+            }
+
+            const isMainSection = (itemTypeLabel === 'content section' || itemTypeLabel === 'question');
+
+            if (isMainSection) {
+                const isQuestion = (itemTypeLabel === 'question');
+                const itemTitle = row.querySelector('h4')?.textContent || itemTypeLabel;
+                if (confirm(`Are you sure you want to remove this ${itemTypeLabel}?\n\n"${itemTitle}"`)) {
                     const container = isQuestion ? document.getElementById('questions_container') : document.getElementById('content_sections_container');
                     const action = {
                         type: ACTION_TYPES.REMOVE_ITEM,
-                        element: parentArrayItem.cloneNode(true), // Clone for restoration
-                        parent: parentArrayItem.parentNode,
-                        nextSibling: parentArrayItem.nextSibling,
+                        element: row.cloneNode(true),
+                        parent: row.parentNode,
+                        nextSibling: row.nextSibling,
                         containerId: isQuestion ? 'questions_container' : 'content_sections_container',
                         updateNumbers: true
                     };
-                    
-                    // CRITICAL: For questions, serialize the actual state (not just DOM clone)
-                    // This ensures all type-dependent fields are preserved
                     if (isQuestion) {
-                        // Ensure dataset is correct before serialization
-                        const scopedSelect = parentArrayItem.querySelector('select.question-type-select, select[onchange*="toggleQuestionType"]');
-                        if (scopedSelect) {
-                            parentArrayItem.dataset.questionType = scopedSelect.value || 'free_form';
-                        }
-                        action.snapshotState = serializeQuestionState(parentArrayItem);
-                        // Store position for rebuild (prefer nextSibling, fallback to index)
-                        const container = document.getElementById('questions_container');
-                        const siblings = Array.from(container.children);
-                        const currentIndex = siblings.indexOf(parentArrayItem);
-                        action.questionIndex = currentIndex >= 0 ? currentIndex : null;
+                        const scopedSelect = row.querySelector('select.question-type-select, select[onchange*="toggleQuestionType"]');
+                        if (scopedSelect) row.dataset.questionType = scopedSelect.value || 'free_form';
+                        action.snapshotState = serializeQuestionState(row);
+                        const qContainer = document.getElementById('questions_container');
+                        action.questionIndex = qContainer ? Array.from(qContainer.children).indexOf(row) : null;
                     }
-                    
                     recordFormAction(action);
-                    
-                    parentArrayItem.remove();
-                    
-                    // Update numbering after removal
-                    if (isQuestion) {
-                        updateQuestionNumbers();
-                    } else {
-                        updateContentSectionNumbers();
-                    }
-                    
-                    // Mark form as changed
+                    row.remove();
+                    if (isQuestion) updateQuestionNumbers(); else updateContentSectionNumbers();
                     markFormAsChanged();
                 }
             } else {
-                // This is a nested item (terminology, standards, bbox, choice, etc.)
-                // Determine the item type for the confirmation message
-                let itemType = 'item';
                 let itemPreview = '';
-                
-                if (parentArrayItem) {
-                    // Check what type of item this is
-                    if (parentArrayItem.closest('#lesson_standards')) {
-                        itemType = 'standard';
-                        const input = parentArrayItem.querySelector('input[type="text"]');
-                        itemPreview = input?.value || '';
-                    } else if (parentArrayItem.closest('#terminology')) {
-                        itemType = 'term';
-                        const input = parentArrayItem.querySelector('input[type="text"]');
-                        itemPreview = input?.value || '';
-                    } else if (parentArrayItem.closest('.bbox-container') || parentArrayItem.querySelector('.bbox-inputs')) {
-                        itemType = 'image bbox';
-                        const page = parentArrayItem.querySelector('.bbox-page')?.value || '';
-                        const x0 = parentArrayItem.querySelector('.bbox-x0')?.value || '';
-                        const y0 = parentArrayItem.querySelector('.bbox-y0')?.value || '';
-                        if (page || x0 || y0) {
-                            itemPreview = `Page ${page}, Position (${x0}, ${y0})`;
-                        }
-                    } else if (parentArrayItem.closest('[id^="choices-list-"]')) {
-                        itemType = 'choice';
-                        const choiceId = parentArrayItem.querySelector('.choice-id')?.value || '';
-                        const choiceText = parentArrayItem.querySelector('.choice-text')?.value || '';
-                        if (choiceId || choiceText) {
-                            itemPreview = `${choiceId}: ${choiceText.substring(0, 30)}${choiceText.length > 30 ? '...' : ''}`;
-                        }
-                    }
+                if (itemTypeLabel === 'standard' || itemTypeLabel === 'terminology') {
+                    const input = row.querySelector('input[type="text"], textarea');
+                    itemPreview = input?.value || '';
+                } else if (itemTypeLabel === 'image') {
+                    const page = row.querySelector('.bbox-page')?.value || '';
+                    const x0 = row.querySelector('.bbox-x0')?.value || '';
+                    const y0 = row.querySelector('.bbox-y0')?.value || '';
+                    if (page || x0 || y0) itemPreview = `Page ${page}, Position (${x0}, ${y0})`;
+                } else if (itemTypeLabel === 'choice') {
+                    const choiceId = row.querySelector('.choice-id')?.value || '';
+                    const choiceText = row.querySelector('.choice-text')?.value || '';
+                    if (choiceId || choiceText) itemPreview = `${choiceId}: ${choiceText.substring(0, 30)}${choiceText.length > 30 ? '...' : ''}`;
                 }
-                
-                // Show confirmation prompt
-                const confirmMessage = itemPreview 
-                    ? `Are you sure you want to remove this ${itemType}?\n\n"${itemPreview}"\n\nThis action cannot be undone.`
-                    : `Are you sure you want to remove this ${itemType}?\n\nThis action cannot be undone.`;
-                
+                const confirmMessage = itemPreview
+                    ? `Are you sure you want to remove this ${itemTypeLabel}?\n\n"${itemPreview}"\n\nThis action cannot be undone.`
+                    : `Are you sure you want to remove this ${itemTypeLabel}?\n\nThis action cannot be undone.`;
                 if (confirm(confirmMessage)) {
-                    // Determine container for undo tracking
-                    let containerId = null;
-                    const questionsContainer = button.closest('#questions_container');
-                    const contentContainer = button.closest('#content_sections_container');
-                    if (questionsContainer) containerId = 'questions_container';
-                    if (contentContainer) containerId = 'content_sections_container';
-                    
-                    // Remove the entire array-item or list-item
-                    let elementToRemove = null;
-                    if (parentArrayItem) {
-                        elementToRemove = parentArrayItem;
-                        // Record action for undo/redo
-                        recordFormAction({
-                            type: ACTION_TYPES.REMOVE_ITEM,
-                            element: parentArrayItem.cloneNode(true), // Clone for restoration
-                            parent: parentArrayItem.parentNode,
-                            nextSibling: parentArrayItem.nextSibling,
-                            containerId: containerId,
-                            updateNumbers: false
-                        });
-                        parentArrayItem.remove();
-                            // Update numbering after removal
-                            afterListMutation(containerId);
-                    } else {
-                        // Fallback for items without .array-item class (like bbox-item)
-                        const listItem = button.closest('.bbox-item, .choice-item');
-                        if (listItem) {
-                            elementToRemove = listItem;
-                            recordFormAction({
-                                type: ACTION_TYPES.REMOVE_ITEM,
-                                element: listItem.cloneNode(true),
-                                parent: listItem.parentNode,
-                                nextSibling: listItem.nextSibling,
-                                containerId: containerId,
-                                updateNumbers: false
-                            });
-                            listItem.remove();
-                        } else {
-                            elementToRemove = button.parentElement;
-                            recordFormAction({
-                                type: ACTION_TYPES.REMOVE_ITEM,
-                                element: button.parentElement.cloneNode(true),
-                                parent: button.parentElement.parentNode,
-                                nextSibling: button.parentElement.nextSibling,
-                                containerId: containerId,
-                                updateNumbers: false
-                            });
-                            button.parentElement.remove();
-                        }
-                    }
+                    let containerId = button.closest('#questions_container') ? 'questions_container' : (button.closest('#content_sections_container') ? 'content_sections_container' : null);
+                    recordFormAction({ type: ACTION_TYPES.REMOVE_ITEM, element: row.cloneNode(true), parent: row.parentNode, nextSibling: row.nextSibling, containerId: containerId, updateNumbers: false });
+                    row.remove();
+                    afterListMutation(containerId);
                     markFormAsChanged();
                 }
             }
@@ -10212,6 +10161,11 @@
                     targetEl: sectionEl
                 });
                 
+                // Spawn finalization: force-fit textareas/previews with current content (values already set by deserialize)
+                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                    AutoSizeManager.finalizeSpawn(sectionEl);
+                }
+                
                 // Record action for undo/redo (after section is replaced)
                 const pastedState = sectionEl.cloneNode(true);
                 recordFormAction({
@@ -10293,6 +10247,11 @@
                     isReplacement: false,
                     targetEl: null
                 });
+                
+                // Spawn finalization: force-fit textareas/previews with current content (values already set by deserialize)
+                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                    AutoSizeManager.finalizeSpawn(newSection);
+                }
                 
                 // Record action for undo/redo
                 recordFormAction({
@@ -10412,6 +10371,7 @@
         function buildLessonStandardArrayItem() {
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
+            newItem.setAttribute('data-item-type', 'standard');
             
             // Build standards-specific button config (LIST_ITEM style with before/after)
             const standardConfig = {
@@ -10469,6 +10429,7 @@
         function buildTerminologyArrayItem() {
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
+            newItem.setAttribute('data-item-type', 'terminology');
             
             // Build terminology-specific button config (LIST_ITEM style with before/after)
             const terminologyConfig = {
@@ -10742,6 +10703,7 @@
             
             const newQuestion = document.createElement('div');
             newQuestion.className = 'array-item';
+            newQuestion.setAttribute('data-item-type', 'question');
             // Mark as a true section for navigation (canonical section marker)
             newQuestion.setAttribute('data-section-id', `question-${questionCount}`);
             newQuestion.innerHTML = getQuestionHTML(questionCount);
@@ -10786,6 +10748,7 @@
         function buildContentSectionItem(sectionCount) {
             const newSection = document.createElement('div');
             newSection.className = 'array-item';
+            newSection.setAttribute('data-item-type', 'content-section');
             // Mark as a true section for navigation (canonical section marker)
             newSection.setAttribute('data-section-id', `content-${sectionCount}`);
             newSection.innerHTML = getContentSectionHTML(sectionCount);
@@ -10865,6 +10828,7 @@
             
             const newItem = document.createElement('div');
             newItem.className = 'array-item';
+            newItem.setAttribute('data-item-type', 'image');
             newItem.innerHTML = getBBoxInputsHTML(values) + getBBoxRowActionsHTML({ beforeHandler, afterHandler, buttonOrder });
             
             return newItem;
@@ -10945,7 +10909,7 @@
          * Final preview box:        buildPreviewBox(options)
          * Edit-pen navigation:      navigateToInput(element)
          * Section/Question insert:  addOrInsertSection(options)
-         * Textarea autosize:        AutoSizeManager.refresh(el)
+         * Textarea autosize:        AutoSizeManager.finalizeSpawn(el) after spawn / markDirty(el) on input
          * Undo/redo restore:        postUndoRedoRestore(element)
          * Choice UIDs:              ensureChoiceUids(), getCorrectChoiceUid(), getCorrectChoiceUids()
          * Matching UIDs:            ensureMatchingUids()
@@ -10997,13 +10961,13 @@
             }
             
             // Force render previews after all setup is complete
-            if (refresh) {
-                PreviewBox.refreshAll(el);
+            if (refresh && typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                PreviewBox.ensureRendered(el);
             }
             
-            // Trigger autosize pipeline
-            if (autoSize) {
-                AutoSizeManager.refresh(el);
+            // Spawn finalization: register and force-fit with current content (after values/previews are set)
+            if (autoSize && typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                AutoSizeManager.finalizeSpawn(el);
             }
         }
         
@@ -11115,7 +11079,7 @@
                 <div class="form-group">
                     <label>Section Images</label>
                     <div class="bbox-container">
-                        <div class="array-item">
+                        <div class="array-item" data-item-type="image">
                             ${getBBoxInputsHTML() + getBBoxRowActionsHTML({ beforeHandler: 'addContentImageBefore', afterHandler: 'addContentImageAfter', buttonOrder: 'reorderFirst' })}
                         </div>
                     </div>
@@ -11444,7 +11408,7 @@
                 <div class="form-group">
                     <label>Question Images</label>
                     <div class="bbox-container">
-                        <div class="array-item">
+                        <div class="array-item" data-item-type="image">
                             <div class="bbox-inputs">
                                 <input type="number" placeholder="Page" class="bbox-page" min="1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="PDF page number where this image appears">
                                 <input type="number" placeholder="X0" class="bbox-x0" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Right X coordinate (top-right corner)">
@@ -11475,7 +11439,7 @@
                 <div class="form-group">
                     <label>Answer Images</label>
                     <div class="bbox-container">
-                        <div class="array-item">
+                        <div class="array-item" data-item-type="image">
                             <div class="bbox-inputs">
                                 <input type="number" placeholder="Page" class="bbox-page" min="1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="PDF page number where this image appears">
                                 <input type="number" placeholder="X0" class="bbox-x0" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Right X coordinate (top-right corner)">
@@ -11592,35 +11556,37 @@
 
         // Helper function to attach bbox validation to a single item
         // Render Markdown + LaTeX into preview container
-        function renderLivePreview(textarea) {
+        function renderLivePreview(textarea, previewOverride = null) {
             // Find preview box by walking through siblings (skip buttons, error divs, and labels)
-            let nextSibling = textarea.nextElementSibling;
-            let preview = null;
-            
-            // Skip over buttons, error divs, and labels to find preview label or preview
-            while (nextSibling) {
-                if (nextSibling.tagName === 'BUTTON') {
-                    // Skip buttons
-                    nextSibling = nextSibling.nextElementSibling;
-                } else if (nextSibling.classList && (
-                    nextSibling.classList.contains('preview-label') ||
-                    nextSibling.classList.contains('table-validation-errors') ||
-                    nextSibling.classList.contains('list-validation-errors') ||
-                    nextSibling.classList.contains('blockquote-validation-errors') ||
-                    nextSibling.classList.contains('latex-validation-errors') ||
-                    nextSibling.classList.contains('image-validation-errors') ||
-                    nextSibling.classList.contains('quote-validation-errors') ||
-                    nextSibling.classList.contains('br-validation-errors')
-                )) {
-                    // Skip labels and error validation divs, continue to preview
-                    nextSibling = nextSibling.nextElementSibling;
-                } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
-                    // Found preview!
-                    preview = nextSibling;
-                    break;
-                } else {
-                    // Unknown element, stop looking
-                    break;
+            let preview = previewOverride;
+            if (!preview) {
+                let nextSibling = textarea.nextElementSibling;
+                
+                // Skip over buttons, error divs, and labels to find preview label or preview
+                while (nextSibling) {
+                    if (nextSibling.tagName === 'BUTTON') {
+                        // Skip buttons
+                        nextSibling = nextSibling.nextElementSibling;
+                    } else if (nextSibling.classList && (
+                        nextSibling.classList.contains('preview-label') ||
+                        nextSibling.classList.contains('table-validation-errors') ||
+                        nextSibling.classList.contains('list-validation-errors') ||
+                        nextSibling.classList.contains('blockquote-validation-errors') ||
+                        nextSibling.classList.contains('latex-validation-errors') ||
+                        nextSibling.classList.contains('image-validation-errors') ||
+                        nextSibling.classList.contains('quote-validation-errors') ||
+                        nextSibling.classList.contains('br-validation-errors')
+                    )) {
+                        // Skip labels and error validation divs, continue to preview
+                        nextSibling = nextSibling.nextElementSibling;
+                    } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
+                        // Found preview!
+                        preview = nextSibling;
+                        break;
+                    } else {
+                        // Unknown element, stop looking
+                        break;
+                    }
                 }
             }
             
@@ -12049,6 +12015,9 @@
                 
                 md = mergedTableLines.join('\n');
                 
+                // Normalize list spacing and empty list items to avoid list truncation
+                md = normalizeEmptyListItemsForPreview(md);
+                
                 // Preserve multiple consecutive newlines by converting them to <br> tags
                 // BUT preserve markdown block syntax boundaries (blockquotes, horizontal rules, headers, lists, code blocks)
                 // Find all markdown block sections and mark their boundaries
@@ -12448,10 +12417,8 @@
         //                trailing spaces indicator, validation errors, RTL/LTR direction,
         //                auto-resize, font settings propagation
         //
-        // 2. Choice previews (choice-preview-mini):
-        //    - DOM: <div class="choice-preview-mini" dir="rtl|ltr">...</div>
-        //    - Used in: renderMultipleChoicePreview() for final preview
-        //    - Features: Same rendering as main previews but different styling
+        // 2. Choice previews:
+        //    - Uses the same preview renderer as main previews
         //
         // 3. Fill-in-the-blanks preview (updateFilledBlanksPreview):
         //    - DOM: <div id="filled-blanks-preview">...</div>
@@ -12620,6 +12587,9 @@
                     },
                     update: function() {
                         this.render();
+                        if (autoResize && autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
+                            AutoSizeManager.fitHeightToContent(previewEl);
+                        }
                         // Show validation errors
                         showTableValidationErrors(sourceEl);
                         showListValidationErrors(sourceEl);
@@ -12731,6 +12701,44 @@
                     }
                 });
             }
+
+            /**
+             * Ensure previews are initialized and rendered for existing content only.
+             * Avoids re-rendering already rendered previews.
+             * @param {HTMLElement} rootEl - Root element to scan within
+             */
+            function ensureRendered(rootEl = document) {
+                const selectors = [
+                    '.text-field-container textarea',
+                    '#lesson_text',
+                    '#lesson_title',
+                    '.form-group input[placeholder="Section title"]',
+                    '#terminology textarea',
+                    '#lesson_standards textarea'
+                ];
+                
+                const nodes = [];
+                selectors.forEach(selector => {
+                    nodes.push(...rootEl.querySelectorAll(selector));
+                });
+                
+                nodes.forEach(node => {
+                    if (!initializedPreviews.has(node)) {
+                        createPreviewBox({ sourceEl: node, rootEl });
+                        return;
+                    }
+                    const instance = initializedPreviews.get(node);
+                    const previewEl = instance?.previewEl;
+                    const value = (node.value || '').trim();
+                    if (value && previewEl && !previewEl.innerHTML.trim()) {
+                        if (typeof instance.update === 'function') {
+                            instance.update();
+                        } else if (typeof instance.render === 'function') {
+                            instance.render();
+                        }
+                    }
+                });
+            }
             
             // NOTE: Sizing logic has been moved to AutoSizeManager
             // PreviewBox only handles preview DOM creation and rendering
@@ -12739,6 +12747,7 @@
                 create: createPreviewBox,
                 init: initPreviewBoxes,
                 refreshAll: refreshAll,
+                ensureRendered: ensureRendered,
                 // Expose WeakMap for external access
                 getInitializedPreviews: () => initializedPreviews,
                 // Expose for backward compatibility during migration
@@ -12775,24 +12784,9 @@
                 return;
             }
             
-            // Set initial height based on content - delegate to AutoSizeManager
-            const resize = () => {
-                if (typeof AutoSizeManager !== 'undefined') {
-                    AutoSizeManager.fitHeightToContent(textarea);
-                }
-            };
-            
-            // Resize on input
-            if (!textarea.__autoResizeHandler) {
-                textarea.__autoResizeHandler = resize;
-                textarea.addEventListener('input', resize);
-                // Also resize on focus (in case value was set programmatically)
-                textarea.addEventListener('focus', resize);
-                // Initial resize
-                setTimeout(resize, 0);
-            } else {
-                // If handler already exists, just trigger a resize
-                resize();
+            // Initial height based on content - delegate to AutoSizeManager
+            if (typeof AutoSizeManager !== 'undefined') {
+                AutoSizeManager.fitHeightToContent(textarea);
             }
         }
         
@@ -12801,6 +12795,19 @@
             const textareas = container.querySelectorAll('textarea');
             textareas.forEach(ta => {
                 autoResizeTextarea(ta);
+            });
+        }
+        
+        function attachAutoResizeInputHandler() {
+            if (document.__autoResizeInputBound) return;
+            document.__autoResizeInputBound = true;
+            document.addEventListener('input', (e) => {
+                const target = e.target;
+                if (!autoResizeEnabled || !target || target.tagName !== 'TEXTAREA') return;
+                if (target.id === 'json_input') return;
+                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.markDirty) {
+                    AutoSizeManager.markDirty(target);
+                }
             });
         }
         
@@ -12826,12 +12833,14 @@
             // Save preference to localStorage
             localStorage.setItem('autoResizeEnabled', autoResizeEnabled ? 'true' : 'false');
             
-            // When turning auto-resize ON, immediately resync everything via canonical pipeline
-            if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
-                AutoSizeManager.refresh(document.body);
+            // When turning auto-resize ON: ensure previews and spawn-finalize active panel (force-fit with current content)
+            if (autoResizeEnabled) {
+                refreshActivePanel(resolveActivePanelRoot());
+                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                    AutoSizeManager.finalizeSpawn(resolveActivePanelRoot());
+                }
             } else {
-                // If OFF, just update textarea handlers
-            autoResizeAllTextareas();
+                autoResizeAllTextareas();
             }
         }
         
@@ -12968,6 +12977,12 @@
                 el.style.fontSize = fontSize;
                 el.style.lineHeight = lineHeight;
             });
+            
+            // Correct Answer / checkbox output: container + labels so dynamically rebuilt content inherits or gets font
+            scope.querySelectorAll('#correct-answer-selector, #checkbox-summary, #checkbox-summary-text, [id^="correct-answer-radios-"], [id^="correct-answer-radios-"] label').forEach(el => {
+                el.style.fontSize = fontSize;
+                el.style.lineHeight = lineHeight;
+            });
         }
         
         function changeFontSize(size) {
@@ -12991,6 +13006,10 @@
                 }
                 el.style.fontSize = fontSize;
             });
+            // Correct Answer / checkbox output: container + labels (same as applyFontSettings)
+            document.querySelectorAll('#correct-answer-selector, #checkbox-summary, #checkbox-summary-text, [id^="correct-answer-radios-"], [id^="correct-answer-radios-"] label').forEach(el => {
+                el.style.fontSize = fontSize;
+            });
             // Apply to all preview boxes
             document.querySelectorAll('.live-preview').forEach(el => {
                 el.style.fontSize = fontSize;
@@ -13005,8 +13024,10 @@
             // Save to localStorage (save as string)
             localStorage.setItem('fontSize', sizeStr);
             
-            // Re-run autosize for all visible elements (font size affects scrollHeight)
-            AutoSizeManager.refresh(document.body);
+            // Re-fit only registered targets in active panel (font size affects scrollHeight). No tab scan.
+            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.refreshStyleChange) {
+                AutoSizeManager.refreshStyleChange(resolveActivePanelRoot());
+            }
         }
         
         function changeLineHeight(height) {
@@ -13030,6 +13051,10 @@
                 }
                 el.style.lineHeight = lineHeight;
             });
+            // Correct Answer / checkbox output: container + labels (same as applyFontSettings)
+            document.querySelectorAll('#correct-answer-selector, #checkbox-summary, #checkbox-summary-text, [id^="correct-answer-radios-"], [id^="correct-answer-radios-"] label').forEach(el => {
+                el.style.lineHeight = lineHeight;
+            });
             // Apply to all preview boxes
             document.querySelectorAll('.live-preview').forEach(el => {
                 el.style.lineHeight = lineHeight;
@@ -13044,8 +13069,10 @@
             // Save to localStorage (save as string)
             localStorage.setItem('lineHeight', heightStr);
             
-            // Re-run autosize for all visible elements (line height affects scrollHeight)
-            AutoSizeManager.refresh(document.body);
+            // Re-fit only registered targets in active panel (line height affects scrollHeight). No tab scan.
+            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.refreshStyleChange) {
+                AutoSizeManager.refreshStyleChange(resolveActivePanelRoot());
+            }
         }
         
         // Initialize font settings from localStorage
@@ -16074,6 +16101,7 @@
                 const questionCount = container.querySelectorAll(':scope > .array-item').length + 1;
                 questionEl = document.createElement('div');
                 questionEl.className = 'array-item';
+                questionEl.setAttribute('data-item-type', 'question');
                 questionEl.innerHTML = getQuestionHTML(questionCount);
                 if (insertBefore) {
                     container.insertBefore(questionEl, insertBefore);
@@ -16990,6 +17018,94 @@
         
         // ========== CATEGORY 9.6: LIST VALIDATION HELPERS ==========
         
+        function getListMarkerLineInfo(line) {
+            if (line === null || line === undefined) return null;
+            const trimmed = String(line).trim();
+            if (!trimmed) return null;
+            
+            // Remove math expressions to avoid detecting list markers inside them
+            let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
+            lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
+            
+            let match = lineWithoutMath.match(/^\s*([*+-])\s*$/);
+            if (match) {
+                const rawMatch = String(line).match(/^\s*([*+-])\s*$/);
+                const marker = rawMatch ? rawMatch[1] : match[1];
+                return { type: 'bullet', marker, rawMarker: marker, isMarkerOnly: true };
+            }
+            
+            match = lineWithoutMath.match(/^\s*(\d+)\.\s*$/);
+            if (match) {
+                const rawMatch = String(line).match(/^\s*(\d+)\.\s*$/);
+                const num = rawMatch ? rawMatch[1] : match[1];
+                const marker = `${num}.`;
+                return { type: 'numbered', marker, rawMarker: marker, isMarkerOnly: true };
+            }
+            
+            match = lineWithoutMath.match(/^\s*([*+-])\s+.+$/);
+            if (match) {
+                const rawMatch = String(line).match(/^\s*([*+-])\s+.+$/);
+                const marker = rawMatch ? rawMatch[1] : match[1];
+                return { type: 'bullet', marker, rawMarker: marker, isMarkerOnly: false };
+            }
+            
+            match = lineWithoutMath.match(/^\s*(\d+)\.\s+.+$/);
+            if (match) {
+                const rawMatch = String(line).match(/^\s*(\d+)\.\s+.+$/);
+                const num = rawMatch ? rawMatch[1] : match[1];
+                const marker = `${num}.`;
+                return { type: 'numbered', marker, rawMarker: marker, isMarkerOnly: false };
+            }
+            
+            return null;
+        }
+        
+        function normalizeEmptyListItemsForPreview(text) {
+            if (!text || typeof text !== 'string') return text;
+            const lines = text.split('\n');
+            const infos = lines.map(line => getListMarkerLineInfo(line));
+            const normalized = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const info = infos[i];
+                const prevInfo = i > 0 ? infos[i - 1] : null;
+                const nextInfo = i < infos.length - 1 ? infos[i + 1] : null;
+                
+                if (info) {
+                    const prevLine = i > 0 ? lines[i - 1] : null;
+                    if (prevLine !== null) {
+                        const prevTrimmed = prevLine.trim();
+                        if (prevTrimmed !== '' && !prevInfo) {
+                            normalized.push('');
+                        }
+                    }
+                }
+                
+                let outLine = line;
+                if (info && info.isMarkerOnly) {
+                    const inRun = (prevInfo && prevInfo.type === info.type) || (nextInfo && nextInfo.type === info.type);
+                    if (inRun) {
+                        if (info.type === 'bullet') {
+                            const match = String(line).match(/^(\s*)([*+-])\s*$/);
+                            if (match) {
+                                outLine = `${match[1]}${match[2]} \u200B`;
+                            }
+                        } else if (info.type === 'numbered') {
+                            const match = String(line).match(/^(\s*)(\d+)\.\s*$/);
+                            if (match) {
+                                outLine = `${match[1]}${match[2]}. \u200B`;
+                            }
+                        }
+                    }
+                }
+                
+                normalized.push(outLine);
+            }
+            
+            return normalized.join('\n');
+        }
+        
         /**
          * Validate markdown lists and check for empty lines after lists
          * @param {string} text - The text to check
@@ -17011,18 +17127,8 @@
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
                 const trimmed = line.trim();
-                
-                // Remove math expressions to avoid detecting list markers inside them
-                let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
-                lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
-                
-                // Check if line is a list item (bullet or numbered)
-                // Bullet list: starts with -, *, or + followed by space (may be indented)
-                // Numbered list: starts with number followed by . and space (may be indented)
-                // Allow for indentation (spaces or tabs) before the list marker
-                const isBulletList = /^\s*[-*+]\s/.test(lineWithoutMath);
-                const isNumberedList = /^\s*\d+\.\s/.test(lineWithoutMath);
-                const isListItem = isBulletList || isNumberedList;
+                const listInfo = getListMarkerLineInfo(line);
+                const isListItem = !!listInfo;
                 const isBlankLine = trimmed === '';
                 
                 if (isListItem) {
@@ -17033,6 +17139,18 @@
                         inList = true;
                         listStartLine = i + 1;
                         currentListItems = []; // Reset list items
+                        
+                        if (i > 0) {
+                            const prevLine = lines[i - 1];
+                            const prevTrimmed = prevLine.trim();
+                            const prevInfo = getListMarkerLineInfo(prevLine);
+                            if (prevTrimmed !== '' && !prevInfo) {
+                                errors.push({
+                                    message: 'List starts without an empty line before it. Add an empty line before the list.',
+                                    content: `${prevLine}\n${line}`
+                                });
+                            }
+                        }
                     }
                     
                     // Add this list item to our tracking
@@ -18008,7 +18126,8 @@
                 // Fallback: basic Markdown + KaTeX rendering (should rarely be used)
                 if (window.marked?.parse) {
                     try {
-                        let html = window.marked.parse(filledText);
+                        const normalizedText = normalizeEmptyListItemsForPreview(filledText);
+                        let html = window.marked.parse(normalizedText);
                         preview.innerHTML = html;
                         
                         if (window.katex && window.renderMathInElement) {
@@ -18669,8 +18788,10 @@
             ensureMatchingUids(questionEl);
             rebuildMatchingRelationshipUI(questionEl);
             
-            // Auto-size all textareas/previews in this question (including matching items)
-            AutoSizeManager.refresh(questionEl);
+            // Spawn finalization: force-fit textareas/previews in this question with current content
+            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                AutoSizeManager.finalizeSpawn(questionEl);
+            }
         }
         
         // Centralized hook called after any question-type list mutation (choices, matching items, relationships)
@@ -18687,8 +18808,10 @@
                 syncMatchingUI(questionEl);
             }
             
-            // Auto-size all textareas/previews in this question (including newly added list items)
-            AutoSizeManager.refresh(questionEl);
+            // Spawn finalization: force-fit textareas/previews in this question with current content
+            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                AutoSizeManager.finalizeSpawn(questionEl);
+            }
         }
 
         /**
@@ -20432,10 +20555,8 @@
                 }
                 
                 // Attach previews and bbox validation after populating
-                setTimeout(() => {
-                    attachPreviews(qEl);
-                    attachBboxValidation(qEl);
-                }, 100);
+                attachPreviews(qEl);
+                attachBboxValidation(qEl);
             });
             
             // Reset bulk operation flag
@@ -20444,8 +20565,10 @@
             // Ensure numbering is correct after populating all questions
             updateQuestionNumbers();
             
-            // Force render all previews after loading questions (ISSUE A fix)
-            PreviewBox.refreshAll(container);
+            // Render previews for restored questions only (scoped)
+            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                PreviewBox.ensureRendered(container);
+            }
         }
 
         function populateFormFromJSON(data) {
@@ -20524,19 +20647,18 @@
                 }
             });
             
-            // Restore font size and line height settings after loading JSON
+            // Apply font settings synchronously so Correct Answer Position and all output get font in same tick (no timer)
+            const inputFormEl = document.getElementById('input-form');
+            if (inputFormEl && typeof applyFontSettings === 'function') {
+                applyFontSettings(inputFormEl);
+            }
             const savedFontSize = localStorage.getItem('fontSize');
             const savedLineHeight = localStorage.getItem('lineHeight');
-            if (savedFontSize) {
-                // Use setTimeout to ensure DOM is fully updated before applying font settings
-                setTimeout(() => {
-                    changeFontSize(savedFontSize);
-                }, 0);
+            if (savedFontSize && typeof changeFontSize === 'function') {
+                changeFontSize(savedFontSize);
             }
-            if (savedLineHeight) {
-                setTimeout(() => {
-                    changeLineHeight(savedLineHeight);
-                }, 0);
+            if (savedLineHeight && typeof changeLineHeight === 'function') {
+                changeLineHeight(savedLineHeight);
             }
             
             // If final preview tab is active, regenerate it after loading JSON
@@ -20553,14 +20675,25 @@
                 }
             }
 
-            // After JSON population is complete, refresh and auto-size previews in the active container
+            // After JSON population is complete, ensure previews and register autosize targets for whole input form
             const mainActive = document.querySelector('.main-tab-content.active');
-            let activeRoot = mainActive || document;
-            if (mainActive && mainActive.id === 'input-form') {
-                const innerActive = mainActive.querySelector('.tab-content.active');
-                if (innerActive) activeRoot = innerActive;
+            const activeRoot = (mainActive && mainActive.id === 'input-form' && mainActive.querySelector('.tab-content.active')) || mainActive || document;
+            const inputForm = document.getElementById('input-form');
+            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                PreviewBox.ensureRendered(activeRoot);
             }
-            AutoSizeManager.refresh(activeRoot);
+            if (typeof AutoSizeManager !== 'undefined') {
+                if (AutoSizeManager.register) {
+                    AutoSizeManager.register(inputForm || activeRoot);
+                }
+                // Force-fit visible panel with current content (values already set by populate)
+                if (AutoSizeManager.finalizeSpawn) {
+                    AutoSizeManager.finalizeSpawn(activeRoot);
+                }
+                if (AutoSizeManager.fitPending) {
+                    AutoSizeManager.fitPending(activeRoot);
+                }
+            }
             
             // Reset scroll to top at the end of hydration (ONLY for load JSON / restore flows)
             if (isDocumentHydrating) {
@@ -20854,10 +20987,19 @@
                 // Redo history is already cleared by recordFormAction
                 updateUndoRedoButtons();
                 
-                // Auto-resize all textareas after loading
-                setTimeout(() => {
-                    autoResizeAllTextareas();
-                }, 100);
+                // Register whole input form; spawn-finalize visible panel (force-fit with current content)
+                if (typeof AutoSizeManager !== 'undefined') {
+                    if (AutoSizeManager.register) {
+                        AutoSizeManager.register(document.getElementById('input-form') || document.body);
+                    }
+                    const activeRoot = resolveActivePanelRoot();
+                    if (AutoSizeManager.finalizeSpawn) {
+                        AutoSizeManager.finalizeSpawn(activeRoot);
+                    }
+                    if (AutoSizeManager.fitPending) {
+                        AutoSizeManager.fitPending(activeRoot);
+                    }
+                }
                 
                 // Mark form as changed and trigger autosave after loading JSON
                 // This ensures autosave flow runs (with validation gating)
@@ -22148,11 +22290,9 @@
                 return;
             }
             
-            // Check for unsaved changes and confirm if overwriting
-            if (hasUnsavedChanges) {
-                if (!confirm('⚠️ Warning: You have unsaved changes.\n\nRestoring will overwrite your current work.\n\nDo you want to continue?')) {
-                    return;
-                }
+            // Always confirm: restoring will replace everything currently loaded (same as other confirms)
+            if (!confirm('⚠️ Restore will replace everything currently in the form with your saved data.\n\nDo you want to continue?')) {
+                return;
             }
             
             // Save current form state for undo (without validation)
@@ -22192,10 +22332,19 @@
                 // Redo history is already cleared by recordFormAction
                 updateUndoRedoButtons();
                 
-                // Auto-resize all textareas after restoring
-                setTimeout(() => {
-                    autoResizeAllTextareas();
-                }, 100);
+                // Register whole input form; spawn-finalize visible panel (force-fit with current content)
+                if (typeof AutoSizeManager !== 'undefined') {
+                    if (AutoSizeManager.register) {
+                        AutoSizeManager.register(document.getElementById('input-form') || document.body);
+                    }
+                    const activeRoot = resolveActivePanelRoot();
+                    if (AutoSizeManager.finalizeSpawn) {
+                        AutoSizeManager.finalizeSpawn(activeRoot);
+                    }
+                    if (AutoSizeManager.fitPending) {
+                        AutoSizeManager.fitPending(activeRoot);
+                    }
+                }
                 
                 // Mark form as changed and trigger autosave after restore
                 // This ensures autosave flow runs (with validation gating)
@@ -22399,17 +22548,17 @@
         }
 
         /**
-         * Updates the CSS variable --main-tabs-height based on actual rendered height.
-         * Called on load, resize, and after font loading to ensure sub-tabs stack perfectly below main tabs.
+         * Updates the CSS variable --sticky-stack-height based on actual rendered height of the sticky tabs stack.
+         * Called on load, resize, and after font loading for scroll offset calculations.
          * Uses getBoundingClientRect for sub-pixel accuracy.
          */
         function updateStickyTabsHeight() {
-            const mainTabs = document.getElementById('main-tabs-container');
-            if (mainTabs) {
+            const stickyStack = document.querySelector('.sticky-tabs-stack');
+            if (stickyStack) {
                 // Use getBoundingClientRect for precise measurement including borders
-                const rect = mainTabs.getBoundingClientRect();
+                const rect = stickyStack.getBoundingClientRect();
                 const height = Math.ceil(rect.height); // Round up to avoid subpixel gaps
-                document.documentElement.style.setProperty('--main-tabs-height', height + 'px');
+                document.documentElement.style.setProperty('--sticky-stack-height', height + 'px');
             }
         }
 
@@ -22426,8 +22575,6 @@
             if (document.fonts && document.fonts.ready) {
                 document.fonts.ready.then(updateStickyTabsHeight);
             }
-            // Fallback delayed re-measurement for older browsers
-            setTimeout(updateStickyTabsHeight, 100);
             
             // Initialize refactored form controls (using createFormControl factory)
             // Lesson ID
@@ -22670,14 +22817,28 @@
                         hasUnsavedChanges = false;
                         updateSaveIndicator('saved');
 
-                        // After restore, refresh and auto-size previews for the active container
+                        // After restore, ensure previews rendered and register+fit autosize targets for whole input form
                         const mainActive = document.querySelector('.main-tab-content.active');
                         let activeRoot = mainActive || document;
                         if (mainActive && mainActive.id === 'input-form') {
                             const innerActive = mainActive.querySelector('.tab-content.active');
                             if (innerActive) activeRoot = innerActive;
                         }
-                        AutoSizeManager.refresh(activeRoot);
+                        if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                            PreviewBox.ensureRendered(activeRoot);
+                        }
+                        if (typeof AutoSizeManager !== 'undefined') {
+                            const inputFormRoot = document.getElementById('input-form') || activeRoot;
+                            if (AutoSizeManager.register) {
+                                AutoSizeManager.register(inputFormRoot);
+                            }
+                            if (AutoSizeManager.finalizeSpawn) {
+                                AutoSizeManager.finalizeSpawn(activeRoot);
+                            }
+                            if (AutoSizeManager.fitPending) {
+                                AutoSizeManager.fitPending(activeRoot);
+                            }
+                        }
                         
                         alert('Your previous work has been restored!');
                     } catch (e) {
@@ -22689,6 +22850,18 @@
                     }
                 } else {
                     clearSavedData();
+                }
+            }
+            
+            // Autosize input handler (event-driven, works for dynamic sections)
+            attachAutoResizeInputHandler();
+            // One-time register of whole input form; then spawn-finalize visible panel (force-fit with current content)
+            if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
+                if (AutoSizeManager.register) {
+                    AutoSizeManager.register(document.getElementById('input-form') || document.body);
+                }
+                if (AutoSizeManager.finalizeSpawn) {
+                    AutoSizeManager.finalizeSpawn(resolveActivePanelRoot());
                 }
             }
             
@@ -24673,23 +24846,19 @@
             });
             
             // Listen to guide PDF page changes in questions
-            document.addEventListener('input', (e) => {
-                const inputs = Array.from(document.querySelectorAll('input'));
-                const guidePdfInput = inputs.find(input => {
-                    const label = input.closest('.form-group')?.querySelector('label');
-                    return label && label.textContent.includes('Guide PDF Page');
-                });
+            document.addEventListener('change', (e) => {
+                const target = e.target;
+                if (!target || target.tagName !== 'INPUT') return;
+                const label = target.closest('.form-group')?.querySelector('label');
+                const isGuidePdfInput = label && label.textContent.includes('Guide PDF Page');
                 
-                if (e.target === guidePdfInput && 
+                if (isGuidePdfInput && 
                     window.__mainPdfViewer.visible && 
                     window.__mainPdfViewer.autoSyncEnabled) {
-                    clearTimeout(window.__contextSyncTimeout);
-                    window.__contextSyncTimeout = setTimeout(() => {
-                        // Re-check autoSyncEnabled before navigating (user might have turned it off)
-                        if (window.__mainPdfViewer.autoSyncEnabled) {
+                    // Re-check autoSyncEnabled before navigating (user might have turned it off)
+                    if (window.__mainPdfViewer.autoSyncEnabled) {
                         navigateToContextPage();
-                        }
-                    }, 500);
+                    }
                 }
             });
             
@@ -24795,17 +24964,7 @@
         
         // Auto-resize all textareas on page load (for saved/restored content)
         // Only if auto-resize is enabled
-        setTimeout(() => {
-            if (autoResizeEnabled) {
-                autoResizeAllTextareas();
-                // Repeat after a delay in case some content loads asynchronously
-                setTimeout(() => {
-                    if (autoResizeEnabled) {
-                        autoResizeAllTextareas();
-                    }
-                }, 500);
-            }
-        }, 100);
+        // Initial autosize is done once after attachAutoResizeInputHandler() in DOMContentLoaded (no timers)
         // ===== WHAT'S NEW MODAL =====
         // Note: CURRENT_VERSION and VERSION_SEEN_KEY are defined above (see line ~16527)
         
