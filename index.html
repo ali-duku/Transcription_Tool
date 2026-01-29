@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '6.9';
+        const DISPLAY_VERSION = '7.0';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '6.9.2';
+        const CURRENT_VERSION = '7.0';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -25729,6 +25729,18 @@
                         <span class="whats-new-version-badge">Current Version</span>
                     </div>
                     
+                    <ul class="whats-new-modal-list">
+                        <li>A lot of improvements have been made.</li>
+                    </ul>
+                </div>
+                
+                <!-- Version 6.9 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.9</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
+                    </div>
+                    
                     <!-- Bug Fixes -->
                     <div style="margin-bottom: 25px;">
                         <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
@@ -25747,22 +25759,8 @@
                             <i class="fas fa-star" style="color: #ffd700;"></i> New Features
                         </h3>
                         <ul class="whats-new-modal-list">
-                            <li>
-                                <strong>Extra Spaces and Empty Lines Indicator:</strong> 
-                                <p style="margin: 8px 0;">A new toggle button <span style="background: rgba(40, 167, 69, 0.8); border: 1px solid rgba(255, 255, 255, 0.9); border-radius: 4px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px; color: white; font-size: 0.85em; vertical-align: middle;"><i class="fas fa-exclamation-triangle"></i></span> in the header helps you spot formatting issues in your text. When enabled, the button turns <span style="background: rgba(40, 167, 69, 0.8); color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">green</span>, and when disabled, it turns <span style="background: rgba(220, 53, 69, 0.8); color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">red</span>. When enabled, preview boxes show a warning badge and highlight exactly where problems are located.</p>
-                                <p style="margin: 8px 0;"><strong>What gets detected and how it looks:</strong></p>
-                                <ul style="margin: 4px 0 8px 20px; padding-left: 0;">
-                                    <li style="margin-bottom: 6px;"><strong>Leading spaces:</strong> Spaces at the beginning of lines are highlighted with a <span style="background-color: rgba(255, 0, 0, 0.25); border-top: 2px dotted rgba(255, 0, 0, 0.6); padding: 1px 4px; display: inline-block; margin: 0 2px;">red background and top border</span> - you'll see the red highlight at the start of affected lines.</li>
-                                    <li style="margin-bottom: 6px;"><strong>Trailing spaces:</strong> Spaces at the end of lines are highlighted with a <span style="background-color: rgba(255, 0, 0, 0.25); border-bottom: 2px dotted rgba(255, 0, 0, 0.6); padding: 1px 4px; display: inline-block; margin: 0 2px;">red background and bottom border</span> - you'll see the red highlight at the end of affected lines.</li>
-                                    <li style="margin-bottom: 6px;"><strong>Multiple consecutive spaces:</strong> Two or more spaces in a row within text are highlighted with a <span style="background-color: rgba(255, 0, 0, 0.25); border-top: 1px dotted rgba(255, 0, 0, 0.6); border-bottom: 1px dotted rgba(255, 0, 0, 0.6); padding: 1px 4px; display: inline-block; margin: 0 2px;">red background with both top and bottom borders</span> - these appear in the middle of your text when you have multiple spaces together.</li>
-                                    <li style="margin-bottom: 6px;"><strong>Empty lines:</strong> Empty lines are highlighted with a <span style="background-color: rgba(255, 193, 7, 0.15); border-left: 3px solid #ffc107; padding: 4px 8px; display: inline-block; min-width: 80px; margin: 2px 0;">yellow background and left border</span> with an "Empty line" label - these appear as yellow highlighted blocks for any blank lines.</li>
-                                </ul>
-                                <p style="margin: 8px 0;">This makes it easy to catch formatting problems before generating your final output. Simply click the toggle button to turn the feature on or off. <strong>Note:</strong> Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.</p>
-                            </li>
-                            <li>
-                                <strong>Basic Info and Lesson Preamble in Final Preview:</strong>
-                                <p style="margin: 8px 0;">The Final Preview tab now displays both Basic Info and Lesson Preamble sections before the Content Sections and Questions. This provides a complete preview of all your form data in one place. The Basic Info section shows textbook page numbers, PDF page numbers, guidebook page ranges, and page type. The Lesson Preamble section displays lesson ID, lesson title, lesson standards, terminology, and lesson text - all with proper markdown rendering and edit buttons, following the same design pattern as content sections.</p>
-                            </li>
+                            <li><strong>Extra Spaces and Empty Lines Indicator:</strong> A toggle in the header helps you spot leading spaces, trailing spaces, consecutive spaces, and empty lines. When enabled, preview boxes show a warning badge and highlight where problems are. Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.</li>
+                            <li><strong>Basic Info and Lesson Preamble in Final Preview:</strong> The Final Preview tab now displays Basic Info and Lesson Preamble sections before Content and Questions. Basic Info shows textbook and PDF page numbers, guidebook range, and page type. Lesson Preamble shows lesson ID, title, standards, terminology, and lesson text with markdown and edit buttons.</li>
                         </ul>
                     </div>
                 </div>
