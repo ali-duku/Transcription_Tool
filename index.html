@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.1';
+        const CURRENT_VERSION = '7.11';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -3723,16 +3723,24 @@
             font-size: 0.8rem;
             color: var(--text-secondary);
         }
-        /* Bbox preview ~50% width, responsive; caption stays below */
+        /* Bbox preview: only the image box is width-constrained; container stays full width so description uses full width */
         .live-preview .image-placeholder-container.has-bbox-preview,
         .final-preview-container .image-placeholder-container.has-bbox-preview {
             display: block;
-            width: min(50%, 640px);
-            max-width: 100%;
+            width: 100%;
         }
         .live-preview .image-placeholder-container.has-bbox-preview .image-placeholder-box,
         .final-preview-container .image-placeholder-container.has-bbox-preview .image-placeholder-box {
-            width: 100% !important; /* override inline 200px without JS */
+            width: min(50%, 640px) !important;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        /* Description always uses full width of container (same with or without bbox image) */
+        .live-preview .image-placeholder-container .image-description-math,
+        .final-preview-container .image-placeholder-container .image-description-math {
+            width: 100%;
+            box-sizing: border-box;
         }
         .final-preview-section {
             margin-bottom: 32px;
@@ -27115,6 +27123,7 @@
                         </h3>
                         <ul class="whats-new-modal-list">
                             <li><strong>Performance:</strong> Editing stays smooth even with a large number of content sections and questions.</li>
+                            <li><strong>Image description width:</strong> The text under preview images now always uses the full width of the preview, whether an image is shown or only a placeholder.</li>
                         </ul>
                     </div>
                     
