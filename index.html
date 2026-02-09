@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.11';
+        const CURRENT_VERSION = '7.12';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -2333,7 +2333,7 @@
             padding: 4px 15px;
             text-align: center;
             flex: 0 0 auto; /* non-scrolling top area */
-            overflow: hidden; /* no scroll, must wrap/collapse */
+            overflow: hidden; /* keep header non-scrollable */
             min-width: 0;
         }
 
@@ -9728,6 +9728,30 @@
         }
         
         let searchDropdownSelectedIndex = -1;
+        let searchDropdownPortaled = false;
+
+        // Position dropdown as fixed overlay (header was clipping it)
+        function positionSearchDropdown() {
+            const searchInput = document.getElementById('searchFilter');
+            const dropdown = document.getElementById('searchResultsDropdown');
+            if (!searchInput || !dropdown || dropdown.style.display === 'none') return;
+            const rect = searchInput.getBoundingClientRect();
+            dropdown.style.position = 'fixed';
+            dropdown.style.top = `${rect.bottom + 4}px`;
+            dropdown.style.left = `${rect.left}px`;
+            dropdown.style.width = `${rect.width}px`;
+            dropdown.style.zIndex = '10000';
+        }
+
+        function ensureSearchDropdownPortal() {
+            if (searchDropdownPortaled) return;
+            const dropdown = document.getElementById('searchResultsDropdown');
+            if (!dropdown) return;
+            document.body.appendChild(dropdown);
+            searchDropdownPortaled = true;
+            window.addEventListener('resize', positionSearchDropdown);
+            window.addEventListener('scroll', positionSearchDropdown, true);
+        }
         
         function performSearch(searchTerm) {
             const term = searchTerm.trim();
@@ -9993,7 +10017,9 @@
             if (dropdown) {
                 if (results.length === 0) {
                     dropdown.innerHTML = '<div class="search-result-empty">No results found</div>';
+                    ensureSearchDropdownPortal();
                     dropdown.style.display = 'block';
+                    positionSearchDropdown();
                 } else {
                     dropdown.innerHTML = results.map((result, idx) => `
                         <div class="search-result-item" data-index="${idx}" onmousedown="event.preventDefault(); jumpToSearchResult(${idx})" onmouseenter="highlightSearchResult(${idx})">
@@ -10004,7 +10030,9 @@
                             <div class="search-result-preview">${result.preview}</div>
                         </div>
                     `).join('');
+                    ensureSearchDropdownPortal();
                     dropdown.style.display = 'block';
+                    positionSearchDropdown();
                     searchDropdownSelectedIndex = -1;
                 }
             }
@@ -10025,7 +10053,9 @@
                     setTimeout(() => {
                         searchInput.focus();
                         if (dropdown && searchInput.value.trim().length > 0) {
+                            ensureSearchDropdownPortal();
                             dropdown.style.display = 'block';
+                            positionSearchDropdown();
                         }
                     }, 100);
                 }
@@ -10048,7 +10078,9 @@
             const searchInput = document.getElementById('searchFilter');
             const dropdown = document.getElementById('searchResultsDropdown');
             if (searchInput && searchInput.value.trim().length > 0 && dropdown) {
+                ensureSearchDropdownPortal();
                 dropdown.style.display = 'block';
+                positionSearchDropdown();
             }
         }
         
@@ -13150,7 +13182,8 @@
                         nextSibling.classList.contains('latex-validation-errors') ||
                         nextSibling.classList.contains('image-validation-errors') ||
                         nextSibling.classList.contains('quote-validation-errors') ||
-                        nextSibling.classList.contains('br-validation-errors')
+                        nextSibling.classList.contains('br-validation-errors') ||
+                        nextSibling.classList.contains('html-list-validation-errors')
                     )) {
                         // Skip labels and error validation divs, continue to preview
                         nextSibling = nextSibling.nextElementSibling;
@@ -13919,6 +13952,7 @@
                         });
                     };
                     
+                    html = escapeHtmlListTags(html);
                     if (reuseImages) {
                         // Preserve existing image containers when signature is unchanged (avoids expensive re-render).
                         const temp = document.createElement('div');
@@ -14258,6 +14292,7 @@
                     showImageValidationErrors(sourceEl);
                     showQuoteValidationErrors(sourceEl);
                     showBrTagValidationErrors(sourceEl);
+                    showHtmlListTagValidationErrors(sourceEl);
                 }
                 
                 const instance = {
@@ -14361,6 +14396,7 @@
                     showImageValidationErrors(sourceEl);
                     showQuoteValidationErrors(sourceEl);
                     showBrTagValidationErrors(sourceEl);
+                    showHtmlListTagValidationErrors(sourceEl);
                 }
                 
                 // Store instance
@@ -14641,7 +14677,8 @@
                     nextSibling.classList.contains('latex-validation-errors') ||
                     nextSibling.classList.contains('image-validation-errors') ||
                     nextSibling.classList.contains('quote-validation-errors') ||
-                    nextSibling.classList.contains('br-validation-errors')
+                    nextSibling.classList.contains('br-validation-errors') ||
+                    nextSibling.classList.contains('html-list-validation-errors')
                 )) {
                     // Skip validation error divs
                     nextSibling = nextSibling.nextElementSibling;
@@ -15205,7 +15242,8 @@
                         nextSibling.classList.contains('latex-validation-errors') ||
                         nextSibling.classList.contains('image-validation-errors') ||
                         nextSibling.classList.contains('quote-validation-errors') ||
-                        nextSibling.classList.contains('br-validation-errors')) {
+                        nextSibling.classList.contains('br-validation-errors') ||
+                        nextSibling.classList.contains('html-list-validation-errors')) {
                         nextSibling = nextSibling.nextElementSibling;
                     } else {
                         break;
@@ -17643,7 +17681,8 @@
                     next.classList.contains('latex-validation-errors') ||
                     next.classList.contains('image-validation-errors') ||
                     next.classList.contains('quote-validation-errors') ||
-                    next.classList.contains('br-validation-errors')
+                    next.classList.contains('br-validation-errors') ||
+                    next.classList.contains('html-list-validation-errors')
                 )) {
                     next = next.nextElementSibling;
                 } else if (next.classList && next.classList.contains('live-preview')) {
@@ -19486,7 +19525,8 @@
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.br-validation-errors')?.style.display !== 'none';
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
                     textarea.classList.remove('validation-error');
                 }
@@ -19647,7 +19687,8 @@
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.br-validation-errors')?.style.display !== 'none';
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
                     textarea.classList.remove('validation-error');
                 }
@@ -19720,7 +19761,8 @@
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.br-validation-errors')?.style.display !== 'none';
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
                     textarea.classList.remove('validation-error');
                 }
@@ -19778,7 +19820,63 @@
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none';
+                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
+                if (!hasOtherErrors) {
+                    textarea.classList.remove('validation-error');
+                }
+            }
+        }
+
+        /**
+         * Show HTML list tag validation errors for a textarea
+         * @param {HTMLTextAreaElement} textarea - The textarea element
+         */
+        function showHtmlListTagValidationErrors(textarea) {
+            if (!textarea) return;
+            
+            const text = textarea.value;
+            const listErrors = validateHtmlListTags(text);
+            
+            const container = textarea.closest('.text-field-container') || textarea.parentElement;
+            if (!container) return;
+            
+            let errorDiv = container.querySelector('.html-list-validation-errors');
+            
+            if (listErrors.length > 0) {
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'html-list-validation-errors';
+                    errorDiv.style.cssText = 'margin-top: 8px;';
+                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                }
+                
+                errorDiv.style.display = 'block';
+                errorDiv.innerHTML = `
+                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <strong>⚠️ HTML Tag Errors:</strong>
+                        ${listErrors.map(error => `
+                            <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                <div style="margin-bottom: 6px;">🔴 <strong>HTML Tag Error:</strong> ${error.message}</div>
+                                <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Remove all &lt;ul&gt; and &lt;li&gt; tags. Use markdown bullets (- ) instead.</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                textarea.classList.add('validation-error');
+            } else {
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.innerHTML = '';
+                }
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
                     textarea.classList.remove('validation-error');
                 }
@@ -20037,6 +20135,7 @@
                 filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">${answer}</span>`);
             });
             
+            const safeFilledText = escapeHtmlListTags(filledText);
             // Render markdown + math using the same logic as the main text preview
             // so that things like $\%$ behave identically.
             if (typeof renderLivePreview === 'function') {
@@ -20054,10 +20153,10 @@
                 }
             } else {
                 // Fallback: basic Markdown + KaTeX rendering (should rarely be used)
-                if (window.marked?.parse) {
+                    if (window.marked?.parse) {
                     try {
                         const normalizedText = normalizeEmptyListItemsForPreview(filledText);
-                        let html = window.marked.parse(normalizedText);
+                        let html = escapeHtmlListTags(window.marked.parse(normalizedText));
                         preview.innerHTML = html;
                         
                         if (window.katex && window.renderMathInElement) {
@@ -20076,10 +20175,10 @@
                             }
                         }
                     } catch (e) {
-                        preview.innerHTML = filledText.replace(/\n/g, '<br>');
+                        preview.innerHTML = safeFilledText.replace(/\n/g, '<br>');
                     }
                 } else {
-                    preview.innerHTML = filledText.replace(/\n/g, '<br>');
+                    preview.innerHTML = safeFilledText.replace(/\n/g, '<br>');
                 }
             }
         }
@@ -21175,6 +21274,40 @@
             return errors;
         }
 
+        /**
+         * Escape raw HTML list tags (<ul>, <li> and variants) so they display as literal text in previews.
+         * Prevents raw HTML from producing bullets; markdown lists (- , * , 1. ) remain unaffected.
+         * @param {string} text - HTML or markdown string
+         * @returns {string} Text with list tags escaped
+         */
+        function escapeHtmlListTags(text) {
+            if (!text || typeof text !== 'string') return text;
+            return text.replace(/<\s*\/?\s*(ul|li)\b[^>]*>/gi, (match) =>
+                match.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+            );
+        }
+
+        /**
+         * Validate that content does not contain raw HTML list tags (<ul>, <li>).
+         * @param {string} content - Raw text content
+         * @returns {Array} Array of error objects
+         */
+        function validateHtmlListTags(content) {
+            const errors = [];
+            if (!content || content.trim().length === 0) {
+                return errors;
+            }
+            const listTagPattern = /<\s*\/?\s*(ul|li)\b[^>]*>/gi;
+            const matches = content.match(listTagPattern);
+            if (matches && matches.length > 0) {
+                errors.push({
+                    type: 'html_list_tag',
+                    message: `HTML list tags (&lt;ul&gt;, &lt;li&gt;) are not allowed. Found ${matches.length} occurrence(s). Use markdown bullets (- ) instead.`
+                });
+            }
+            return errors;
+        }
+
         // Validate unmatched quotes that would break JSON
         function validateQuotes(content) {
             const errors = [];
@@ -21384,6 +21517,15 @@
                 if (brErrors.length > 0) {
                     const location = getTextareaLocation(textarea);
                     brErrors.forEach(error => {
+                        validationErrors.push(`HTML Tag Error in ${location}: ${error.message}`);
+                    });
+                }
+                
+                // Validate HTML list tags (<ul>, <li>)
+                const htmlListErrors = validateHtmlListTags(content);
+                if (htmlListErrors.length > 0) {
+                    const location = getTextareaLocation(textarea);
+                    htmlListErrors.forEach(error => {
                         validationErrors.push(`HTML Tag Error in ${location}: ${error.message}`);
                     });
                 }
@@ -23825,6 +23967,14 @@
                     const brErrors = validateBrTags(content);
                     if (brErrors.length > 0) {
                         brErrors.forEach(error => {
+                            validationErrors.push(`HTML Tag Error in ${getTextareaLocation(textarea)}: ${error.message}`);
+                        });
+                    }
+                    
+                    // Validate HTML list tags (<ul>, <li>)
+                    const htmlListErrors = validateHtmlListTags(content);
+                    if (htmlListErrors.length > 0) {
+                        htmlListErrors.forEach(error => {
                             validationErrors.push(`HTML Tag Error in ${getTextareaLocation(textarea)}: ${error.message}`);
                         });
                     }
@@ -27122,6 +27272,7 @@
                             <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
                         </h3>
                         <ul class="whats-new-modal-list">
+                            <li><strong>HTML List Tags Blocked:</strong> Raw HTML list tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) are no longer allowed. Use markdown bullets (<code>- </code> or <code>* </code>) instead. A validation error appears below the textarea if you use HTML list tags.</li>
                             <li><strong>Performance:</strong> Editing stays smooth even with a large number of content sections and questions.</li>
                             <li><strong>Image description width:</strong> The text under preview images now always uses the full width of the preview, whether an image is shown or only a placeholder.</li>
                         </ul>
@@ -27133,6 +27284,7 @@
                             <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
                         </h3>
                         <ul class="whats-new-modal-list">
+                            <li><strong>Search dropdown overlay:</strong> Search results now appear below the search field as an overlay instead of being trapped inside the header.</li>
                             <li><strong>Scroll to top:</strong> The scroll-to-top button now scrolls the correct panel (Input form or Final Preview) to the top. It does nothing when you are on the PDF or JSON view.</li>
                             <li><strong>Undo and redo:</strong> Undo and redo now update the Final Preview correctly and trigger auto-save like other edits.</li>
                         </ul>
