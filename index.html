@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.1';
+        const DISPLAY_VERSION = '7.2';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.12';
+        const CURRENT_VERSION = '7.2';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // ===== UNDO/REDO SYSTEM =====
@@ -2303,7 +2303,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: var(--app-font-family);
             background: var(--bg-primary);
             height: 100%;
             width: 100%;
@@ -2702,8 +2702,9 @@
             padding: 12px;
             border: 2px solid #dee2e6;
             border-radius: 8px;
-            font-size: 14px;
-            line-height: 1.5;
+            font-family: var(--app-font-family);
+            font-size: var(--app-font-size);
+            line-height: var(--app-line-height);
             transition: border-color 0.3s ease;
             font-feature-settings: "kern" 1, "liga" 1; /* Better character spacing */
             text-rendering: optimizeLegibility; /* Better diacritic rendering */
@@ -2963,7 +2964,9 @@
 
         .bbox-inputs input {
             padding: 8px;
-            font-size: 12px;
+            font-family: var(--app-font-family);
+            font-size: var(--app-font-size);
+            line-height: var(--app-line-height);
         }
 
         .bbox-container {
@@ -2985,8 +2988,9 @@
             padding: 12px;
             background: #ffffff;
             color: #212529;
-            font-size: 14px;
-            line-height: 1.5;
+            font-family: var(--app-font-family);
+            font-size: var(--app-font-size);
+            line-height: var(--app-line-height);
             position: relative;
             min-height: 80px;
             height: auto; /* Match content size, managed by JS */
@@ -3099,6 +3103,16 @@
             margin-bottom: 6px;
             display: block;
             opacity: 0.9;
+        }
+        
+        #correct-answer-selector,
+        #checkbox-summary,
+        #checkbox-summary-text,
+        [id^="correct-answer-radios-"],
+        [id^="correct-answer-radios-"] label {
+            font-family: var(--app-font-family);
+            font-size: var(--app-font-size);
+            line-height: var(--app-line-height);
         }
         .live-preview table { border-collapse: collapse; width: 100%; margin: 8px 0; }
         .live-preview th, .live-preview td { border: 1px solid #ccc; padding: 6px 8px; }
@@ -4172,6 +4186,9 @@
             --shadow: rgba(0,0,0,0.1);
             --accent: #667eea;
             --accent-dark: #764ba2;
+            --app-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --app-font-size: 14px;
+            --app-line-height: 1.5;
         }
 
         [data-theme="dark"] {
@@ -5417,7 +5434,7 @@
                         <!-- Undo/Redo Buttons -->
                         <div id="topbar-undo-redo" style="display: flex; gap: 8px;"></div>
                         <!-- Font Settings -->
-                        <div class="font-settings" style="display: flex; gap: 6px; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 4px 8px; border-radius: 6px;">
+                        <div class="font-settings" data-ignore-autosave="true" style="display: flex; gap: 6px; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 4px 8px; border-radius: 6px;">
                             <label style="font-size: 0.7rem; opacity: 0.9;">Font:</label>
                             <select id="fontSizeSelect" onchange="changeFontSize(this.value)" title="Change font size" class="header-select" style="padding: 2px 6px; font-size: 0.7rem; cursor: pointer; outline: none;">
                                 <option value="14" selected>14px</option>
@@ -6207,6 +6224,7 @@
             const scheduleFitGen = new WeakMap();
             const lastAppliedBboxSig = new WeakMap();
             const lastAppliedRenderVersion = new WeakMap();
+            const lastAppliedLayoutVer = new WeakMap();
             function scheduleFit(el, reason) {
                 if (!autoResizeEnabled || !el || !el.isConnected) return;
                 const gen = (scheduleFitGen.get(el) || 0) + 1;
@@ -6220,14 +6238,17 @@
                             if (scheduleFitGen.get(el) !== gen) return;
                             const rv = el.__renderVersion || 0;
                             const bboxSig = getBboxSignature(el);
+                            const lv = window.__layoutMetricsVersion || 0;
                             const lastRv = lastAppliedRenderVersion.get(el);
                             const lastBboxSig = lastAppliedBboxSig.get(el);
-                            if (rv === lastRv && bboxSig === lastBboxSig) return;
+                            const lastLv = lastAppliedLayoutVer.get(el);
+                            if (rv === lastRv && bboxSig === lastBboxSig && lv === lastLv) return;
                             if (!isMeasurable(el)) return;
                             if (fitHeightToContent(el)) {
                                 markFitted(el);
                                 lastAppliedRenderVersion.set(el, rv);
                                 lastAppliedBboxSig.set(el, bboxSig);
+                                lastAppliedLayoutVer.set(el, lv);
                             }
                         });
                     });
@@ -6364,7 +6385,13 @@
                     }
                 });
                 previews.forEach(pv => {
-                    if (registeredTargets.has(pv) && isMeasurable(pv) && fitHeightToContent(pv)) {
+                    if (!registeredTargets.has(pv) || !isMeasurable(pv)) return;
+                    // Image/bbox previews need deferred fitting so zoom/layout settling completes before measurement.
+                    if (previewHasImageOrBbox(pv)) {
+                        scheduleFit(pv, 'refreshStyleChange');
+                        return;
+                    }
+                    if (fitHeightToContent(pv)) {
                         markFitted(pv);
                     }
                 });
@@ -7058,6 +7085,15 @@
                 // When switching back to Input Form, cheaply first-fit any pending autosize targets in the active panel
                 if (tabName === 'input-form' && typeof AutoSizeManager !== 'undefined' && AutoSizeManager.fitPending) {
                     AutoSizeManager.fitPending(activeRoot);
+                }
+                if (tabName === 'input-form' && pendingTypographyRefresh) {
+                    refreshTextLayoutAfterTypographyChange();
+                }
+                rewireLayoutRefitObserver(`tab-${tabName}`);
+                if (tabName === 'final-preview') {
+                    requestLayoutRefit('enter-final-preview');
+                } else if (tabName === 'input-form') {
+                    requestLayoutRefit('enter-input-form');
                 }
             }
             
@@ -8752,17 +8788,8 @@
                 scheduleBboxApplyWhenPdfReady();
             }
 
-            // Apply current font size and line height to all live-preview elements in final preview
-            const savedFontSize = localStorage.getItem('fontSize') || '14';
-            const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
-            const fontSize = savedFontSize + 'px';
-            const lineHeight = savedLineHeight;
-            
-            // Apply to all live-preview elements in the final preview container
+            // Apply trailing spaces indicator in final preview (font is handled by shared CSS vars)
             previewContainer.querySelectorAll('.live-preview').forEach(el => {
-                el.style.fontSize = fontSize;
-                el.style.lineHeight = lineHeight;
-                
                 // Check for trailing spaces in final preview
                 // Find the associated textarea by looking for the data-navigate-to attribute
                 const previewSection = el.closest('.preview-section');
@@ -8820,6 +8847,9 @@
                 applyKatexBidi(preview);
                 }
             });
+            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
+                AutoSizeManager.finalizeSpawn(previewContainer);
+            }
         }
 
         // Apply consistent KaTeX bidi handling across all previews
@@ -13727,6 +13757,7 @@
                 }
                 
                 md = markedMd.join('\n');
+                const shouldEscapeHtmlLists = hasRawHtmlListTags(sourceText || '');
                 
                 // Mark trailing spaces BEFORE converting newlines (so we can detect empty lines correctly)
                 md = markTrailingSpaces(md);
@@ -13760,6 +13791,9 @@
                     return `@@BLANK_PLACEHOLDER_${idx}@@`;
                 });
 
+                if (shouldEscapeHtmlLists) {
+                    md = escapeHtmlListTags(md);
+                }
                 let html = window.marked?.parse ? window.marked.parse(md) : md;
                 
                 // Replace trailing space markers with HTML (but protect alt attributes)
@@ -13952,7 +13986,6 @@
                         });
                     };
                     
-                    html = escapeHtmlListTags(html);
                     if (reuseImages) {
                         // Preserve existing image containers when signature is unchanged (avoids expensive re-render).
                         const temp = document.createElement('div');
@@ -14649,236 +14682,183 @@
         }
 
         function toggleDirection(textarea) {
-            // Toggle the data-ltr attribute to switch between RTL and LTR
-            const isLTR = textarea.hasAttribute('data-ltr');
-            if (isLTR) {
-                // Currently LTR, switch to RTL
-                textarea.removeAttribute('data-ltr');
-                textarea.setAttribute('dir', 'rtl');
-            } else {
-                // Currently RTL, switch to LTR
-                textarea.setAttribute('data-ltr', 'true');
-                textarea.setAttribute('dir', 'ltr');
-            }
-            
-            // Find preview box by walking through siblings (skip buttons, labels, and error divs)
-            let nextSibling = textarea.nextElementSibling;
-            let preview = null;
-            
-            // Skip over buttons, error divs, and labels to find preview
-            while (nextSibling) {
-                if (nextSibling.tagName === 'BUTTON') {
-                    // Skip buttons
-                    nextSibling = nextSibling.nextElementSibling;
-                } else if (nextSibling.classList && (
-                    nextSibling.classList.contains('table-validation-errors') ||
-                    nextSibling.classList.contains('list-validation-errors') ||
-                    nextSibling.classList.contains('blockquote-validation-errors') ||
-                    nextSibling.classList.contains('latex-validation-errors') ||
-                    nextSibling.classList.contains('image-validation-errors') ||
-                    nextSibling.classList.contains('quote-validation-errors') ||
-                    nextSibling.classList.contains('br-validation-errors') ||
-                    nextSibling.classList.contains('html-list-validation-errors')
-                )) {
-                    // Skip validation error divs
-                    nextSibling = nextSibling.nextElementSibling;
-                } else if (nextSibling.classList && nextSibling.classList.contains('preview-label')) {
-                    // Skip label, continue to preview
-                    nextSibling = nextSibling.nextElementSibling;
-                } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
-                    // Found preview!
-                    preview = nextSibling;
-                    break;
+            return withAutosaveSuppressed(function () {
+                // Toggle the data-ltr attribute to switch between RTL and LTR
+                const isLTR = textarea.hasAttribute('data-ltr');
+                if (isLTR) {
+                    // Currently LTR, switch to RTL
+                    textarea.removeAttribute('data-ltr');
+                    textarea.setAttribute('dir', 'rtl');
                 } else {
-                    // Unknown element, stop looking
-                    break;
+                    // Currently RTL, switch to LTR
+                    textarea.setAttribute('data-ltr', 'true');
+                    textarea.setAttribute('dir', 'ltr');
                 }
-            }
-            
-            if (preview) {
-                const newDir = textarea.hasAttribute('data-ltr') ? 'ltr' : 'rtl';
-                preview.setAttribute('dir', newDir);
-                preview.style.textAlign = newDir === 'rtl' ? 'right' : 'left';
-                // Re-render preview to ensure direction is applied to content
-                renderLivePreview(textarea);
-            }
-            
-            // Update button label: find the dir button in this container
-            const container = textarea.closest('.text-field-container') || textarea.parentElement;
-            const btn = container ? container.querySelector('.dir-btn') : null;
-            if (btn) {
-                // Button shows what clicking it will do
-                btn.textContent = textarea.hasAttribute('data-ltr') ? 'RTL' : 'LTR';
-            }
+                
+                // Find preview box by walking through siblings (skip buttons, labels, and error divs)
+                let nextSibling = textarea.nextElementSibling;
+                let preview = null;
+                
+                // Skip over buttons, error divs, and labels to find preview
+                while (nextSibling) {
+                    if (nextSibling.tagName === 'BUTTON') {
+                        // Skip buttons
+                        nextSibling = nextSibling.nextElementSibling;
+                    } else if (nextSibling.classList && (
+                        nextSibling.classList.contains('table-validation-errors') ||
+                        nextSibling.classList.contains('list-validation-errors') ||
+                        nextSibling.classList.contains('blockquote-validation-errors') ||
+                        nextSibling.classList.contains('latex-validation-errors') ||
+                        nextSibling.classList.contains('image-validation-errors') ||
+                        nextSibling.classList.contains('quote-validation-errors') ||
+                        nextSibling.classList.contains('br-validation-errors') ||
+                        nextSibling.classList.contains('html-list-validation-errors')
+                    )) {
+                        // Skip validation error divs
+                        nextSibling = nextSibling.nextElementSibling;
+                    } else if (nextSibling.classList && nextSibling.classList.contains('preview-label')) {
+                        // Skip label, continue to preview
+                        nextSibling = nextSibling.nextElementSibling;
+                    } else if (nextSibling.classList && nextSibling.classList.contains('live-preview')) {
+                        // Found preview!
+                        preview = nextSibling;
+                        break;
+                    } else {
+                        // Unknown element, stop looking
+                        break;
+                    }
+                }
+                
+                if (preview) {
+                    const newDir = textarea.hasAttribute('data-ltr') ? 'ltr' : 'rtl';
+                    preview.setAttribute('dir', newDir);
+                    preview.style.textAlign = newDir === 'rtl' ? 'right' : 'left';
+                    // Re-render preview to ensure direction is applied to content
+                    renderLivePreview(textarea);
+                }
+                
+                // Update button label: find the dir button in this container
+                const container = textarea.closest('.text-field-container') || textarea.parentElement;
+                const btn = container ? container.querySelector('.dir-btn') : null;
+                if (btn) {
+                    // Button shows what clicking it will do
+                    btn.textContent = textarea.hasAttribute('data-ltr') ? 'RTL' : 'LTR';
+                }
+            });
         }
 
         // Font Settings Functions
+        // UI preference updates (fonts/dir) should not mark dirty or autosave.
+        let isUiPreferenceUpdate = false;
+        let pendingTypographyRefresh = false;
+        function withAutosaveSuppressed(fn) {
+            const prev = isUiPreferenceUpdate;
+            isUiPreferenceUpdate = true;
+            try {
+                return fn();
+            } finally {
+                isUiPreferenceUpdate = prev;
+            }
+        }
+        function refreshTextLayoutAfterTypographyChange() {
+            if (typeof AutoSizeManager === 'undefined' || !AutoSizeManager.refreshStyleChange) return;
+            const inputRoot = document.getElementById('input-form') || document.body;
+            const activeRoot = resolveActivePanelRoot();
+            const finalPreviewActive = (typeof isFinalPreviewActive === 'function' && isFinalPreviewActive());
+            // Font changes affect text metrics; re-measure autosize targets after styles apply.
+            requestAnimationFrame(() => {
+                if (finalPreviewActive && typeof scheduleInputAutosizeResizeRefresh === 'function') {
+                    // Use the canonical debounced scheduler so Final Preview image/bbox previews follow deferred scheduleFit path.
+                    scheduleInputAutosizeResizeRefresh();
+                } else {
+                    AutoSizeManager.refreshStyleChange(activeRoot);
+                }
+                if (inputRoot && inputRoot !== activeRoot) {
+                    AutoSizeManager.refreshStyleChange(inputRoot);
+                }
+                const inputActive = inputRoot && inputRoot.classList && inputRoot.classList.contains('active');
+                pendingTypographyRefresh = !inputActive;
+            });
+        }
         // Apply font settings to specific elements or all elements
         function applyFontSettings(container) {
-            const savedFontSize = localStorage.getItem('fontSize') || '14';
-            const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
-            const fontSize = savedFontSize + 'px';
-            const lineHeight = savedLineHeight;
-            
-            // Get elements from container or entire document
-            const scope = container || document;
-            
-            // Apply to all form controls in scope, but exclude search bar and JSON input
-            // Match CSS rule: .form-group input, .form-group textarea, .form-group select
-            scope.querySelectorAll('.form-group input, .form-group textarea, .form-group select').forEach(el => {
-                // Exclude search bar and JSON input from font settings
-                if (el.id === 'searchFilter' || el.id === 'json_input') {
-                    return; // Skip these elements
+            return withAutosaveSuppressed(function () {
+                const savedFontSize = localStorage.getItem('fontSize') || '14';
+                const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
+                const root = document.querySelector('.container') || document.documentElement;
+                if (root) {
+                    root.style.setProperty('--app-font-size', savedFontSize + 'px');
+                    root.style.setProperty('--app-line-height', savedLineHeight);
                 }
-                el.style.fontSize = fontSize;
-                el.style.lineHeight = lineHeight;
-            });
-            
-            // If a container is passed, also apply to inputs/selects directly in that container
-            // (for cases like array-item inputs that aren't in form-group, including bbox inputs)
-            if (container && container !== document) {
-                container.querySelectorAll('input, textarea, select').forEach(el => {
-                    // Exclude search bar and JSON input from font settings
-                    if (el.id === 'searchFilter' || el.id === 'json_input') {
-                        return; // Skip these elements
-                    }
-                    // Only apply if not already handled by form-group selector above
-                    if (!el.closest('.form-group')) {
-                        el.style.fontSize = fontSize;
-                        el.style.lineHeight = lineHeight;
-                    }
-                });
-            }
-            
-            // Apply to all preview boxes in scope
-            scope.querySelectorAll('.live-preview').forEach(el => {
-                el.style.fontSize = fontSize;
-                el.style.lineHeight = lineHeight;
-            });
-            
-            // Correct Answer / checkbox output: container + labels so dynamically rebuilt content inherits or gets font
-            scope.querySelectorAll('#correct-answer-selector, #checkbox-summary, #checkbox-summary-text, [id^="correct-answer-radios-"], [id^="correct-answer-radios-"] label').forEach(el => {
-                el.style.fontSize = fontSize;
-                el.style.lineHeight = lineHeight;
+                pendingTypographyRefresh = true;
+                refreshTextLayoutAfterTypographyChange();
             });
         }
         
         function changeFontSize(size) {
-            // Ensure size is a string
-            const sizeStr = String(size);
-            const fontSize = sizeStr + 'px';
-            
-            // Apply to all form controls, but exclude search bar and JSON input
-            // Match CSS rule: .form-group input, .form-group textarea, .form-group select
-            document.querySelectorAll('.form-group input, .form-group textarea, .form-group select').forEach(el => {
-                // Exclude search bar and JSON input from font size changes
-                if (el.id === 'searchFilter' || el.id === 'json_input') {
-                    return; // Skip these elements
+            return withAutosaveSuppressed(function () {
+                // Ensure size is a string
+                const sizeStr = String(size);
+                // Save to localStorage (save as string)
+                localStorage.setItem('fontSize', sizeStr);
+                applyFontSettings();
+                
+                // If final preview tab is active, regenerate it to apply font size
+                const finalPreviewTab = document.getElementById('final-preview');
+                if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                    generateFinalPreview();
                 }
-                el.style.fontSize = fontSize;
+                
+                refreshTextLayoutAfterTypographyChange();
             });
-            // Also apply to bbox inputs (not in .form-group)
-            document.querySelectorAll('.bbox-inputs input').forEach(el => {
-                if (el.id === 'searchFilter' || el.id === 'json_input') {
-                    return; // Skip these elements
-                }
-                el.style.fontSize = fontSize;
-            });
-            // Correct Answer / checkbox output: container + labels (same as applyFontSettings)
-            document.querySelectorAll('#correct-answer-selector, #checkbox-summary, #checkbox-summary-text, [id^="correct-answer-radios-"], [id^="correct-answer-radios-"] label').forEach(el => {
-                el.style.fontSize = fontSize;
-            });
-            // Apply to all preview boxes
-            document.querySelectorAll('.live-preview').forEach(el => {
-                el.style.fontSize = fontSize;
-            });
-            
-            // If final preview tab is active, regenerate it to apply font size
-            const finalPreviewTab = document.getElementById('final-preview');
-            if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
-                generateFinalPreview();
-            }
-            
-            // Save to localStorage (save as string)
-            localStorage.setItem('fontSize', sizeStr);
-            
-            // Re-fit only registered targets in active panel (font size affects scrollHeight). No tab scan.
-            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.refreshStyleChange) {
-                AutoSizeManager.refreshStyleChange(resolveActivePanelRoot());
-            }
         }
         
         function changeLineHeight(height) {
-            // Ensure height is a string
-            const heightStr = String(height);
-            const lineHeight = heightStr;
-            
-            // Apply to all form controls, but exclude search bar and JSON input
-            // Match CSS rule: .form-group input, .form-group textarea, .form-group select
-            document.querySelectorAll('.form-group input, .form-group textarea, .form-group select').forEach(el => {
-                // Exclude search bar and JSON input from line height changes
-                if (el.id === 'searchFilter' || el.id === 'json_input') {
-                    return; // Skip these elements
+            return withAutosaveSuppressed(function () {
+                // Ensure height is a string
+                const heightStr = String(height);
+                // Save to localStorage (save as string)
+                localStorage.setItem('lineHeight', heightStr);
+                applyFontSettings();
+                
+                // If final preview tab is active, regenerate it to apply line height
+                const finalPreviewTab = document.getElementById('final-preview');
+                if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
+                    generateFinalPreview();
                 }
-                el.style.lineHeight = lineHeight;
+                
+                refreshTextLayoutAfterTypographyChange();
             });
-            // Also apply to bbox inputs (not in .form-group)
-            document.querySelectorAll('.bbox-inputs input').forEach(el => {
-                if (el.id === 'searchFilter' || el.id === 'json_input') {
-                    return; // Skip these elements
-                }
-                el.style.lineHeight = lineHeight;
-            });
-            // Correct Answer / checkbox output: container + labels (same as applyFontSettings)
-            document.querySelectorAll('#correct-answer-selector, #checkbox-summary, #checkbox-summary-text, [id^="correct-answer-radios-"], [id^="correct-answer-radios-"] label').forEach(el => {
-                el.style.lineHeight = lineHeight;
-            });
-            // Apply to all preview boxes
-            document.querySelectorAll('.live-preview').forEach(el => {
-                el.style.lineHeight = lineHeight;
-            });
-            
-            // If final preview tab is active, regenerate it to apply line height
-            const finalPreviewTab = document.getElementById('final-preview');
-            if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
-                generateFinalPreview();
-            }
-            
-            // Save to localStorage (save as string)
-            localStorage.setItem('lineHeight', heightStr);
-            
-            // Re-fit only registered targets in active panel (line height affects scrollHeight). No tab scan.
-            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.refreshStyleChange) {
-                AutoSizeManager.refreshStyleChange(resolveActivePanelRoot());
-            }
         }
         
         // Initialize font settings from localStorage
         function initializeFontSettings() {
-            const savedFontSize = localStorage.getItem('fontSize');
-            const savedLineHeight = localStorage.getItem('lineHeight');
-            
-            // Set and apply font size (use saved value or default)
-            const fontSizeToApply = savedFontSize || '14'; // Default to 14px if not saved
-                const fontSizeSelect = document.getElementById('fontSizeSelect');
-                if (fontSizeSelect) {
-                fontSizeSelect.value = fontSizeToApply;
-                // Use setTimeout to ensure all elements are loaded
-                setTimeout(() => {
+            return withAutosaveSuppressed(function () {
+                const savedFontSize = localStorage.getItem('fontSize');
+                const savedLineHeight = localStorage.getItem('lineHeight');
+                
+                // Set and apply font size (use saved value or default)
+                const fontSizeToApply = savedFontSize || '14'; // Default to 14px if not saved
+                    const fontSizeSelect = document.getElementById('fontSizeSelect');
+                    if (fontSizeSelect) {
+                    fontSizeSelect.value = fontSizeToApply;
+                    // Use setTimeout to ensure all elements are loaded
+                    setTimeout(() => {
                     changeFontSize(fontSizeToApply);
-                }, 0);
-            }
-            
-            // Set and apply line height (use saved value or default)
-            const lineHeightToApply = savedLineHeight || '1.5'; // Default to 1.5 if not saved
-                const lineHeightSelect = document.getElementById('lineHeightSelect');
-                if (lineHeightSelect) {
-                lineHeightSelect.value = lineHeightToApply;
-                // Use setTimeout to ensure all elements are loaded
-                setTimeout(() => {
+                    }, 0);
+                }
+                
+                // Set and apply line height (use saved value or default)
+                const lineHeightToApply = savedLineHeight || '1.5'; // Default to 1.5 if not saved
+                    const lineHeightSelect = document.getElementById('lineHeightSelect');
+                    if (lineHeightSelect) {
+                    lineHeightSelect.value = lineHeightToApply;
+                    // Use setTimeout to ensure all elements are loaded
+                    setTimeout(() => {
                     changeLineHeight(lineHeightToApply);
-                }, 0);
-            }
+                    }, 0);
+                }
+            });
         }
 
         function toggleDarkMode() {
@@ -20074,17 +20054,19 @@
          * @param {HTMLElement} button - The button element
          */
         function toggleFilledBlanksDirection(button) {
-            const questionEl = button.closest('.array-item');
-            const preview = questionEl.querySelector('#filled-blanks-preview');
-            
-            if (!preview) return;
-            
-            const currentDir = preview.getAttribute('dir') || 'rtl';
-            const newDir = currentDir === 'rtl' ? 'ltr' : 'rtl';
-            
-            preview.setAttribute('dir', newDir);
-            preview.style.textAlign = newDir === 'rtl' ? 'right' : 'left';
-            button.textContent = newDir === 'rtl' ? 'LTR' : 'RTL';
+            return withAutosaveSuppressed(function () {
+                const questionEl = button.closest('.array-item');
+                const preview = questionEl.querySelector('#filled-blanks-preview');
+                
+                if (!preview) return;
+                
+                const currentDir = preview.getAttribute('dir') || 'rtl';
+                const newDir = currentDir === 'rtl' ? 'ltr' : 'rtl';
+                
+                preview.setAttribute('dir', newDir);
+                preview.style.textAlign = newDir === 'rtl' ? 'right' : 'left';
+                button.textContent = newDir === 'rtl' ? 'LTR' : 'RTL';
+            });
         }
 
         /**
@@ -20135,7 +20117,8 @@
                 filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">${answer}</span>`);
             });
             
-            const safeFilledText = escapeHtmlListTags(filledText);
+            const shouldEscapeHtmlLists = hasRawHtmlListTags(questionText || '');
+            const safeFilledText = shouldEscapeHtmlLists ? escapeHtmlListTags(filledText) : filledText;
             // Render markdown + math using the same logic as the main text preview
             // so that things like $\%$ behave identically.
             if (typeof renderLivePreview === 'function') {
@@ -20155,8 +20138,11 @@
                 // Fallback: basic Markdown + KaTeX rendering (should rarely be used)
                     if (window.marked?.parse) {
                     try {
-                        const normalizedText = normalizeEmptyListItemsForPreview(filledText);
-                        let html = escapeHtmlListTags(window.marked.parse(normalizedText));
+                        let normalizedText = normalizeEmptyListItemsForPreview(filledText);
+                        if (shouldEscapeHtmlLists) {
+                            normalizedText = escapeHtmlListTags(normalizedText);
+                        }
+                        let html = window.marked.parse(normalizedText);
                         preview.innerHTML = html;
                         
                         if (window.katex && window.renderMathInElement) {
@@ -21286,6 +21272,19 @@
                 match.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
             );
         }
+        function hasRawHtmlListTags(text) {
+            if (!text || typeof text !== 'string') return false;
+            return /<\s*\/?\s*(ul|li)\b[^>]*>/i.test(text);
+        }
+        /*
+         * Regression snippet:
+         * - LaTeX: $x^2 + y^2$
+         * - List:
+         *   * First item
+         *   * Second item
+         * - Image (after list): ![caption](0)
+         * Expected: list renders as <ul><li>...</li></ul>, image caption below, no raw <ul> text.
+         */
 
         /**
          * Validate that content does not contain raw HTML list tags (<ul>, <li>).
@@ -23865,6 +23864,7 @@
         
         // Track that form has changes
         function markFormAsChanged() {
+            if (isUiPreferenceUpdate) return; // UI-only font/dir updates should not mark dirty.
             hasUnsavedChanges = true;
             updateSaveIndicator('unsaved');
         }
@@ -23883,6 +23883,7 @@
         
         // Debounced auto-save function
         function triggerAutoSave() {
+            if (isUiPreferenceUpdate) return; // UI-only font/dir updates should not auto-save.
             // Clear any pending auto-save
             if (autoSaveTimeout) {
                 clearTimeout(autoSaveTimeout);
@@ -24482,8 +24483,12 @@
             if (window.__changeTrackersAttached) return;
             window.__changeTrackersAttached = true;
             // One-time registration so one user action does not trigger multiple handlers
+            function shouldIgnoreAutosaveEvent(target) {
+                return !!(target && target.closest && target.closest('[data-ignore-autosave="true"]'));
+            }
             // Track initial values when fields get focus
             container.addEventListener('focusin', (e) => {
+                if (shouldIgnoreAutosaveEvent(e.target)) return;
                 if (e.target.matches('input, textarea, select')) {
                     // Skip search input - it shouldn't trigger auto-save
                     if (e.target.id === 'searchFilter') return;
@@ -24495,6 +24500,7 @@
             
             // Track changes and auto-save on blur
             container.addEventListener('focusout', (e) => {
+                if (shouldIgnoreAutosaveEvent(e.target)) return;
                 if (e.target.matches('input, textarea, select')) {
                     // Skip search input - it shouldn't trigger auto-save
                     if (e.target.id === 'searchFilter') return;
@@ -24516,6 +24522,7 @@
             
             // Also track input events for immediate feedback (but save on blur)
             container.addEventListener('input', (e) => {
+                if (shouldIgnoreAutosaveEvent(e.target)) return;
                 if (e.target.matches('input, textarea, select')) {
                     // Skip search input - it shouldn't trigger auto-save
                     if (e.target.id === 'searchFilter') return;
@@ -24563,6 +24570,7 @@
             
             // Track select changes (dropdowns)
             container.addEventListener('change', (e) => {
+                if (shouldIgnoreAutosaveEvent(e.target)) return;
                 if (e.target.matches('select')) {
                     markFormAsChanged();
                     triggerAutoSave();
@@ -24691,6 +24699,94 @@
          * Called on load, resize, and after font loading for scroll offset calculations.
          * Uses getBoundingClientRect for sub-pixel accuracy.
          */
+        let __inputAutosizeResizeTimer = null;
+        let __lastViewportDpr = window.devicePixelRatio || 1;
+        let __layoutRefitObserver = null;
+        window.__layoutMetricsVersion = window.__layoutMetricsVersion || 0;
+        function getLayoutRefitRootTargets() {
+            const roots = [];
+            const finalPreviewActive = (typeof isFinalPreviewActive === 'function' && isFinalPreviewActive());
+            if (finalPreviewActive) {
+                const fpContent = document.getElementById('final-preview-content');
+                if (fpContent) roots.push(fpContent);
+                return roots;
+            }
+            const inputRoot = document.getElementById('input-form');
+            if (inputRoot && inputRoot.classList && inputRoot.classList.contains('active')) roots.push(inputRoot);
+            return roots;
+        }
+        function getLayoutRefitObservedTargets() {
+            const roots = getLayoutRefitRootTargets();
+            const finalPreviewActive = (typeof isFinalPreviewActive === 'function' && isFinalPreviewActive());
+            if (!finalPreviewActive) {
+                const inputScroller = (typeof getInputFormScroller === 'function') ? getInputFormScroller() : null;
+                if (inputScroller && !roots.includes(inputScroller)) roots.push(inputScroller);
+            }
+            return roots;
+        }
+        function rewireLayoutRefitObserver(reason) {
+            if (typeof ResizeObserver === 'undefined') return;
+            if (!__layoutRefitObserver) {
+                __layoutRefitObserver = new ResizeObserver(() => {
+                    requestLayoutRefit('resize-observer');
+                });
+            }
+            __layoutRefitObserver.disconnect();
+            const roots = getLayoutRefitObservedTargets();
+            roots.forEach(root => {
+                if (root && root.isConnected) __layoutRefitObserver.observe(root);
+            });
+        }
+        function scheduleInputAutosizeResizeRefresh(reason) {
+            if (!autoResizeEnabled || typeof AutoSizeManager === 'undefined' || !AutoSizeManager.fitHeightToContent) return;
+            if (__inputAutosizeResizeTimer) clearTimeout(__inputAutosizeResizeTimer);
+            __inputAutosizeResizeTimer = setTimeout(() => {
+                __inputAutosizeResizeTimer = null;
+                // Layout/zoom changes affect text metrics; re-measure visible autosize targets after layout settles.
+                const passRefit = (passNo) => {
+                    if (!AutoSizeManager.refreshStyleChange) return;
+                    const finalPreviewActive = (typeof isFinalPreviewActive === 'function' && isFinalPreviewActive());
+                    const roots = getLayoutRefitRootTargets();
+                    roots.forEach(root => {
+                        if (!root || !root.isConnected) return;
+                        if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                            PreviewBox.ensureRendered(root);
+                        }
+                        if (AutoSizeManager.finalizeSpawn) {
+                            AutoSizeManager.finalizeSpawn(root);
+                        }
+                        AutoSizeManager.refreshStyleChange(root);
+                    });
+                    // Keep settle bounded: at most one extra RAF for Final Preview/image-heavy content.
+                    if (passNo === 1 && finalPreviewActive) {
+                        requestAnimationFrame(() => passRefit(2));
+                    }
+                };
+                requestAnimationFrame(() => passRefit(1));
+            }, 120);
+        }
+        function requestLayoutRefit(reason) {
+            window.__layoutMetricsVersion = (window.__layoutMetricsVersion || 0) + 1;
+            updateStickyTabsHeight();
+        }
+        function onViewportMetricsChanged(event) {
+            const nextDpr = window.devicePixelRatio || 1;
+            const dprChanged = nextDpr !== __lastViewportDpr;
+            if (dprChanged) __lastViewportDpr = nextDpr;
+            requestLayoutRefit(dprChanged ? 'zoom/viewport-dpr' : 'zoom/viewport');
+        }
+        function attachFinalPreviewImageLoadRefitHook() {
+            if (window.__finalPreviewImageLoadRefitHookAttached) return;
+            const fpContent = document.getElementById('final-preview-content');
+            if (!fpContent) return;
+            window.__finalPreviewImageLoadRefitHookAttached = true;
+            fpContent.addEventListener('load', function (event) {
+                const target = event && event.target;
+                if (!target || target.tagName !== 'IMG') return;
+                if (typeof isFinalPreviewActive === 'function' && !isFinalPreviewActive()) return;
+                requestLayoutRefit('image-load');
+            }, true);
+        }
         function updateStickyTabsHeight() {
             const stickyStack = document.querySelector('.sticky-tabs-stack');
             if (stickyStack) {
@@ -24699,6 +24795,7 @@
                 const height = Math.ceil(rect.height); // Round up to avoid subpixel gaps
                 document.documentElement.style.setProperty('--sticky-stack-height', height + 'px');
             }
+            scheduleInputAutosizeResizeRefresh('sticky-tabs-height');
         }
 
         // Initialize page
@@ -24707,12 +24804,17 @@
             hydrateStaticButtons();
             
             // Set up sticky tabs height measurement (runs after hydration so buttons are rendered)
-            updateStickyTabsHeight();
-            window.addEventListener('resize', updateStickyTabsHeight);
+            requestLayoutRefit('init');
+            window.addEventListener('resize', onViewportMetricsChanged, { passive: true });
+            if (window.visualViewport && window.visualViewport.addEventListener) {
+                window.visualViewport.addEventListener('resize', onViewportMetricsChanged, { passive: true });
+            }
+            rewireLayoutRefitObserver('init');
+            attachFinalPreviewImageLoadRefitHook();
             
             // Re-measure after fonts load (can affect tab height)
             if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(updateStickyTabsHeight);
+                document.fonts.ready.then(() => requestLayoutRefit('fonts-ready'));
             }
             
             // Initialize refactored form controls (using createFormControl factory)
@@ -27256,6 +27358,39 @@
                         <span class="whats-new-version-badge">Current Version</span>
                     </div>
                     
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Layout refresh after font changes:</strong> When you change fonts, input fields and preview boxes automatically re-measure and resize to fit their content correctly.</li>
+                            <li><strong>Browser zoom and input sizing:</strong> Input textareas now automatically re-measure and resize when browser zoom changes, eliminating clipping and wrong heights.</li>
+                            <li><strong>HTML List Tags Blocked:</strong> Raw HTML list tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) are no longer allowed. Use markdown bullets (<code>- </code> or <code>* </code>) instead. A validation error appears below the textarea if you use HTML list tags.</li>
+                            <li><strong>Image description width:</strong> The text under preview images now always uses the full width of the preview, whether an image is shown or only a placeholder.</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bug Fixes -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Font settings as UI preferences:</strong> Changing font size, line height, or text direction (RTL/LTR) no longer triggers autosave, "unsaved changes," or undo/redo.</li>
+                            <li><strong>Unified typography and Final Preview:</strong> Fixed typography so input form, preview boxes, and Final Preview share the same font styling via CSS variables. Final Preview now matches the input form exactly (no more wrong sizes or divergent rendering).</li>
+                            <li><strong>Bullet list + image preview:</strong> Fixed an issue where bullet lists followed by images could display as raw HTML tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) instead of a properly rendered list. Markdown lists now always render correctly regardless of image placement.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 7.1 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.1</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
+                    </div>
+                    
                     <!-- New Features -->
                     <div style="margin-bottom: 25px;">
                         <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
@@ -27272,9 +27407,7 @@
                             <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
                         </h3>
                         <ul class="whats-new-modal-list">
-                            <li><strong>HTML List Tags Blocked:</strong> Raw HTML list tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) are no longer allowed. Use markdown bullets (<code>- </code> or <code>* </code>) instead. A validation error appears below the textarea if you use HTML list tags.</li>
                             <li><strong>Performance:</strong> Editing stays smooth even with a large number of content sections and questions.</li>
-                            <li><strong>Image description width:</strong> The text under preview images now always uses the full width of the preview, whether an image is shown or only a placeholder.</li>
                         </ul>
                     </div>
                     
