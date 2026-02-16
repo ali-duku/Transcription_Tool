@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.2';
+        const DISPLAY_VERSION = '7.3';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,8 +23,10 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.2';
+        const CURRENT_VERSION = '7.3';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
+        
+        const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
         
         // ===== UNDO/REDO SYSTEM =====
         const formUndoHistory = [];
@@ -21442,21 +21444,23 @@
                 validationErrors.push("Page type is required");
             }
             
-            // Validate no duplicate question IDs
-            const questionIds = new Map(); // Map to track question IDs and their locations
-            const questionContainers = document.querySelectorAll('#questions_container > .array-item');
-            questionContainers.forEach((questionEl, index) => {
-                const questionIdInput = findFieldByLabel(questionEl, 'Question ID', 'input');
-                if (questionIdInput && questionIdInput.value && questionIdInput.value.trim()) {
-                    const qid = questionIdInput.value.trim();
-                    if (questionIds.has(qid)) {
-                        const firstLocation = questionIds.get(qid);
-                        validationErrors.push(`Duplicate Question ID "${qid}" found in Question ${index + 1} (also in Question ${firstLocation})`);
-                    } else {
-                        questionIds.set(qid, index + 1);
+            if (ENABLE_REPEATED_QUESTION_ID_VALIDATION) {
+                // Validate no duplicate question IDs
+                const questionIds = new Map(); // Map to track question IDs and their locations
+                const questionContainers = document.querySelectorAll('#questions_container > .array-item');
+                questionContainers.forEach((questionEl, index) => {
+                    const questionIdInput = findFieldByLabel(questionEl, 'Question ID', 'input');
+                    if (questionIdInput && questionIdInput.value && questionIdInput.value.trim()) {
+                        const qid = questionIdInput.value.trim();
+                        if (questionIds.has(qid)) {
+                            const firstLocation = questionIds.get(qid);
+                            validationErrors.push(`Duplicate Question ID "${qid}" found in Question ${index + 1} (also in Question ${firstLocation})`);
+                        } else {
+                            questionIds.set(qid, index + 1);
+                        }
                     }
-                }
-            });
+                });
+            }
             
             // Validate block LaTeX in all content sections and questions (exclude output fields)
             const allTextareas = document.querySelectorAll('textarea');
@@ -24025,26 +24029,7 @@
                 }
                 if (!pageType || pageType.trim().length === 0) validationErrors.push('Page type is required');
 
-                if (validationErrors.length > 0) {
-                    // For auto-save, don't show alerts but log to console and keep unsaved state
-                    if (isAutoSave) {
-                        // Debounce warnings: only log if errors changed or enough time passed (5 seconds)
-                        const errorSetKey = validationErrors.join('|');
-                        const now = Date.now();
-                        const timeSinceLastWarning = now - lastValidationWarningTime;
-                        const errorsChanged = lastValidationErrorSet !== errorSetKey;
-                        
-                        if (errorsChanged || timeSinceLastWarning > 5000) {
-                            console.warn('Auto-save blocked by validation errors:', validationErrors);
-                            lastValidationErrorSet = errorSetKey;
-                            lastValidationWarningTime = now;
-                        }
-                        updateSaveIndicator('unsaved');
-                        return;
-                    }
-                    alert("Cannot save - Validation errors found:\n" + validationErrors.join("\n"));
-                    return;
-                }
+                // Validation errors are collected but do not block or alert during save
                 
                 // Build JSON using the same structure as generateJSON()
                 const jsonData = {
@@ -24305,32 +24290,9 @@
                     }
                 });
 
-                if (validationErrors.length > 0) {
-                    // For auto-save, don't show alerts but log to console and keep unsaved state
-                    if (isAutoSave) {
-                        // Debounce warnings: only log if errors changed or enough time passed (5 seconds)
-                        const errorSetKey = validationErrors.join('|');
-                        const now = Date.now();
-                        const timeSinceLastWarning = now - lastValidationWarningTime;
-                        const errorsChanged = lastValidationErrorSet !== errorSetKey;
-                        
-                        if (errorsChanged || timeSinceLastWarning > 5000) {
-                            console.warn('Auto-save blocked by validation errors:', validationErrors);
-                            lastValidationErrorSet = errorSetKey;
-                            lastValidationWarningTime = now;
-                        }
-                        updateSaveIndicator('unsaved');
-                        return;
-                    }
-                    alert("Cannot save - Validation errors found:\n" + validationErrors.join("\n"));
-                    return;
-                }
+                // Validation errors are collected but do not block or alert during save
 
-                // Show warnings if any (but don't block saving)
-                // Only show alerts for manual saves, not auto-saves
-                if (validationWarnings.length > 0 && !isAutoSave) {
-                    alert("Validation warnings:\n" + validationWarnings.join("\n"));
-                }
+                // Warnings are collected but not shown during save
 
                 // Add timestamp for tracking
                 jsonData._save_timestamp = new Date().toISOString();
@@ -24616,6 +24578,7 @@
 
         // Function to check for duplicate question IDs and highlight them
         function checkDuplicateQuestionIds() {
+            if (!ENABLE_REPEATED_QUESTION_ID_VALIDATION) return;
             const questionIds = new Map(); // Map to track question IDs
             const questionContainers = document.querySelectorAll('#questions_container > .array-item');
             const duplicates = new Set();
@@ -27356,6 +27319,35 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
                         <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Save and auto-save always persist:</strong> Manual save and auto-save now always write your draft to storage, even when there are validation errors or warnings. No alerts or warnings are shown during save. Validation still runs when you use "Generate JSON"—only generation is blocked by errors.</li>
+                            <li><strong>Question ID validation is disabled:</strong> Question ID validation is disabled now, you can use the same question ID multiple times.</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Note -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-info-circle" style="color: #17a2b8;"></i> We need your help
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li>We are currently looking into reported lagging issues. If you experience lag, please send <strong>videos of the issue happening</strong> in addition to your JSON files so we can investigate.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 7.2 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.2</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- Enhancements -->
