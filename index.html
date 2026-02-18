@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.3';
+        const DISPLAY_VERSION = '7.4';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.3';
+        const CURRENT_VERSION = '7.4';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
@@ -7181,18 +7181,31 @@
             var store = window.__bboxStore;
             return store && store.docs && store.docs.text && store.docs.text.pdfDoc;
         }
+        function getBboxPdfDocForKey(key) {
+            var store = window.__bboxStore;
+            return store && store.docs && store.docs[key] && store.docs[key].pdfDoc;
+        }
+        function getPdfSigForKey(key) {
+            var doc = getBboxPdfDocForKey(key);
+            if (!doc) return String(key) + ':nopdf';
+            var fp = doc.fingerprint || (doc._pdfInfo && doc._pdfInfo.fingerprint) || (doc.transport && doc.transport._params && doc.transport._params.fingerprint);
+            return String(key) + ':pdf:' + (fp != null && fp !== '' ? String(fp) : 'pages-' + (doc.numPages || 0));
+        }
         function getActivePdfSig() {
             var doc = getActiveBboxPdfDoc();
             if (!doc) return 'nopdf';
             var fp = doc.fingerprint || (doc._pdfInfo && doc._pdfInfo.fingerprint) || (doc.transport && doc.transport._params && doc.transport._params.fingerprint);
             return 'pdf:' + (fp != null && fp !== '' ? String(fp) : 'pages-' + (doc.numPages || 0));
         }
+        function getCombinedPdfSig() {
+            return getPdfSigForKey('text') + '|' + getPdfSigForKey('guide');
+        }
         if (typeof window.__bboxLastPdfSig === 'undefined') window.__bboxLastPdfSig = null;
         if (typeof window.__pdfGeneration === 'undefined') window.__pdfGeneration = 0;
         function onBboxPdfChanged() {
             window.__pdfGeneration = (window.__pdfGeneration || 0) + 1;
             window.__previewDirtyVersion = (window.__previewDirtyVersion || 0) + 1;
-            window.__bboxLastPdfSig = getActivePdfSig();
+            window.__bboxLastPdfSig = getCombinedPdfSig();
             var cache = getFpBboxPageCache();
             if (cache && cache.clear) cache.clear();
             if (typeof window.__bboxRenderSig !== 'undefined' && window.__bboxRenderSig && window.__bboxRenderSig.clear) window.__bboxRenderSig.clear();
@@ -7200,8 +7213,10 @@
             // Each applyBboxesToPreviewRoot schedules its own targeted fit
         }
         function maybeHandlePdfSwitch() {
-            var sig = getActivePdfSig();
-            if (sig === 'nopdf') return;
+            var textSig = getPdfSigForKey('text');
+            var guideSig = getPdfSigForKey('guide');
+            if (textSig === 'text:nopdf' && guideSig === 'guide:nopdf') return;
+            var sig = getCombinedPdfSig();
             if (sig !== window.__bboxLastPdfSig) onBboxPdfChanged();
         }
         // Resolve bbox record by key from state-derived map (no tab DOM)
@@ -11038,6 +11053,16 @@
                 rebuildCorrectAnswerUI(questionEl);
             }
         }
+
+        function clearMultipleChoiceSelection(button) {
+            const questionEl = button ? button.closest('.array-item') : null;
+            if (!questionEl || getQuestionType(questionEl) !== 'multiple_choice') return;
+            // MCQ null sentinel: explicitly clear selection so serialization keeps value: null.
+            setCorrectChoiceUid(questionEl, null);
+            syncChoiceUI(questionEl);
+            markFormAsChanged();
+            triggerAutoSave();
+        }
         
         // Legacy alias for backward compatibility
         function updateCorrectAnswerRadios(questionEl) {
@@ -12729,7 +12754,7 @@
                     </select>
                 </div>
                 
-                <div class="form-group required-field required">
+                <div class="form-group">
                     <label>Guide PDF Page</label>
                     <input type="number" placeholder="e.g., 78" min="1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Page number in the guidebook PDF where the answer appears (must be within the guidebook page range)">
                 </div>
@@ -12885,7 +12910,8 @@
             } else {
                 // Format B: Optional guide answer (for multiple_choice, checkbox, fill_in_the_blanks, matching)
                 return `
-                    <div class="form-group" style="margin-top: 15px;" ${containerClasses ? `class="${containerClasses}"` : ''}>
+                    <div class="form-group${containerClasses ? ` ${containerClasses}` : ''}" ${containerId ? `id="${containerId}"` : ''} style="margin-top: 15px;">
+                        <!-- Prevent Guide Answer from being rendered in both common + per-type blocks -->
                         <label>Guide Answer <span style="opacity: 0.6; font-size: 0.85em;">(Optional)</span></label>
                         <div class="text-field-container">
                             <span class="input-label">Input Markdown</span>
@@ -12939,7 +12965,7 @@
                     includeBlankButton: true
                 })}
                 
-                ${getGuideAnswerHTML({ required: true, containerId: 'guide-answer-container' })}
+                ${getGuideAnswerHTML({ required: false, containerId: 'guide-answer-container' })}
                 
                 <div class="form-group mcq-choices" id="choices-container" style="display: none;">
                     <label>Multiple Choice Options</label>
@@ -12949,6 +12975,7 @@
                     ${getActionButtonHTML({ label: 'Add Choice', onClick: 'addChoice(this)', iconClass: 'fa-plus', title: 'Add a new answer choice' })}
                     <div class="form-group" id="correct-answer-selector" style="margin-top: 15px; display: none;">
                         <label style="font-weight: 600;">Correct Answer Position</label>
+                        ${getActionButtonHTML({ label: 'Clear Selection', onClick: 'clearMultipleChoiceSelection(this)', iconClass: 'fa-times', title: 'Clear the current correct answer selection', style: 'padding: 4px 10px; font-size: 0.85em; margin-top: 8px;' })}
                         <div id="correct-answer-radios-${questionCount}" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
                             <!-- Radio buttons will be generated dynamically based on choices -->
                         </div>
@@ -14793,6 +14820,12 @@
                     root.style.setProperty('--app-line-height', savedLineHeight);
                 }
                 pendingTypographyRefresh = true;
+                // Typography changes must bump layout version so deferred preview scheduleFit won't skip.
+                if (typeof requestLayoutRefit === 'function') {
+                    requestLayoutRefit('typography-change');
+                } else {
+                    window.__layoutMetricsVersion = (window.__layoutMetricsVersion || 0) + 1;
+                }
                 refreshTextLayoutAfterTypographyChange();
             });
         }
@@ -15913,7 +15946,9 @@
                 }, 500);
                 store.docs[key].pdfDoc = doc;
                 store.docs[key].totalPages = doc.numPages;
-                if (key === 'text' && typeof maybeHandlePdfSwitch === 'function') maybeHandlePdfSwitch();
+                if ((key === 'text' || key === 'guide') && typeof maybeHandlePdfSwitch === 'function') {
+                    maybeHandlePdfSwitch();
+                }
                 // Preserve saved state if it exists and is valid, otherwise use hint or default
                 if (!store.docs[key].currentPage || store.docs[key].currentPage < 1 || store.docs[key].currentPage > doc.numPages) {
                     store.docs[key].currentPage = Math.min(Math.max((lastDrawn?.page) || (parseInt(hintPage,10)||1),1), doc.numPages);
@@ -17744,6 +17779,8 @@
                     // Get correct choice UID and convert to index for export
                     ensureChoiceUids(questionEl);
                     const correctChoiceUid = getCorrectChoiceUid(questionEl);
+                    // MCQ null sentinel: keep key present as null when no option is selected.
+                    result.value = null;
                     if (correctChoiceUid) {
                         const choicesList = questionEl.querySelector('[id^="choices-list-"]');
                         const choices = choicesList ? Array.from(choicesList.querySelectorAll('.choice-item')) : [];
@@ -17770,7 +17807,9 @@
                             }
                         });
                     }
-                    result.values = values;
+                    // Exception: if all checkbox values are false, store empty array instead.
+                    const normalizedValues = (values.length > 0 && values.every(v => v === false)) ? [] : values;
+                    result.values = normalizedValues;
                 }
                 
                 return result;
@@ -17831,7 +17870,15 @@
                                      Array.from(questionEl.querySelectorAll('input[type="number"]')).find(
                                          input => input.placeholder && input.placeholder.includes('78')
                                      );
-            const guidePdfPage = guidePdfPageInput ? parseInt(guidePdfPageInput.value, 10) : null;
+            // Empty guide pages are optional; store as null/empty string instead of NaN.
+            let guidePdfPage = null;
+            if (guidePdfPageInput) {
+                const rawGuidePdfPage = (guidePdfPageInput.value || '').trim();
+                if (rawGuidePdfPage !== '') {
+                    const parsedGuidePdfPage = parseInt(rawGuidePdfPage, 10);
+                    guidePdfPage = Number.isNaN(parsedGuidePdfPage) ? null : parsedGuidePdfPage;
+                }
+            }
             
             // Build the question object
             const questionData = {
@@ -17874,6 +17921,14 @@
             questionData.related_question = relatedQuestion;
             
             return questionData;
+        }
+
+        function getEffectiveCheckboxValuesForValidation(values, choicesCount) {
+            // Checkbox: allow [] sentinel meaning all false.
+            if (Array.isArray(values) && values.length === 0 && choicesCount > 0) {
+                return new Array(choicesCount).fill(false);
+            }
+            return values;
         }
 
         /**
@@ -19760,6 +19815,8 @@
             
             const text = textarea.value;
             const brErrors = validateBrTags(text);
+            const forbiddenLatexErrors = validateForbiddenLatexCommands(text);
+            const brRelatedErrors = [...brErrors, ...forbiddenLatexErrors];
             
             // Find or create error container - insert right after textarea
             const container = textarea.closest('.text-field-container') || textarea.parentElement;
@@ -19767,7 +19824,7 @@
             
             let errorDiv = container.querySelector('.br-validation-errors');
             
-            if (brErrors.length > 0) {
+            if (brRelatedErrors.length > 0) {
                 // Show errors
                 if (!errorDiv) {
                     errorDiv = document.createElement('div');
@@ -19781,13 +19838,24 @@
                 errorDiv.innerHTML = `
                     <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
                         <strong>⚠️ HTML Tag Errors:</strong>
-                        ${brErrors.map(error => `
-                            <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
-                                <div style="margin-bottom: 6px;">🔴 <strong>HTML Tag Error:</strong> ${error.message}</div>
-                                <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Remove all &lt;br&gt; tags from your content. Use markdown line breaks or proper formatting instead.</div>
-                                <div>⚠️ <strong>Important:</strong> This will break JSON generation and cause data loss!</div>
-                            </div>
-                        `).join('')}
+                        ${brRelatedErrors.map(error => {
+                            if (error.type === 'forbidden_latex_command') {
+                                return `
+                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                        <div style="margin-bottom: 6px;">🔴 <strong>LaTeX Command Error:</strong> Problem: ${error.problem}</div>
+                                        <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${error.fix}</div>
+                                        <div>⚠️ <strong>Important:</strong> This command is not supported in this platform.</div>
+                                    </div>
+                                `;
+                            }
+                            return `
+                                <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin-bottom: 6px;">🔴 <strong>HTML Tag Error:</strong> ${error.message}</div>
+                                    <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Remove all &lt;br&gt; tags from your content. Use markdown line breaks or proper formatting instead.</div>
+                                    <div>⚠️ <strong>Important:</strong> This tag is not supported in this platform.</div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
                 `;
                 textarea.classList.add('validation-error');
@@ -21262,6 +21330,31 @@
             return errors;
         }
 
+        function validateForbiddenLatexCommands(content) {
+            const errors = [];
+            if (!content || typeof content !== 'string' || content.trim().length === 0) {
+                return errors;
+            }
+            const forbiddenPatterns = [
+                { command: '\\neq', regex: /\\neq\b/g, fix: 'Remove \\neq completely. You can use ≠ instead.' },
+                { command: '\\nearrow', regex: /\\nearrow\b/g, fix: 'Replace \\nearrow with a supported arrow (e.g., \\uparrow or \\rightarrow).' }
+            ];
+            forbiddenPatterns.forEach(({ command, regex, fix }) => {
+                const matches = content.match(regex);
+                if (matches && matches.length > 0) {
+                    const problem = `Found forbidden LaTeX command (${command}).`;
+                    errors.push({
+                        type: 'forbidden_latex_command',
+                        command,
+                        problem,
+                        fix,
+                        message: `Problem: ${problem}\n   ➡️ Fix: ${fix}`
+                    });
+                }
+            });
+            return errors;
+        }
+
         /**
          * Escape raw HTML list tags (<ul>, <li> and variants) so they display as literal text in previews.
          * Prevents raw HTML from producing bullets; markdown lists (- , * , 1. ) remain unaffected.
@@ -21523,6 +21616,13 @@
                         validationErrors.push(`HTML Tag Error in ${location}: ${error.message}`);
                     });
                 }
+                const forbiddenLatexErrors = validateForbiddenLatexCommands(content);
+                if (forbiddenLatexErrors.length > 0) {
+                    const location = getTextareaLocation(textarea);
+                    forbiddenLatexErrors.forEach(error => {
+                        validationErrors.push(`LaTeX Command Error in ${location}: ${error.message}`);
+                    });
+                }
                 
                 // Validate HTML list tags (<ul>, <li>)
                 const htmlListErrors = validateHtmlListTags(content);
@@ -21642,23 +21742,18 @@
                             validationErrors.push(ErrorMessages.requiredQuestionText(index));
                         }
                         
-                        // Validate guide answer is required for these types
-                        if (!questionData.guide_answer || questionData.guide_answer.trim().length === 0) {
-                            validationErrors.push(`Question ${index + 1}: Guide Answer is required for ${questionData.question_type === 'annotate' ? 'annotate' : 'create_table'} question type`);
-                        }
-                        
-                        // Validate guide PDF page
-                        if (!questionData.guide_pdf_page) {
-                            validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                        } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                            validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                        } else {
-                            // Validate guide PDF page is within guidebook range
-                            const gbStart = parseInt(guidebookStart, 10);
-                            const gbEnd = parseInt(guidebookEnd, 10);
-                            if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                    validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                        // Guidebook may be missing for some books: guide page/answer fields are optional.
+                        if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                            if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                            } else {
+                                // Validate guide PDF page is within guidebook range
+                                const gbStart = parseInt(guidebookStart, 10);
+                                const gbEnd = parseInt(guidebookEnd, 10);
+                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                    }
                                 }
                             }
                         }
@@ -21687,31 +21782,21 @@
                                     validationErrors.push(ErrorMessages.blankAnswerMismatch(index, blanks.length, questionData.values.length));
                                 }
                                 
-                                // Check for empty answers
-                                const emptyBlanks = [];
-                                questionData.values.forEach((answer, idx) => {
-                                    if (!answer || answer.trim() === '') {
-                                        emptyBlanks.push(`___${blanks[idx]}___`);
-                                    }
-                                });
-                                if (emptyBlanks.length > 0) {
-                                    validationErrors.push(ErrorMessages.missingBlankAnswers(index, emptyBlanks));
-                                }
+                                // Blank answer fields are optional; keep only structural/count checks.
                             }
                         }
                         
-                        // Validate guide PDF page
-                        if (!questionData.guide_pdf_page) {
-                            validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                        } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                            validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                        } else {
-                            // Validate guide PDF page is within guidebook range
-                            const gbStart = parseInt(guidebookStart, 10);
-                            const gbEnd = parseInt(guidebookEnd, 10);
-                            if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                    validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                        if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                            if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                            } else {
+                                // Validate guide PDF page is within guidebook range
+                                const gbStart = parseInt(guidebookStart, 10);
+                                const gbEnd = parseInt(guidebookEnd, 10);
+                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                    }
                                 }
                             }
                         }
@@ -21762,18 +21847,17 @@
                             });
                         }
                         
-                        // Validate guide PDF page
-                        if (!questionData.guide_pdf_page) {
-                            validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                        } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                            validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                        } else {
-                            // Validate guide PDF page is within guidebook range
-                            const gbStart = parseInt(guidebookStart, 10);
-                            const gbEnd = parseInt(guidebookEnd, 10);
-                            if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                    validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                        if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                            if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                            } else {
+                                // Validate guide PDF page is within guidebook range
+                                const gbStart = parseInt(guidebookStart, 10);
+                                const gbEnd = parseInt(guidebookEnd, 10);
+                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                    }
                                 }
                             }
                         }
@@ -21794,11 +21878,11 @@
                                     validationErrors.push(ErrorMessages.inconsistentChoiceIDs(index, 'multiple_choice'));
                             }
                             }
-                            // Validate value field (1-indexed position)
-                            if (!questionData.value || typeof questionData.value !== 'number') {
-                                validationErrors.push(ErrorMessages.requiredCorrectAnswer(index));
-                            } else if (questionData.value < 1 || questionData.value > questionData.choices.length) {
-                                validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
+                            // Correct Answer Position is optional; validate only when provided.
+                            if (typeof questionData.value === 'number') {
+                                if (questionData.value < 1 || questionData.value > questionData.choices.length) {
+                                    validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
+                                }
                             }
                             // guide_answer is now optional (for notes)
                         } else if (questionData.question_type === 'checkbox') {
@@ -21815,32 +21899,27 @@
                                 // Validate values array
                                 if (!questionData.values || !Array.isArray(questionData.values)) {
                                     validationErrors.push(ErrorMessages.requiredCheckedChoice(index));
-                                } else if (questionData.values.length !== questionData.choices.length) {
+                                } else {
+                                    const effectiveValues = getEffectiveCheckboxValuesForValidation(questionData.values, questionData.choices.length);
+                                    if (questionData.values.length !== 0 && effectiveValues.length !== questionData.choices.length) {
                                     validationErrors.push(`Question ${index + 1} (Checkbox) - Problem: Mismatch between number of choices (${questionData.choices.length}) and values array (${questionData.values.length}).\n   ➡️ Fix: Make sure each choice has a corresponding correct/incorrect value.`);
-                                } else if (!questionData.values.some(v => v === true)) {
-                                    validationErrors.push(ErrorMessages.requiredCheckedChoice(index));
+                                    }
                                 }
                             }
                             // guide_answer is now optional (for notes)
-                        } else {
-                            // Free form - validate guide answer
-                            if (!questionData.guide_answer) {
-                                validationErrors.push(ErrorMessages.requiredAnswer(index));
-                            }
                         }
                         
-                        // Validate guide PDF page is an integer
-                        if (!questionData.guide_pdf_page) {
-                            validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                        } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                            validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                        } else {
-                            // Validate guide PDF page is within guidebook range
-                            const gbStart = parseInt(guidebookStart, 10);
-                            const gbEnd = parseInt(guidebookEnd, 10);
-                            if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                    validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                        if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                            if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                            } else {
+                                // Validate guide PDF page is within guidebook range
+                                const gbStart = parseInt(guidebookStart, 10);
+                                const gbEnd = parseInt(guidebookEnd, 10);
+                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                    }
                                 }
                             }
                         }
@@ -22605,8 +22684,8 @@
                 // Find Guide PDF Page field by label
                 const guidePdfPageInput = findFieldByLabel(qEl, 'Guide PDF Page');
                 const guidePdfPage = (q.guide_pdf_page ?? null);
-                if (guidePdfPageInput && guidePdfPage != null) {
-                    guidePdfPageInput.value = guidePdfPage;
+                if (guidePdfPageInput) {
+                    guidePdfPageInput.value = (guidePdfPage == null || Number.isNaN(guidePdfPage)) ? '' : guidePdfPage;
                 }
 
                 const questionImages = normalizeBboxArray(q.question_images, defaultPage);
@@ -23975,6 +24054,12 @@
                             validationErrors.push(`HTML Tag Error in ${getTextareaLocation(textarea)}: ${error.message}`);
                         });
                     }
+                    const forbiddenLatexErrors = validateForbiddenLatexCommands(content);
+                    if (forbiddenLatexErrors.length > 0) {
+                        forbiddenLatexErrors.forEach(error => {
+                            validationErrors.push(`LaTeX Command Error in ${getTextareaLocation(textarea)}: ${error.message}`);
+                        });
+                    }
                     
                     // Validate HTML list tags (<ul>, <li>)
                     const htmlListErrors = validateHtmlListTags(content);
@@ -24091,18 +24176,17 @@
                                 validationErrors.push(ErrorMessages.requiredQuestionText(index));
                             }
                             
-                            // Validate guide PDF page
-                            if (!questionData.guide_pdf_page) {
-                                validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                            } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                            } else {
-                                // Validate guide PDF page is within guidebook range
-                                const gbStart = parseInt(guidebookStart, 10);
-                                const gbEnd = parseInt(guidebookEnd, 10);
-                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                            if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                                if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                    validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                                } else {
+                                    // Validate guide PDF page is within guidebook range
+                                    const gbStart = parseInt(guidebookStart, 10);
+                                    const gbEnd = parseInt(guidebookEnd, 10);
+                                    if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                        if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                            validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                        }
                                     }
                                 }
                             }
@@ -24128,29 +24212,21 @@
                                         validationErrors.push(ErrorMessages.blankAnswerMismatch(index, blanks.length, questionData.values.length));
                                     }
                                     
-                                    const emptyBlanks = [];
-                                    questionData.values.forEach((answer, idx) => {
-                                        if (!answer || answer.trim() === '') {
-                                            emptyBlanks.push(`___${blanks[idx]}___`);
-                                        }
-                                    });
-                                    if (emptyBlanks.length > 0) {
-                                        validationErrors.push(ErrorMessages.missingBlankAnswers(index, emptyBlanks));
-                                    }
+                                    // Blank answer fields are optional; keep only structural/count checks.
                                 }
                             }
                             
-                            if (!questionData.guide_pdf_page) {
-                                validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                            } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                            } else {
-                                // Validate guide PDF page is within guidebook range
-                                const gbStart = parseInt(guidebookStart, 10);
-                                const gbEnd = parseInt(guidebookEnd, 10);
-                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                            if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                                if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                    validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                                } else {
+                                    // Validate guide PDF page is within guidebook range
+                                    const gbStart = parseInt(guidebookStart, 10);
+                                    const gbEnd = parseInt(guidebookEnd, 10);
+                                    if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                        if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                            validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                        }
                                     }
                                 }
                             }
@@ -24198,17 +24274,17 @@
                                 });
                             }
                             
-                            if (!questionData.guide_pdf_page) {
-                                validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                            } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                            } else {
-                                // Validate guide PDF page is within guidebook range
-                                const gbStart = parseInt(guidebookStart, 10);
-                                const gbEnd = parseInt(guidebookEnd, 10);
-                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                            if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                                if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                    validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                                } else {
+                                    // Validate guide PDF page is within guidebook range
+                                    const gbStart = parseInt(guidebookStart, 10);
+                                    const gbEnd = parseInt(guidebookEnd, 10);
+                                    if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                        if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                            validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                        }
                                     }
                                 }
                             }
@@ -24228,11 +24304,11 @@
                                         validationErrors.push(ErrorMessages.inconsistentChoiceIDs(index, 'multiple_choice'));
                                 }
                                 }
-                                // Validate value field (1-indexed position)
-                                if (!questionData.value || typeof questionData.value !== 'number') {
-                                    validationErrors.push(ErrorMessages.requiredCorrectAnswer(index));
-                                } else if (questionData.value < 1 || questionData.value > questionData.choices.length) {
-                                    validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
+                                // Correct Answer Position is optional; validate only when provided.
+                                if (typeof questionData.value === 'number') {
+                                    if (questionData.value < 1 || questionData.value > questionData.choices.length) {
+                                        validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
+                                    }
                                 }
                                 // guide_answer is now optional (for notes)
                             } else if (questionData.question_type === 'checkbox') {
@@ -24249,32 +24325,27 @@
                                     // Validate values array
                                     if (!questionData.values || !Array.isArray(questionData.values)) {
                                         validationErrors.push(ErrorMessages.requiredCheckedChoice(index));
-                                    } else if (questionData.values.length !== questionData.choices.length) {
-                                        validationErrors.push(`Question ${index + 1} (Checkbox) - Problem: Mismatch between number of choices (${questionData.choices.length}) and values array (${questionData.values.length}).\n   ➡️ Fix: Make sure each choice has a corresponding correct/incorrect value.`);
-                                    } else if (!questionData.values.some(v => v === true)) {
-                                        validationErrors.push(ErrorMessages.requiredCheckedChoice(index));
+                                    } else {
+                                        const effectiveValues = getEffectiveCheckboxValuesForValidation(questionData.values, questionData.choices.length);
+                                        if (questionData.values.length !== 0 && effectiveValues.length !== questionData.choices.length) {
+                                            validationErrors.push(`Question ${index + 1} (Checkbox) - Problem: Mismatch between number of choices (${questionData.choices.length}) and values array (${questionData.values.length}).\n   ➡️ Fix: Make sure each choice has a corresponding correct/incorrect value.`);
+                                        }
                                     }
                                 }
                                 // guide_answer is now optional (for notes)
-                            } else {
-                                // Free form - validate guide answer
-                                if (!questionData.guide_answer) {
-                                    validationErrors.push(ErrorMessages.requiredAnswer(index));
-                                }
                             }
                             
-                            // Validate guide PDF page
-                            if (!questionData.guide_pdf_page) {
-                                validationErrors.push(ErrorMessages.requiredGuidePage(index));
-                            } else if (isNaN(questionData.guide_pdf_page) || !Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
-                                validationErrors.push(ErrorMessages.invalidGuidePage(index));
-                            } else {
-                                // Validate guide PDF page is within guidebook range
-                                const gbStart = parseInt(guidebookStart, 10);
-                                const gbEnd = parseInt(guidebookEnd, 10);
-                                if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
-                                    if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
-                                        validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                            if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                                if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                                    validationErrors.push(ErrorMessages.invalidGuidePage(index));
+                                } else {
+                                    // Validate guide PDF page is within guidebook range
+                                    const gbStart = parseInt(guidebookStart, 10);
+                                    const gbEnd = parseInt(guidebookEnd, 10);
+                                    if (!isNaN(gbStart) && !isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                                        if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                                            validationErrors.push(ErrorMessages.guidePageOutOfRange(index, questionData.guide_pdf_page, gbStart, gbEnd));
+                                        }
                                     }
                                 }
                             }
@@ -27327,8 +27398,20 @@
                             <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
                         </h3>
                         <ul class="whats-new-modal-list">
-                            <li><strong>Save and auto-save always persist:</strong> Manual save and auto-save now always write your draft to storage, even when there are validation errors or warnings. No alerts or warnings are shown during save. Validation still runs when you use "Generate JSON"—only generation is blocked by errors.</li>
-                            <li><strong>Question ID validation is disabled:</strong> Question ID validation is disabled now, you can use the same question ID multiple times.</li>
+                            <li><strong>Optional guidebook-related fields:</strong> Some tasks will be missing the guidebook pages, and the guidance is to leave the related fields empty. So, the following fields will not flag an error if you leave them empty anymore, but it is your responsibility to leave them empty if the task does not have a guidebook or fill them in if the task has a guidebook. The fields are: Guide PDF Page, Guide Answer, Correct Answer Position (Multiple Choice), Correct Answers Summary (Checkbox), and Fill-in-the-blanks answer fields.</li>
+                            <li><strong>Multiple Choice "Clear Selection":</strong> A "Clear Selection" button lets you clear the selected correct answer.</li>
+                            <li><strong>Forbidden LaTeX commands validated:</strong> The tool now flags <code>\neq</code> and <code>\nearrow</code>.</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bug Fixes -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Output preview overflow with Auto-Resize:</strong> Changing font size or line height no longer leaves image/bbox preview boxes stuck at the old height; typography changes now trigger correct re-measure and resize.</li>
+                            <li><strong>Bbox preview refresh on either PDF change:</strong> Image placeholder and bbox previews now refresh when either the Textbook or Guidebook PDF is changed, not only when the textbook changes.</li>
                         </ul>
                     </div>
                     
@@ -27338,7 +27421,26 @@
                             <i class="fas fa-info-circle" style="color: #17a2b8;"></i> We need your help
                         </h3>
                         <ul class="whats-new-modal-list">
-                            <li>We are currently looking into reported lagging issues. If you experience lag, please send <strong>videos of the issue happening</strong> in addition to your JSON files so we can investigate.</li>
+                            <li>We are currently looking into reported lagging issues. If you experience lag, please send <strong>videos of the issue happening</strong> in addition to your JSON files so we can investigate. For now, you can disable the auto resize feature from the top right corner of the page to minimize the lag.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 7.3 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.3</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
+                    </div>
+                    
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Save and auto-save always persist:</strong> Manual save and auto-save now always write your draft to storage, even when there are validation errors or warnings. No alerts or warnings are shown during save. Validation still runs when you use "Generate JSON"—only generation is blocked by errors.</li>
+                            <li><strong>Question ID validation is disabled:</strong> Question ID validation is disabled now, you can use the same question ID multiple times.</li>
                         </ul>
                     </div>
                 </div>
