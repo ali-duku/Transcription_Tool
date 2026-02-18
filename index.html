@@ -5528,8 +5528,8 @@
                     <!-- PDF Page Number - Refactored to use createFormControl -->
                     <div id="textbook_pdf_page_container"></div>
                     
-                    <!-- Guidebook PDF Pages - Refactored to use createFormControl -->
-                     <div class="form-group required-field">
+                    <!-- Guidebook PDF Pages - Refactored to use createFormControl (optional) -->
+                     <div class="form-group">
                          <label>Guidebook PDF Pages (Start - End)</label>
                          <div class="bbox-inputs" style="grid-template-columns: 1fr 1fr;">
                             <div id="guidebook_start_page_container"></div>
@@ -5807,6 +5807,31 @@
             // Attach keypress handler for integer-only input (matches original onkeypress behavior)
             control.controlEl.addEventListener('keypress', function(e) {
                 // Only allow digits (0-9), charCode 48-57
+                if (e.charCode < 48 || e.charCode > 57) {
+                    e.preventDefault();
+                }
+            });
+            return control;
+        }
+        
+        // Helper: Create an optional number input (same as required but required: false)
+        function createOptionalNumberInput(config) {
+            const control = createFormControl({
+                id: config.id,
+                label: config.label,
+                type: 'number',
+                placeholder: config.placeholder,
+                required: false,
+                attrs: {
+                    min: '1',
+                    step: '1',
+                    title: config.title
+                },
+                onInput: function(e) {
+                    validateInteger(e.target);
+                }
+            });
+            control.controlEl.addEventListener('keypress', function(e) {
                 if (e.charCode < 48 || e.charCode > 57) {
                     e.preventDefault();
                 }
@@ -10461,12 +10486,10 @@
 
         // Initialize field validation
         function initializeFieldValidation() {
-            // Mark required fields
+            // Mark required fields (guidebook start/end are optional)
             const requiredFields = [
                 '#textbook_page',
                 '#textbook_pdf_page',
-                '#guidebook_start_page',
-                '#guidebook_end_page',
                 '#page_type'
             ];
             
@@ -21520,14 +21543,10 @@
             } else if (!Number.isInteger(parseFloat(textbookPdfPage))) {
                 validationErrors.push("Textbook PDF page must be a whole number");
             }
-            if (!guidebookStart) {
-                validationErrors.push("Guidebook start page is required");
-            } else if (!Number.isInteger(parseFloat(guidebookStart))) {
+            if (guidebookStart && !Number.isInteger(parseFloat(guidebookStart))) {
                 validationErrors.push("Guidebook start page must be a whole number");
             }
-            if (!guidebookEnd) {
-                validationErrors.push("Guidebook end page is required");
-            } else if (!Number.isInteger(parseFloat(guidebookEnd))) {
+            if (guidebookEnd && !Number.isInteger(parseFloat(guidebookEnd))) {
                 validationErrors.push("Guidebook end page must be a whole number");
             }
             if (guidebookStart && guidebookEnd && parseInt(guidebookStart) > parseInt(guidebookEnd)) {
@@ -24107,8 +24126,8 @@
                 // Required top-level fields
                 if (!textbookPage) validationErrors.push('Textbook page is required');
                 if (!textbookPdfPage) validationErrors.push('Textbook PDF page is required');
-                if (!guidebookStart) validationErrors.push('Guidebook start page is required');
-                if (!guidebookEnd) validationErrors.push('Guidebook end page is required');
+                if (guidebookStart && !Number.isInteger(parseFloat(guidebookStart))) validationErrors.push('Guidebook start page must be a whole number');
+                if (guidebookEnd && !Number.isInteger(parseFloat(guidebookEnd))) validationErrors.push('Guidebook end page must be a whole number');
                 if (guidebookStart && guidebookEnd && parseInt(guidebookStart) > parseInt(guidebookEnd)) {
                     validationErrors.push('Guidebook start page cannot be greater than end page');
                 }
@@ -24971,8 +24990,8 @@
                 }
             }
             
-            // Guidebook Start Page (inside bbox-inputs container, no form-group wrapper) (ISSUE B: Set LTR)
-            const guidebookStartControl = createRequiredNumberInput({
+            // Guidebook Start Page (inside bbox-inputs container, no form-group wrapper) (ISSUE B: Set LTR) — optional
+            const guidebookStartControl = createOptionalNumberInput({
                 id: 'guidebook_start_page',
                 label: '', // No label, just the input
                 placeholder: 'Start page (e.g., 78)',
@@ -24989,8 +25008,8 @@
                 guidebookStartContainer.appendChild(input);
             }
             
-            // Guidebook End Page (inside bbox-inputs container, no form-group wrapper) (ISSUE B: Set LTR)
-            const guidebookEndControl = createRequiredNumberInput({
+            // Guidebook End Page (inside bbox-inputs container, no form-group wrapper) (ISSUE B: Set LTR) — optional
+            const guidebookEndControl = createOptionalNumberInput({
                 id: 'guidebook_end_page',
                 label: '', // No label, just the input
                 placeholder: 'End page (e.g., 85)',
@@ -27398,7 +27417,7 @@
                             <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
                         </h3>
                         <ul class="whats-new-modal-list">
-                            <li><strong>Optional guidebook-related fields:</strong> Some tasks will be missing the guidebook pages, and the guidance is to leave the related fields empty. So, the following fields will not flag an error if you leave them empty anymore, but it is your responsibility to leave them empty if the task does not have a guidebook or fill them in if the task has a guidebook. The fields are: Guide PDF Page, Guide Answer, Correct Answer Position (Multiple Choice), Correct Answers Summary (Checkbox), and Fill-in-the-blanks answer fields.</li>
+                            <li><strong>Optional guidebook-related fields:</strong> Some tasks will be missing the guidebook pages, and the guidance is to leave the related fields empty. So, the following fields will not flag an error if you leave them empty anymore, but it is your responsibility to leave them empty if the task does not have a guidebook or fill them in if the task has a guidebook. The fields are: Guidebook PDF Pages (Start - End), Guide PDF Page, Guide Answer, Correct Answer Position (Multiple Choice), Correct Answers Summary (Checkbox), and Fill-in-the-blanks answer fields.</li>
                             <li><strong>Multiple Choice "Clear Selection":</strong> A "Clear Selection" button lets you clear the selected correct answer.</li>
                             <li><strong>Forbidden LaTeX commands validated:</strong> The tool now flags <code>\neq</code> and <code>\nearrow</code>.</li>
                         </ul>
