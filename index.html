@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.4';
+        const CURRENT_VERSION = '7.4.1';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
@@ -6162,6 +6162,11 @@
             // Warnings
             warningSectionTitle: (sIndex) => 
                 `⚠️ Content Section ${sIndex + 1} - Suggestion: You might want to add a section title to make it easier to organize your content.\n   💡 Tip: A good title helps identify what this section is about.`,
+            
+            warningQuestionText: (qIndex, questionType) => {
+                const prettyName = { multiple_choice: 'Multiple Choice', checkbox: 'Checkbox', fill_in_the_blanks: 'Fill in the Blanks', matching: 'Matching', annotate: 'Annotate', create_table: 'Create Table', free_form: 'Free Form' }[questionType] || '';
+                return `⚠️ Question ${qIndex + 1}${questionType && prettyName ? ' (' + prettyName + ')' : ''} - Suggestion: Question Text is empty.\n   💡 Tip: Add question text so students know what to answer.`;
+            },
             
             // Bbox validation
             invalidBboxPage: (location, imgNum) => 
@@ -12984,7 +12989,7 @@
                     label: 'Question Text',
                     placeholder: 'Enter question text...',
                     title: 'The main question text that students need to answer (supports markdown and LaTeX)',
-                    required: true,
+                    required: false,
                     includeBlankButton: true
                 })}
                 
@@ -21748,6 +21753,7 @@
             questionElements.forEach((questionEl, index) => {
                 try {
                     const questionData = collectQuestionData(questionEl);
+                    const isQuestionTextEmpty = !questionData.question_text || /^\d+$/.test(questionData.question_text);
                     
                     // Enforce required fields for each question
                     if (!questionData.id) {
@@ -21756,9 +21762,8 @@
                     
                     // Validate annotate and create_table types
                     if (questionData.question_type === 'annotate' || questionData.question_type === 'create_table') {
-                        // Validate required fields
-                        if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                            validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                        if (isQuestionTextEmpty) {
+                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                         }
                         
                         // Guidebook may be missing for some books: guide page/answer fields are optional.
@@ -21778,8 +21783,8 @@
                         }
                     } else if (questionData.question_type === 'fill_in_the_blanks') {
                         // Fill in the blanks validation
-                        if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                            validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                        if (isQuestionTextEmpty) {
+                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                         } else {
                             // Validate blank format
                             const { valid, errors, blanks } = validateBlankFormat(questionData.question_text);
@@ -21821,8 +21826,8 @@
                         }
                     } else if (questionData.question_type === 'matching') {
                         // Matching validation
-                        if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                            validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                        if (isQuestionTextEmpty) {
+                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                         }
                         
                         // Validate left items
@@ -21882,8 +21887,8 @@
                         }
                     } else {
                         // Validate other fields for all other types
-                        if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                            validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                        if (isQuestionTextEmpty) {
+                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                         }
                         
                         if (questionData.question_type === 'multiple_choice') {
@@ -24184,15 +24189,15 @@
                 questionElements.forEach((questionEl, index) => {
                     try {
                         const questionData = collectQuestionData(questionEl);
+                        const isQuestionTextEmpty = !questionData.question_text || /^\d+$/.test(questionData.question_text);
                         
                         // Validate required fields
                         if (!questionData.id) validationErrors.push(ErrorMessages.requiredQuestionID(index));
                         
                         // Validate annotate and create_table types
                         if (questionData.question_type === 'annotate' || questionData.question_type === 'create_table') {
-                            // Validate required fields
-                            if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                                validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                            if (isQuestionTextEmpty) {
+                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                             }
                             
                             if (typeof questionData.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
@@ -24211,8 +24216,8 @@
                             }
                         } else if (questionData.question_type === 'fill_in_the_blanks') {
                             // Fill in the blanks validation (same as in generateJSON)
-                            if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                                validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                            if (isQuestionTextEmpty) {
+                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                             } else {
                                 const { valid, errors, blanks } = validateBlankFormat(questionData.question_text);
                                 
@@ -24251,8 +24256,8 @@
                             }
                         } else if (questionData.question_type === 'matching') {
                             // Matching validation (same as in generateJSON)
-                            if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                                validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                            if (isQuestionTextEmpty) {
+                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                             }
                             
                             if (!questionData.left || questionData.left.length === 0) {
@@ -24309,8 +24314,8 @@
                             }
                         } else {
                             // Validate other fields for all other types
-                            if (!questionData.question_text || /^\d+$/.test(questionData.question_text)) {
-                                validationErrors.push(ErrorMessages.requiredQuestionText(index));
+                            if (isQuestionTextEmpty) {
+                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
                             }
                             
                             if (questionData.question_type === 'multiple_choice') {
@@ -27417,6 +27422,7 @@
                             <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
                         </h3>
                         <ul class="whats-new-modal-list">
+                            <li><strong>Question Text Requirement (warning only):</strong> Some questions have no question text, so the question text field is not required anymore in the tool. This is your responsibility to check and fill in the question text if it is missing. The tool will only give you a warning if the question text is empty.</li>
                             <li><strong>Optional guidebook-related fields:</strong> Some tasks will be missing the guidebook pages, and the guidance is to leave the related fields empty. So, the following fields will not flag an error if you leave them empty anymore, but it is your responsibility to leave them empty if the task does not have a guidebook or fill them in if the task has a guidebook. The fields are: Guidebook PDF Pages (Start - End), Guide PDF Page, Guide Answer, Correct Answer Position (Multiple Choice), Correct Answers Summary (Checkbox), and Fill-in-the-blanks answer fields.</li>
                             <li><strong>Multiple Choice "Clear Selection":</strong> A "Clear Selection" button lets you clear the selected correct answer.</li>
                             <li><strong>Forbidden LaTeX commands validated:</strong> The tool now flags <code>\neq</code> and <code>\nearrow</code>.</li>
