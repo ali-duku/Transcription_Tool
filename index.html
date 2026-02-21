@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.4';
+        const DISPLAY_VERSION = '7.5';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.4.1';
+        const CURRENT_VERSION = '7.5';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
@@ -7179,9 +7179,10 @@
                 setTimeout(function() {
                     if (element && element.scrollIntoView) {
                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        // Highlight the element briefly
+                        // Highlight the element briefly (dark-mode-aware: accent tint for dark, yellow for light)
                         const originalBg = element.style.backgroundColor;
-                        element.style.backgroundColor = '#fff3cd';
+                        const isDark = document.body.getAttribute('data-theme') === 'dark';
+                        element.style.backgroundColor = isDark ? 'rgba(102, 126, 234, 0.4)' : '#fff3cd';
                         element.style.transition = 'background-color 0.3s ease';
                         setTimeout(function() {
                             element.style.backgroundColor = originalBg;
@@ -9677,8 +9678,9 @@
                         if (element && isValidSection(element)) {
                             // Use universal scroll helper to scroll to top with sticky offset
                             scrollElementToTop(element);
-                            // Highlight briefly
-                            element.style.backgroundColor = '#fff3cd';
+                            // Highlight briefly (dark-mode-aware)
+                            const isDark = document.body.getAttribute('data-theme') === 'dark';
+                            element.style.backgroundColor = isDark ? 'rgba(102, 126, 234, 0.4)' : '#fff3cd';
                             setTimeout(() => element.style.backgroundColor = '', 2000);
                         }
                         // If not found or invalid, do nothing (no console errors, no fallback)
@@ -9758,15 +9760,16 @@
         function jumpToElement(element) {
             if (!element) return;
             
-            // Determine which tab the element belongs to and switch if needed
+            // Always switch to Input Form first (search results are in the form, not Final Preview)
+            showMainTab('input-form');
+            
+            // Determine which sub-tab the element belongs to and switch if needed
             const contentContainer = document.getElementById('content_sections_container');
             const questionsContainer = document.getElementById('questions_container');
             
             if (contentContainer && contentContainer.contains(element)) {
-                // Element is in content sections - switch to content tab
                 showTab('content');
             } else if (questionsContainer && questionsContainer.contains(element)) {
-                // Element is in questions - switch to questions tab
                 showTab('questions');
             }
             
@@ -12733,7 +12736,7 @@
                     <label>Section Title</label>
                     <span class="input-label">Input Markdown</span>
                     <div class="text-field-container">
-                        <input type="text" placeholder="Section title" title="Optional title for this content section (supports markdown formatting)">
+                        <input type="text" placeholder="Section title" title="Title for this content section (supports markdown formatting)">
                         ${getTitleMarkdownButtonBarHTML('input')}
                     </div>
                 </div>
@@ -12789,7 +12792,7 @@
                 
                 <div class="form-group">
                     <label>Related Question</label>
-                    <input type="text" placeholder="Leave empty if no related questions" data-ltr="true" title="Optional reference to related questions (e.g., 3)">
+                    <input type="text" placeholder="Leave empty if no related questions" data-ltr="true" title="Reference to related questions (e.g., 3)">
                 </div>
             `;
         }
@@ -12847,8 +12850,8 @@
                     ${buildActionButtonsHTML(choiceConfig, { itemLabel: 'Choice' })}
                 </div>
                 <div class="form-group">
-                    <label>Choice ID <span style="opacity: 0.6; font-size: 0.85em;">(Optional)</span></label>
-                    <input type="text" class="choice-id" value="${choiceId}" data-ltr="true" placeholder="Optional: A, B, C..." oninput="updateChoiceHeader(this)" title="Optional identifier for this choice (e.g., A, B, C, D)">
+                    <label>Choice ID <span style="opacity: 0.6; font-size: 0.85em;"></span></label>
+                    <input type="text" class="choice-id" value="${choiceId}" data-ltr="true" placeholder="A, B, C..." oninput="updateChoiceHeader(this)" title="Identifier for this choice (e.g., A, B, C, D)">
                 </div>
                 <div class="form-group required-field required">
                     <label>Choice Text</label>
@@ -12940,10 +12943,10 @@
                 return `
                     <div class="form-group${containerClasses ? ` ${containerClasses}` : ''}" ${containerId ? `id="${containerId}"` : ''} style="margin-top: 15px;">
                         <!-- Prevent Guide Answer from being rendered in both common + per-type blocks -->
-                        <label>Guide Answer <span style="opacity: 0.6; font-size: 0.85em;">(Optional)</span></label>
+                        <label>Guide Answer <span style="opacity: 0.6; font-size: 0.85em;"></span></label>
                         <div class="text-field-container">
                             <span class="input-label">Input Markdown</span>
-                            <textarea class="guide-answer-notes" placeholder="Optional: Enter guide answer..." title="Optional guide answer or notes for teachers (supports markdown and LaTeX)"></textarea>
+                            <textarea class="guide-answer-notes" placeholder="Enter guide answer..." title="Guide answer or notes for teachers (supports markdown and LaTeX)"></textarea>
                             ${getMarkdownButtonBarHTML({ includeImage: true, includeTable: true })}
                         </div>
                     </div>
@@ -14700,14 +14703,19 @@
             // Save preference to localStorage
             localStorage.setItem('autoResizeEnabled', autoResizeEnabled ? 'true' : 'false');
             
-            // When turning auto-resize ON: ensure previews and spawn-finalize active panel (force-fit with current content)
+            // When turning auto-resize ON: ensure previews and spawn-finalize. Use full input-form as root
+            // so all sub-tabs get registered; hidden tab elements go to pendingFit and are fitted on tab switch.
             if (autoResizeEnabled) {
                 refreshActivePanel(resolveActivePanelRoot());
                 if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
-                    AutoSizeManager.finalizeSpawn(resolveActivePanelRoot());
+                    const mainActive = document.querySelector('.main-tab-content.active');
+                    const root = (mainActive && mainActive.id === 'input-form') ? mainActive : resolveActivePanelRoot();
+                    AutoSizeManager.finalizeSpawn(root);
                 }
             } else {
                 autoResizeAllTextareas();
+                // Clear fixed heights on previews so they grow with content (height: auto)
+                document.querySelectorAll('.live-preview').forEach(pv => { pv.style.height = 'auto'; });
             }
         }
         
@@ -14734,6 +14742,8 @@
                     toggle.title = 'Auto-Resize: OFF (Click to enable)';
                     toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
                     toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                    // Ensure previews grow with content (height: auto)
+                    document.querySelectorAll('.live-preview').forEach(pv => { pv.style.height = 'auto'; });
                 }
             }
         }
@@ -23755,7 +23765,7 @@
                 return;
             }
             
-            const tableDescription = prompt('Enter table description (optional):');
+            const tableDescription = prompt('Enter table description:');
             
             // Get the next available image index automatically
             const nextIndex = getNextImageIndexForField(textarea);
@@ -23838,7 +23848,7 @@
                 return;
             }
             
-            const imageDescription = prompt('Enter image description (optional):');
+            const imageDescription = prompt('Enter image description:');
             if (imageDescription === null) return; // User cancelled
             
             // Get the next available image index automatically
@@ -25890,6 +25900,16 @@
                     }
                 }
                 
+                // Trigger auto-navigation when PDF loads and viewer is visible (fixes case when
+                // loadPdfFromStore completes after showPdfViewer's timeout, e.g. async init)
+                if (state.visible && state.autoSyncEnabled) {
+                    setTimeout(() => {
+                        if (state.visible && state.autoSyncEnabled && state.pdfDoc) {
+                            navigateToContextPage();
+                        }
+                    }, 150);
+                }
+                
                 return true;
             } else {
             }
@@ -26556,14 +26576,20 @@
                 answerPage: null     // For questions: guide page
             };
             
-            // Detect active tab
-            const activeTab = document.querySelector('.tab.active');
-            if (activeTab) {
-                context.activeTab = activeTab.textContent.trim().toLowerCase();
-            }
-            
-            // Detect focused element
+            // Detect active tab (use sub-tab when focused element is in input form, else first .tab.active may be main tab)
             const focused = document.activeElement;
+            const activeTabBtn = document.querySelector('.tab.active');
+            if (activeTabBtn) {
+                context.activeTab = activeTabBtn.textContent.trim().toLowerCase();
+            }
+            // Override from focused element's tab-content when in input form (ensures questions/content/basic/preamble detected correctly)
+            if (focused) {
+                const tabContent = focused.closest('#basic, #preamble, #content, #questions');
+                if (tabContent) {
+                    const id = tabContent.id;
+                    context.activeTab = id === 'preamble' ? 'lesson preamble' : id === 'basic' ? 'basic info' : id;
+                }
+            }
             if (focused) {
                 context.focusedField = focused;
                 
@@ -26881,10 +26907,16 @@
                             targetPage = parseInt(focused.value, 10);
                         }
                     } else {
-                    // For other guide fields (Guide Answer), 
-                    // use any page within the guidebook range
-                    // Note: Answer Images no longer triggers guidebook switching
-                    targetPage = getGuidebookPageInRange();
+                    // For other guide fields (Guide Answer, choices, blanks, relationships):
+                    // prefer question's Guide PDF Page, else guidebook range
+                    const questionEl = focused.closest('.array-item');
+                    const guidePdfPageInput = questionEl && findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
+                    if (guidePdfPageInput && guidePdfPageInput.value) {
+                        targetPage = parseInt(guidePdfPageInput.value, 10);
+                    }
+                    if (!targetPage) {
+                        targetPage = getGuidebookPageInRange();
+                    }
                     }
                     
                     // If still no target page, fallback to guidebook range logic
@@ -27414,6 +27446,38 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
                         <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+                    
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Auto-navigation prefers Guide PDF Page:</strong> When focusing on the Guide PDF Page field or other guide-related fields (Guide Answer, choices, blanks, relationships) in the Questions tab, the PDF viewer now navigates to the page specified in that question's Guide PDF Page field when available, instead of defaulting to the Guidebook PDF Pages (Start - End) range. Falls back to the guidebook range when the field is empty or not available.</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bug Fixes -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Dark mode highlight for pen edit button:</strong> Fixed the highlight shown when clicking the edit pen in the Final Preview tab, it now uses a clear accent color instead of yellowish in dark mode.</li>
+                            <li><strong>Dark mode highlight for Quick Jump:</strong> Fixed the highlight shown when using the Quick Jump menu, it now uses a clear accent color instead of yellowish in dark mode.</li>
+                            <li><strong>Search result navigation from Final Preview:</strong> Fixed an issue where clicking a search result while on the Final Preview tab did nothing. It now correctly switches to the Input Form tab and navigates to the matching element.</li>
+                            <li><strong>Preview overflow when auto-resize is off:</strong> Fixed an issue where preview output fields would overflow and show content outside their box when the auto-resize toggle was turned off and new content was added. Preview boxes now correctly grow with content in that case.</li>
+                            <li><strong>Auto-resize on tab switch:</strong> Fixed an issue where turning auto-resize ON and then switching to another tab (Content, Questions, Lesson Preamble) left input fields not resized until edited. Now all tabs' fields are registered when the toggle is turned on, so they resize correctly when you switch to them.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Version 7.4 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.4</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- Enhancements -->
