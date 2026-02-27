@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.5';
+        const DISPLAY_VERSION = '7.6';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,7 +23,7 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.5';
+        const CURRENT_VERSION = '7.6';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
@@ -3131,6 +3131,8 @@
         .live-preview ul ul ul { list-style-type: square; }
         .live-preview ol ol { list-style-type: lower-alpha; }
         .live-preview ol ol ol { list-style-type: lower-roman; }
+        .live-preview .ordered-literal-item { margin: 4px 0; }
+        .live-preview .ordered-literal-marker { font-weight: 600; margin-inline-end: 6px; }
         /* RTL list styling */
         .live-preview[dir="rtl"] ul,
         .live-preview[dir="rtl"] ol { padding-left: 0; padding-right: 30px; }
@@ -4670,6 +4672,8 @@
         [data-theme="dark"] .live-preview ul ul ul { list-style-type: square; }
         [data-theme="dark"] .live-preview ol ol { list-style-type: lower-alpha; }
         [data-theme="dark"] .live-preview ol ol ol { list-style-type: lower-roman; }
+        [data-theme="dark"] .live-preview .ordered-literal-item { margin: 4px 0; }
+        [data-theme="dark"] .live-preview .ordered-literal-marker { font-weight: 600; margin-inline-end: 6px; }
         /* RTL list styling in dark mode */
         [data-theme="dark"] .live-preview[dir="rtl"] ul,
         [data-theme="dark"] .live-preview[dir="rtl"] ol { padding-left: 0; padding-right: 30px; }
@@ -13744,8 +13748,7 @@
                     return (
                         /^#{1,6}\s/.test(trimmed) ||  // Headers: # ## ### etc
                         /^[-*_]{3,}$/.test(trimmed) ||  // Horizontal rules: --- *** ___
-                        /^[*+-]\s/.test(trimmed) ||  // Unordered lists: - * +
-                        /^\d+\.\s/.test(trimmed) ||  // Ordered lists: 1. 2.
+                        isMarkdownListLine(line) ||  // Unordered/ordered lists with optional indentation
                         /^```/.test(trimmed) ||  // Code blocks: ```
                         /^>($| )/.test(line) ||  // Blockquotes: > or > text
                         /^\|.*\|/.test(trimmed)  // Tables: | cell | cell |
@@ -13837,12 +13840,29 @@
                 // Restore markdown boundary markers as \n\n for proper markdown parsing
                 md = md.replace(/@@MARKDOWN_BOUNDARY@@/g, '\n\n');
                 
-                // Preserve multiple consecutive spaces (2 or more) by converting to &nbsp;
-                md = md.replace(/ {2,}/g, (match) => {
-                    // Don't convert space markers (they're already marked)
-                    // This regex only matches spaces, not the markers themselves
-                    return '&nbsp;'.repeat(match.length);
-                });
+                // Preserve multiple consecutive spaces (2 or more) while keeping table syntax intact
+                const mdLinesForSpaces = md.split('\n');
+                let inCodeFenceForSpaces = false;
+                md = mdLinesForSpaces.map((line) => {
+                    const trimmed = line.trim();
+                    const isFence = isFenceLine(trimmed);
+                    const inFenceBeforeToggle = inCodeFenceForSpaces;
+                    if (isFence) {
+                        inCodeFenceForSpaces = !inCodeFenceForSpaces;
+                        return line;
+                    }
+                    if (!inFenceBeforeToggle && (isMarkdownTableLine(line) || isMarkdownTableSeparatorLine(line))) {
+                        return line;
+                    }
+                    if (!inFenceBeforeToggle && isMarkdownListLine(line)) {
+                        const parts = splitListIndentAndBody(line);
+                        if (parts) {
+                            const processedBody = (parts.bodyRaw || '').replace(/ {2,}/g, (match) => '&nbsp;'.repeat(match.length));
+                            return parts.indentRaw + parts.markerRaw + parts.separatorRaw + processedBody;
+                        }
+                    }
+                    return line.replace(/ {2,}/g, (match) => '&nbsp;'.repeat(match.length));
+                }).join('\n');
 
                 // Protect fill-in-the-blank placeholders from markdown processing
                 const blankPlaceholders = [];
@@ -13850,6 +13870,9 @@
                     const idx = blankPlaceholders.push(num) - 1;
                     return `@@BLANK_PLACEHOLDER_${idx}@@`;
                 });
+
+                // Keep ordered markers exactly as authored (numeric/alphabetic/Arabic)
+                md = convertOrderedListLinesToLiteralHtml(md);
 
                 if (shouldEscapeHtmlLists) {
                     md = escapeHtmlListTags(md);
@@ -14983,6 +15006,8 @@
             // Check for leading spaces on lines
             const hasLeadingSpacesOnLines = lines.some(line => {
                 if (line.trim().length === 0) return false; // Skip empty lines
+                // List indentation is valid markdown syntax (nested lists), not a spacing issue.
+                if (isMarkdownListLine(line)) return false;
                 return line.trimStart() !== line; // Line has leading spaces
             });
             
@@ -15039,6 +15064,179 @@
             }
             
             return hasTrailingSpacesOnLines || hasLeadingSpacesOnLines || hasMultipleConsecutiveSpaces || hasTrailingEmptyLines || hasLeadingEmptyLines || hasConsecutiveEmptyLines;
+        }
+
+        // Check if a line is a markdown table row candidate
+        function isMarkdownTableLine(line) {
+            if (typeof line !== 'string') return false;
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('|')) return false;
+            const pipeCount = (trimmed.match(/\|/g) || []).length;
+            return pipeCount >= 2;
+        }
+
+        // Check if a line is a markdown table separator row
+        function isMarkdownTableSeparatorLine(line) {
+            if (typeof line !== 'string') return false;
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('|')) return false;
+            return /^[\s|:-]+$/.test(trimmed) && trimmed.includes('-');
+        }
+
+        // Check if a line is a fenced code delimiter
+        function isFenceLine(line) {
+            if (typeof line !== 'string') return false;
+            return /^```/.test(line.trim());
+        }
+
+        function isValidListIndent(indentRaw, spacesPerLevel, tabsPerLevel) {
+            if (!indentRaw) return true;
+            const hasSpaces = indentRaw.includes(' ');
+            const hasTabs = indentRaw.includes('\t');
+            if (hasSpaces && hasTabs) return false;
+            if (hasSpaces) return indentRaw.length % spacesPerLevel === 0;
+            if (hasTabs) return indentRaw.length % tabsPerLevel === 0;
+            return true;
+        }
+
+        // Split markdown bullet list line into syntax-critical parts and body.
+        // Bullet nesting rule: 2 spaces OR 1 tab per level.
+        function splitBulletListIndentAndBody(line) {
+            if (typeof line !== 'string') return null;
+            const match = line.match(/^([ \t]*)([*+-])([ \t]+|$)([\s\S]*)$/);
+            if (!match) return null;
+            const indentRaw = match[1] || '';
+            if (!isValidListIndent(indentRaw, 2, 1)) return null;
+            return {
+                indentRaw: indentRaw,
+                markerRaw: match[2] || '',
+                separatorRaw: match[3] || '',
+                bodyRaw: match[4] || ''
+            };
+        }
+
+        // Split markdown ordered list line into syntax-critical parts and body.
+        // Ordered nesting rule: 4 spaces OR 2 tabs per level.
+        function splitOrderedListIndentAndBody(line) {
+            if (typeof line !== 'string') return null;
+            const match = line.match(/^([ \t]*)([^\s.]+\.)([ \t]+|$)([\s\S]*)$/);
+            if (!match) return null;
+            const indentRaw = match[1] || '';
+            if (!isValidListIndent(indentRaw, 4, 2)) return null;
+            return {
+                indentRaw: indentRaw,
+                markerRaw: match[2] || '',
+                separatorRaw: match[3] || '',
+                bodyRaw: match[4] || ''
+            };
+        }
+
+        // Split markdown list line (bullet or ordered) using type-specific indentation rules.
+        function splitListIndentAndBody(line) {
+            return splitBulletListIndentAndBody(line) || splitOrderedListIndentAndBody(line);
+        }
+
+        // Check if a line is a markdown list item (bullet or ordered) with valid indentation
+        function isMarkdownListLine(line) {
+            return !!splitListIndentAndBody(line);
+        }
+
+        // Check if a markdown list line has marker only (no item body)
+        function isMarkdownListMarkerOnlyLine(line) {
+            const parts = splitListIndentAndBody(line);
+            if (!parts) return false;
+            return (parts.bodyRaw || '').trim() === '';
+        }
+
+        // Render ordered list markers literally as written in input (e.g., 123., abc., أبت.)
+        function convertOrderedListLinesToLiteralHtml(md) {
+            if (!md || typeof md !== 'string') return md;
+            const lines = md.split('\n');
+            const out = [];
+            let inCodeFence = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmed = line.trim();
+                if (isFenceLine(trimmed)) {
+                    inCodeFence = !inCodeFence;
+                    out.push(line);
+                    continue;
+                }
+                if (inCodeFence) {
+                    out.push(line);
+                    continue;
+                }
+
+                const parts = splitOrderedListIndentAndBody(line);
+                if (!parts) {
+                    out.push(line);
+                    continue;
+                }
+
+                const indentRaw = parts.indentRaw || '';
+                const level = indentRaw.includes('\t')
+                    ? Math.floor(indentRaw.length / 2)
+                    : Math.floor(indentRaw.length / 4);
+                const marker = parts.markerRaw || '';
+                const bodyRaw = parts.bodyRaw || '';
+                const body = bodyRaw.length > 0 ? bodyRaw : '\u200B';
+                out.push(`<div class="ordered-literal-item" style="padding-inline-start: ${level * 24}px;"><span class="ordered-literal-marker">${marker}</span> ${body}</div>`);
+            }
+
+            return out.join('\n');
+        }
+
+        // Mark spaces inside table cell content without modifying table syntax characters
+        function markSpacesInsideTableLine(line) {
+            if (!isMarkdownTableLine(line) || isMarkdownTableSeparatorLine(line)) return line;
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) return line;
+
+            const leadingOutside = (line.match(/^(\s*)\|/) || [null, ''])[1].length;
+            const trailingOutside = (line.match(/\|(\s*)$/) || [null, ''])[1].length;
+            const tableStart = line.indexOf('|');
+            const tableEnd = line.lastIndexOf('|');
+            const inner = line.slice(tableStart + 1, tableEnd);
+            const cells = inner.split('|');
+            const processedCells = cells.map((cell) => {
+                const trimmedStart = cell.trimStart();
+                const leadingSpacesCount = cell.length - trimmedStart.length;
+                const trimmedEnd = trimmedStart.trimEnd();
+                const trailingSpacesCount = trimmedStart.length - trimmedEnd.length;
+                // In markdown tables, one space padding around cell content is normal syntax.
+                // Only highlight spaces beyond that single padding space.
+                const extraLeadingSpaces = Math.max(0, leadingSpacesCount - 1);
+                const extraTrailingSpaces = Math.max(0, trailingSpacesCount - 1);
+                const processedContent = trimmedEnd.replace(/ {2,}/g, (match) => {
+                    return '@@CONSECUTIVE_SPACES_' + match.length + '@@';
+                });
+                let result = processedContent;
+                if (leadingSpacesCount > 0) {
+                    result = ' ' + result;
+                }
+                if (extraLeadingSpaces > 0) {
+                    result = '@@LEADING_SPACES_' + extraLeadingSpaces + '@@' + result;
+                }
+                if (extraTrailingSpaces > 0) {
+                    result += '@@TRAILING_SPACES_' + extraTrailingSpaces + '@@';
+                }
+                if (trailingSpacesCount > 0) {
+                    result += ' ';
+                }
+                return result;
+            });
+
+            if (processedCells.length > 0) {
+                if (leadingOutside > 0) {
+                    processedCells[0] = '@@LEADING_SPACES_' + leadingOutside + '@@' + processedCells[0];
+                }
+                if (trailingOutside > 0) {
+                    processedCells[processedCells.length - 1] += '@@TRAILING_SPACES_' + trailingOutside + '@@';
+                }
+            }
+
+            return '|' + processedCells.join('|') + '|';
         }
         
         // Mark trailing spaces in markdown text before rendering
@@ -15109,9 +15307,46 @@
             }
             
             // Process lines for trailing and leading spaces (only process non-empty lines and non-leading/trailing empty lines)
+            let inCodeFence = false;
             const processedLines = lines.map((line, index) => {
+                const trimmed = line.trim();
+                const isFence = isFenceLine(trimmed);
+                const inFenceBeforeToggle = inCodeFence;
+
+                // Keep code fence lines untouched and toggle state
+                if (isFence) {
+                    inCodeFence = !inCodeFence;
+                    return line;
+                }
+
                 // Check if line has spaces (leading or trailing, but not if it's an empty line)
                 if (line.trim().length > 0) {
+                    // Keep list indentation syntax untouched so nested lists keep rendering correctly
+                    if (!inFenceBeforeToggle && isMarkdownListLine(line)) {
+                        const parts = splitListIndentAndBody(line);
+                        if (parts) {
+                            const bodyRaw = parts.bodyRaw || '';
+                            const bodyTrimmedEnd = bodyRaw.trimEnd();
+                            const trailingSpacesCount = bodyRaw.length - bodyTrimmedEnd.length;
+                            const processedBody = bodyTrimmedEnd.replace(/ {2,}/g, (match) => {
+                                return '@@CONSECUTIVE_SPACES_' + match.length + '@@';
+                            });
+                            let rebuilt = parts.indentRaw + parts.markerRaw + parts.separatorRaw + processedBody;
+                            if (trailingSpacesCount > 0) {
+                                rebuilt += '@@TRAILING_SPACES_' + trailingSpacesCount + '@@';
+                            }
+                            return rebuilt;
+                        }
+                    }
+
+                    // Preserve markdown table syntax lines exactly so markdown table parsing remains valid
+                    if (!inFenceBeforeToggle && isMarkdownTableLine(line)) {
+                        if (isMarkdownTableSeparatorLine(line)) {
+                            return line;
+                        }
+                        return markSpacesInsideTableLine(line);
+                    }
+
                     let result = '';
                     
                     // Check for leading spaces
@@ -19066,41 +19301,63 @@
             if (line === null || line === undefined) return null;
             const trimmed = String(line).trim();
             if (!trimmed) return null;
-            
-            // Remove math expressions to avoid detecting list markers inside them
-            let lineWithoutMath = trimmed.replace(/\$[^$]+\$/g, '');
-            lineWithoutMath = lineWithoutMath.replace(/\$\$[^$]+\$\$/g, '');
-            
-            let match = lineWithoutMath.match(/^\s*([*+-])\s*$/);
-            if (match) {
-                const rawMatch = String(line).match(/^\s*([*+-])\s*$/);
-                const marker = rawMatch ? rawMatch[1] : match[1];
-                return { type: 'bullet', marker, rawMarker: marker, isMarkerOnly: true };
+
+            const parts = splitListIndentAndBody(String(line));
+            if (parts) {
+                const isNumbered = !!splitOrderedListIndentAndBody(String(line));
+                const marker = parts.markerRaw || '';
+                const isMarkerOnly = (parts.bodyRaw || '').trim() === '';
+                return {
+                    type: isNumbered ? 'numbered' : 'bullet',
+                    marker,
+                    rawMarker: marker,
+                    isMarkerOnly
+                };
             }
-            
-            match = lineWithoutMath.match(/^\s*(\d+)\.\s*$/);
-            if (match) {
-                const rawMatch = String(line).match(/^\s*(\d+)\.\s*$/);
-                const num = rawMatch ? rawMatch[1] : match[1];
-                const marker = `${num}.`;
-                return { type: 'numbered', marker, rawMarker: marker, isMarkerOnly: true };
+
+            return null;
+        }
+
+        // Detect list-like lines that attempt indentation but violate configured indentation levels.
+        function getInvalidListIndentationInfo(line) {
+            if (line === null || line === undefined) return null;
+            const raw = String(line);
+            if (!raw.trim()) return null;
+
+            const bulletMatch = raw.match(/^([ \t]+)([*+-])([ \t]+|$)([\s\S]*)$/);
+            if (bulletMatch) {
+                const indentRaw = bulletMatch[1] || '';
+                if (!isValidListIndent(indentRaw, 2, 1)) {
+                    const hasSpaces = indentRaw.includes(' ');
+                    const hasTabs = indentRaw.includes('\t');
+                    const detail = (hasSpaces && hasTabs)
+                        ? 'Do not mix spaces and tabs in bullet indentation.'
+                        : 'Bullet nesting must use 2 spaces or 1 tab per level.';
+                    return {
+                        type: 'bullet',
+                        message: `${detail}`,
+                        content: raw
+                    };
+                }
             }
-            
-            match = lineWithoutMath.match(/^\s*([*+-])\s+.+$/);
-            if (match) {
-                const rawMatch = String(line).match(/^\s*([*+-])\s+.+$/);
-                const marker = rawMatch ? rawMatch[1] : match[1];
-                return { type: 'bullet', marker, rawMarker: marker, isMarkerOnly: false };
+
+            const orderedMatch = raw.match(/^([ \t]+)([^\s.]+\.)([ \t]+|$)([\s\S]*)$/);
+            if (orderedMatch) {
+                const indentRaw = orderedMatch[1] || '';
+                if (!isValidListIndent(indentRaw, 4, 2)) {
+                    const hasSpaces = indentRaw.includes(' ');
+                    const hasTabs = indentRaw.includes('\t');
+                    const detail = (hasSpaces && hasTabs)
+                        ? 'Do not mix spaces and tabs in ordered-list indentation.'
+                        : 'Ordered-list nesting must use 4 spaces or 2 tabs per level.';
+                    return {
+                        type: 'numbered',
+                        message: `${detail}`,
+                        content: raw
+                    };
+                }
             }
-            
-            match = lineWithoutMath.match(/^\s*(\d+)\.\s+.+$/);
-            if (match) {
-                const rawMatch = String(line).match(/^\s*(\d+)\.\s+.+$/);
-                const num = rawMatch ? rawMatch[1] : match[1];
-                const marker = `${num}.`;
-                return { type: 'numbered', marker, rawMarker: marker, isMarkerOnly: false };
-            }
-            
+
             return null;
         }
         
@@ -19172,11 +19429,19 @@
                 const line = lines[i];
                 const trimmed = line.trim();
                 const listInfo = getListMarkerLineInfo(line);
+                const invalidIndentInfo = getInvalidListIndentationInfo(line);
                 const isListItem = !!listInfo;
                 const isBlankLine = trimmed === '';
                 
-                if (isListItem) {
+                if (isListItem || invalidIndentInfo) {
                     hasLists = true;
+
+                    if (invalidIndentInfo) {
+                        errors.push({
+                            message: `${invalidIndentInfo.message}`,
+                            content: invalidIndentInfo.content
+                        });
+                    }
                     
                     if (!inList) {
                         // Starting a new list
@@ -19198,7 +19463,9 @@
                     }
                     
                     // Add this list item to our tracking
-                    currentListItems.push(line);
+                    if (isListItem) {
+                        currentListItems.push(line);
+                    }
                     lastListLine = i + 1;
                 } else if (inList) {
                     // We were in a list, check if this line ends the list
@@ -19267,6 +19534,12 @@
                 errorDiv.innerHTML = `
                     <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
                         <strong>⚠️ List Markdown Errors:</strong>
+                        <div style="margin: 8px 0 10px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px; color: #666;">
+                            <div style="margin-bottom: 4px;"><strong>How to Fix:</strong></div>
+                            <div>- Bullet nesting: use exactly <strong>2 spaces</strong> or <strong>1 tab</strong> per level.</div>
+                            <div>- Ordered nesting: use exactly <strong>4 spaces</strong> or <strong>2 tabs</strong> per level.</div>
+                            <div>- Do not mix spaces and tabs in the same indentation prefix.</div>
+                        </div>
                         ${result.errors.map(err => {
                             const errorMsg = typeof err === 'string' ? err : err.message;
                             const errorContent = typeof err === 'object' && err.content ? err.content : '';
@@ -27446,6 +27719,70 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
                         <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
                         <span class="whats-new-version-badge">Current Version</span>
+                    </div>
+
+                    <!-- Enhancements -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Nested list indentation rules + examples:</strong> Markdown preview now supports nested lists with type-specific indentation rules in the shared renderer.
+                                <div style="margin-top: 8px;">
+                                    <strong>Bullets:</strong> use <code>2 spaces</code> or <code>1 tab</code> per level.
+                                    <div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;">
+                                        <div style="flex: 1; min-width: 220px;">
+                                            <div style="font-weight: 600; margin-bottom: 4px;">Input</div>
+                                            <code style="display:block; white-space:pre-wrap;">* hi
+  * hihi
+    * hihihi</code>
+                                        </div>
+                                        <div style="flex: 1; min-width: 220px;">
+                                            <div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div>
+                                            <code style="display:block; white-space:pre-wrap;">• hi
+  ◦ hihi
+    ▪ hihihi</code>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    <strong>Ordered:</strong> use <code>4 spaces</code> or <code>2 tabs</code> per level.
+                                    <div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;">
+                                        <div style="flex: 1; min-width: 220px;">
+                                            <div style="font-weight: 600; margin-bottom: 4px;">Input</div>
+                                            <code style="display:block; white-space:pre-wrap;">1. one
+    1. one-one
+        1. one-one-one</code>
+                                        </div>
+                                        <div style="flex: 1; min-width: 220px;">
+                                            <div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div>
+                                            <code style="display:block; white-space:pre-wrap;">1. one
+    1. one-one
+        1. one-one-one</code>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Bug Fixes -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
+                        </h3>
+                        <ul class="whats-new-modal-list">
+                            <li><strong>Trailing Spaces Indicator no longer breaks markdown tables:</strong> Fixed an issue where enabling the Trailing Spaces Indicator could break table rendering when rows had extra spaces (especially separator rows). Tables now render correctly in both live preview and final preview.</li>
+                            <li><strong>Trailing space highlights now work inside table cells:</strong> Fixed an issue where table indicators disappeared after the table-rendering fix. The tool now shows trailing/leading/consecutive space indicators inside table cell content while keeping table syntax safe.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Version 7.5 -->
+                <div style="margin-bottom: 40px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.5</span>
+                        <span class="whats-new-version-badge">Previous Version</span>
                     </div>
                     
                     <!-- Enhancements -->
