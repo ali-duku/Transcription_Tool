@@ -21816,6 +21816,10 @@
             const guidebookStart = document.getElementById('guidebook_start_page').value;
             const guidebookEnd = document.getElementById('guidebook_end_page').value;
             const pageType = document.getElementById('page_type').value;
+            const hasGuidebookStart = guidebookStart.trim() !== '';
+            const hasGuidebookEnd = guidebookEnd.trim() !== '';
+            const hasGuidebookRange = hasGuidebookStart && hasGuidebookEnd;
+            const hasPartialGuidebookRange = hasGuidebookStart !== hasGuidebookEnd;
             
             // Validation
             const validationErrors = [];
@@ -21839,6 +21843,9 @@
             }
             if (guidebookStart && guidebookEnd && parseInt(guidebookStart) > parseInt(guidebookEnd)) {
                 validationErrors.push("Guidebook start page cannot be greater than end page");
+            }
+            if (hasPartialGuidebookRange) {
+                validationErrors.push("Guidebook PDF Pages (Start - End) must be both filled or both empty.");
             }
             if (!pageType || pageType.trim().length === 0) {
                 validationErrors.push("Page type is required");
@@ -22037,6 +22044,16 @@
                 try {
                     const questionData = collectQuestionData(questionEl);
                     const isQuestionTextEmpty = !questionData.question_text || /^\d+$/.test(questionData.question_text);
+                    const guidePdfInput = findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
+                    const rawGuidePdf = guidePdfInput ? guidePdfInput.value.trim() : '';
+                    const hasGuidePdf = rawGuidePdf !== '';
+
+                    if (hasGuidebookRange && !hasGuidePdf) {
+                        validationErrors.push(`Question ${index + 1} - Problem: Guide PDF Page cannot be empty when Guidebook PDF Pages (Start - End) are not empty.\n   ➡️ Fix: Enter the page number from the teacher guide where this answer appears (for example: 78).`);
+                    }
+                    if (!hasGuidebookRange && hasGuidePdf) {
+                        validationErrors.push(`Question ${index + 1} - Problem: Guide PDF Page must be empty when Guidebook PDF Pages (Start - End) are empty.\n   ➡️ Fix: Leave Guide PDF Page empty for this question, or fill both Guidebook start and end pages.`);
+                    }
                     
                     // Enforce required fields for each question
                     if (!questionData.id) {
