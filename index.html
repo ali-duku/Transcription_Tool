@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.6';
+        const DISPLAY_VERSION = '7.7';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,8 +23,38 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.6';
+        const CURRENT_VERSION = '7.7';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
+        
+        // What's New input data (decoupled from DISPLAY_VERSION/CURRENT_VERSION)
+        const WHATS_NEW_CURRENT_RELEASE_INPUT = {
+            version: '7.7',
+            sections: [
+                {
+                    key: 'enhancements',
+                    title: 'Enhancements',
+                    iconClass: 'fas fa-arrow-up',
+                    iconColor: '#28a745',
+                    wrapStyle: 'margin-bottom: 25px;',
+                    items: [
+                        '<strong>Guidebook/Guide page conditional validation on Generate JSON:</strong> Added blocking rules so Guidebook PDF Pages (Start - End) must be both filled or both empty, Guide PDF Page is required for each question when the guidebook range is filled, and Guide PDF Page must be empty when the guidebook range is empty.'
+                    ]
+                },
+                {
+                    key: 'bug_fixes',
+                    title: 'Bug Fixes',
+                    iconClass: 'fas fa-bug',
+                    iconColor: '#dc3545',
+                    wrapStyle: 'margin-bottom: 25px;',
+                    items: [
+                        '<strong>Clean JSON placeholder on startup:</strong> Fixed an issue where the JSON output box showed leading blank spaces/lines before any generation. The empty-state placeholder now renders cleanly from the first load, matching the loaded/reset state.',
+                        '<strong>No ghost terminology box in Final Preview:</strong> Fixed an issue where an empty terminology row in Lesson Preamble could still render an empty TERMINOLOGY preview box. Empty terminology fields are now ignored in Final Preview.'
+                    ]
+                }
+            ]
+        };
+        const WHATS_NEW_LEGACY_CURRENT_VERSION_INPUT = '7.6';
+        let WHATS_NEW_RELEASES = [];
         
         const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
         
@@ -5722,9 +5752,7 @@
                     <div class="json-controls" id="json-export-controls" style="margin-bottom:8px;">
                         <!-- Buttons will be hydrated by JS -->
                     </div>
-                    <div class="json-preview" id="json_output">
-                        <span class="json-key">//</span> <span class="json-string">JSON will be generated here...</span>
-                    </div>
+                    <div class="json-preview" id="json_output"><span class="json-key">//</span> <span class="json-string">JSON will be generated here...</span></div>
                 </div>
             </div>
         </div>
@@ -8512,7 +8540,10 @@
             const lessonStandardsContainer = document.getElementById('lesson_standards');
             const lessonStandards = lessonStandardsContainer ? Array.from(lessonStandardsContainer.querySelectorAll('.array-item textarea')).map(textarea => textarea.value.trim()).filter(v => v) : [];
             const terminologyContainer = document.getElementById('terminology');
-            const terminologyItems = terminologyContainer ? Array.from(terminologyContainer.querySelectorAll('.array-item textarea')) : [];
+            const terminologyTextareas = terminologyContainer ? Array.from(terminologyContainer.querySelectorAll('.array-item textarea')) : [];
+            const terminologyItems = terminologyTextareas
+                .map((textarea, index) => ({ textarea, index }))
+                .filter(({ textarea }) => (textarea.value || '').trim().length > 0);
             const lessonTextarea = document.getElementById('lesson_text');
             const lessonText = lessonTextarea ? lessonTextarea.value || '' : '';
             let hasLessonPreamble = lessonId || lessonTitle || lessonStandards.length > 0 || terminologyItems.length > 0 || lessonText;
@@ -8571,9 +8602,10 @@
                 if (terminologyItems.length > 0) {
                     const terminologyBodyHTML = renderPreviewArrayList({
                         title: 'Terminology',
-                        items: terminologyItems,
+                        items: terminologyItems.map((item) => item.textarea),
                         getEditTargetForIndex: (index) => {
-                            return `navigateToInput(document.getElementById('terminology').querySelectorAll('.array-item textarea')[${index}])`;
+                            const originalIndex = terminologyItems[index]?.index ?? index;
+                            return `navigateToInput(document.getElementById('terminology').querySelectorAll('.array-item textarea')[${originalIndex}])`;
                         }
                     });
                     html += buildPreviewBox({
@@ -25540,6 +25572,10 @@
                 observer.observe(terminologyObserverTarget, { childList: true, subtree: true });
             }
             
+            // Build and render What's New from input data
+            initializeWhatsNewReleases();
+            renderWhatsNewModalBody(WHATS_NEW_RELEASES);
+
             // Check if we should auto-open What's New modal for new version
             checkAndOpenWhatsNew();
             
@@ -25550,7 +25586,7 @@
                 versionNumberEl.textContent = DISPLAY_VERSION;
             }
             if (whatsNewVersionEl) {
-                whatsNewVersionEl.textContent = DISPLAY_VERSION;
+                whatsNewVersionEl.textContent = getCurrentWhatsNewVersionInput();
             }
             
         };
@@ -27657,6 +27693,117 @@
         // ===== WHAT'S NEW MODAL =====
         // Note: CURRENT_VERSION and VERSION_SEEN_KEY are defined above (see line ~16527)
         
+        function getCurrentWhatsNewVersionInput() {
+            if (!Array.isArray(WHATS_NEW_RELEASES) || WHATS_NEW_RELEASES.length === 0) {
+                return WHATS_NEW_CURRENT_RELEASE_INPUT.version;
+            }
+            return WHATS_NEW_RELEASES[0].version || WHATS_NEW_CURRENT_RELEASE_INPUT.version;
+        }
+
+        function mapWhatsNewSectionKey(title) {
+            const normalized = (title || '').trim();
+            if (normalized === 'New Features') return 'new_features';
+            if (normalized === 'Enhancements') return 'enhancements';
+            if (normalized === 'Bug Fixes') return 'bug_fixes';
+            if (normalized === 'Fixes & Improvements') return 'fixes_improvements';
+            return 'notes';
+        }
+
+        function extractWhatsNewReleasesFromDom(legacyCurrentVersion) {
+            const modalBody = document.querySelector('#whats-new-modal .whats-new-modal-body');
+            if (!modalBody) return [];
+
+            const releaseBlocks = Array.from(modalBody.children).filter((el) =>
+                el.tagName === 'DIV' && (el.getAttribute('style') || '').includes('margin-bottom: 40px;')
+            );
+
+            return releaseBlocks.map((block) => {
+                const currentVersionNode = block.querySelector('#whats-new-current-version');
+                let version = '';
+                if (currentVersionNode) {
+                    version = legacyCurrentVersion;
+                } else {
+                    const versionBadge = block.querySelector('span');
+                    const badgeText = versionBadge ? versionBadge.textContent || '' : '';
+                    const match = badgeText.match(/Version\s+([0-9.]+)/);
+                    version = match ? match[1] : '';
+                }
+
+                const sections = Array.from(block.children)
+                    .filter((child, index) =>
+                        index > 0 &&
+                        child.querySelector('h3.whats-new-modal-header') &&
+                        child.querySelector('ul.whats-new-modal-list')
+                    )
+                    .map((sectionEl) => {
+                        const header = sectionEl.querySelector('h3.whats-new-modal-header');
+                        const icon = header ? header.querySelector('i') : null;
+                        const ul = sectionEl.querySelector('ul.whats-new-modal-list');
+                        const items = ul
+                            ? Array.from(ul.querySelectorAll(':scope > li')).map((li) => li.innerHTML)
+                            : [];
+                        const title = header ? header.textContent.trim() : '';
+                        return {
+                            key: mapWhatsNewSectionKey(title),
+                            title,
+                            iconClass: icon ? icon.className : '',
+                            iconColor: icon ? (icon.style.color || '#28a745') : '#28a745',
+                            wrapStyle: sectionEl.getAttribute('style') || '',
+                            items
+                        };
+                    });
+
+                return { version, sections };
+            });
+        }
+
+        function initializeWhatsNewReleases() {
+            if (Array.isArray(WHATS_NEW_RELEASES) && WHATS_NEW_RELEASES.length > 0) return;
+            const legacyReleases = extractWhatsNewReleasesFromDom(WHATS_NEW_LEGACY_CURRENT_VERSION_INPUT);
+            WHATS_NEW_RELEASES = [WHATS_NEW_CURRENT_RELEASE_INPUT, ...legacyReleases];
+        }
+
+        function renderWhatsNewReleaseBlock(release, isCurrent) {
+            const versionBadgeHtml = isCurrent
+                ? `<span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number">${release.version || ''}</span></span><span class="whats-new-version-badge">Current Version</span>`
+                : `<span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version ${release.version || ''}</span><span class="whats-new-version-badge">Previous Version</span>`;
+
+            const sectionsHtml = (release.sections || []).map((section) => {
+                const wrapStyleAttr = section.wrapStyle ? ` style="${section.wrapStyle}"` : '';
+                const itemsHtml = (section.items || []).map((item) => `<li>${item}</li>`).join('');
+                return `<div${wrapStyleAttr}><h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;"><i class="${section.iconClass}" style="color: ${section.iconColor};"></i> ${section.title}</h3><ul class="whats-new-modal-list">${itemsHtml}</ul></div>`;
+            }).join('');
+
+            return `<div style="margin-bottom: 40px;"><div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">${versionBadgeHtml}</div>${sectionsHtml}</div>`;
+        }
+
+        function renderWhatsNewModalBody(releases) {
+            const modalBody = document.querySelector('#whats-new-modal .whats-new-modal-body');
+            if (!modalBody) return;
+
+            const footer = modalBody.querySelector('.whats-new-modal-footer');
+            const oldBlocks = Array.from(modalBody.children).filter((el) =>
+                el.tagName === 'DIV' && (el.getAttribute('style') || '').includes('margin-bottom: 40px;')
+            );
+            oldBlocks.forEach((el) => el.remove());
+
+            let container = document.getElementById('whats-new-releases-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'whats-new-releases-container';
+            }
+
+            container.innerHTML = (releases || []).map((release, index) =>
+                renderWhatsNewReleaseBlock(release, index === 0)
+            ).join('');
+
+            if (footer) {
+                modalBody.insertBefore(container, footer);
+            } else {
+                modalBody.appendChild(container);
+            }
+        }
+
         function openWhatsNew() {
             const modal = document.getElementById('whats-new-modal');
             if (modal) {
