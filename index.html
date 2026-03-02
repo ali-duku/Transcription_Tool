@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.7';
+        const DISPLAY_VERSION = '7.8';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,38 +23,54 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.7';
+        const CURRENT_VERSION = '7.8';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
-        // What's New input data (decoupled from DISPLAY_VERSION/CURRENT_VERSION)
-        const WHATS_NEW_CURRENT_RELEASE_INPUT = {
-            version: '7.7',
-            sections: [
-                {
-                    key: 'enhancements',
-                    title: 'Enhancements',
-                    iconClass: 'fas fa-arrow-up',
-                    iconColor: '#28a745',
-                    wrapStyle: 'margin-bottom: 25px;',
-                    items: [
-                        '<strong>Guidebook/Guide page conditional validation on Generate JSON:</strong> Added blocking rules so Guidebook PDF Pages (Start - End) must be both filled or both empty, Guide PDF Page is required for each question when the guidebook range is filled, and Guide PDF Page must be empty when the guidebook range is empty.'
-                    ]
-                },
-                {
-                    key: 'bug_fixes',
-                    title: 'Bug Fixes',
-                    iconClass: 'fas fa-bug',
-                    iconColor: '#dc3545',
-                    wrapStyle: 'margin-bottom: 25px;',
-                    items: [
-                        '<strong>Clean JSON placeholder on startup:</strong> Fixed an issue where the JSON output box showed leading blank spaces/lines before any generation. The empty-state placeholder now renders cleanly from the first load, matching the loaded/reset state.',
-                        '<strong>No ghost terminology box in Final Preview:</strong> Fixed an issue where an empty terminology row in Lesson Preamble could still render an empty TERMINOLOGY preview box. Empty terminology fields are now ignored in Final Preview.'
-                    ]
-                }
-            ]
-        };
-        const WHATS_NEW_LEGACY_CURRENT_VERSION_INPUT = '7.6';
-        let WHATS_NEW_RELEASES = [];
+        // What's New releases (single source of truth, newest first).
+        // To add a new release, prepend a new object at index 0.
+        const WHATS_NEW_RELEASES = [
+            {
+                version: '7.8',
+                sections: [
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Guide answer wiring fixed across question types:</strong> Fixed a major issue where optional-answer question types (especially multiple choice and checkbox) could write/read guide answers from hidden fields, causing wrong or missing <code>guide_answer</code> in generated JSON. Guide answer now always uses the active type-specific field during generate, load/restore, search, and preview.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.7',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Guidebook/Guide page conditional validation on Generate JSON:</strong> Added blocking rules so Guidebook PDF Pages (Start - End) must be both filled or both empty, Guide PDF Page is required for each question when the guidebook range is filled, and Guide PDF Page must be empty when the guidebook range is empty.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Clean JSON placeholder on startup:</strong> Fixed an issue where the JSON output box showed leading blank spaces/lines before any generation. The empty-state placeholder now renders cleanly from the first load, matching the loaded/reset state.',
+                            '<strong>No ghost terminology box in Final Preview:</strong> Fixed an issue where an empty terminology row in Lesson Preamble could still render an empty TERMINOLOGY preview box. Empty terminology fields are now ignored in Final Preview.'
+                        ]
+                    }
+                ]
+            }
+        ];
         
         const ENABLE_REPEATED_QUESTION_ID_VALIDATION = false;
         
@@ -1761,6 +1777,41 @@
                 }
             }
         }
+
+        // Guide answer field resolver (single source of truth by question type)
+        function getGuideAnswerSelectorForType(questionType) {
+            if (questionType === 'multiple_choice' || questionType === 'checkbox') {
+                return '#choices-container .guide-answer-notes';
+            }
+            if (questionType === 'fill_in_the_blanks') {
+                return '#blanks-container .guide-answer-notes';
+            }
+            if (questionType === 'matching') {
+                return '#matching-container .guide-answer-notes';
+            }
+            return '#guide-answer-container textarea';
+        }
+
+        function getGuideAnswerTextarea(questionEl, questionType = null) {
+            if (!questionEl) return null;
+            const type = questionType || getQuestionType(questionEl);
+            const selector = getGuideAnswerSelectorForType(type);
+            return questionEl.querySelector(selector);
+        }
+
+        function getGuideAnswerValue(questionEl, questionType = null, options = {}) {
+            const { trim = true } = options;
+            const textarea = getGuideAnswerTextarea(questionEl, questionType);
+            const value = textarea ? (textarea.value || '') : '';
+            return trim ? value.trim() : value;
+        }
+
+        function setGuideAnswerValue(questionEl, value, questionType = null) {
+            const textarea = getGuideAnswerTextarea(questionEl, questionType);
+            if (!textarea) return false;
+            textarea.value = (value ?? '').toString();
+            return true;
+        }
         
         // ===== QUESTION STATE SERIALIZATION/RESTORATION =====
         // Serialize complete question state for undo/redo (captures actual values, not just DOM)
@@ -1808,33 +1859,8 @@
             state.set_up_text = setupTextarea ? setupTextarea.value : '';
             state.question_text = questionTextarea ? questionTextarea.value : '';
             
-            // Guide answer (varies by type)
-            const guideAnswerContainer = questionEl.querySelector('#guide-answer-container');
-            const guideAnswerTextarea = guideAnswerContainer?.querySelector('textarea');
-            if (guideAnswerTextarea) {
-                state.guide_answer = guideAnswerTextarea.value;
-            } else {
-                // Check type-specific containers
-                const blanksContainer = questionEl.querySelector('#blanks-container');
-                const blanksGuideAnswer = blanksContainer?.querySelector('.guide-answer-notes');
-                if (blanksGuideAnswer) {
-                    state.guide_answer = blanksGuideAnswer.value;
-                } else {
-                    const matchingContainer = questionEl.querySelector('#matching-container');
-                    const matchingGuideAnswer = matchingContainer?.querySelector('.guide-answer-notes');
-                    if (matchingGuideAnswer) {
-                        state.guide_answer = matchingGuideAnswer.value;
-                    } else {
-                        const choicesContainer = questionEl.querySelector('#choices-container');
-                        const choicesGuideAnswer = choicesContainer?.querySelector('.guide-answer-notes');
-                        if (choicesGuideAnswer) {
-                            state.guide_answer = choicesGuideAnswer.value;
-                        } else {
-                            state.guide_answer = '';
-                        }
-                    }
-                }
-            }
+            // Guide answer (always from the active question type field)
+            state.guide_answer = getGuideAnswerValue(questionEl, state.question_type, { trim: false });
             
             // Type-specific data
             if (state.question_type === 'fill_in_the_blanks') {
@@ -2264,19 +2290,18 @@
             const contentSectionSizes = [];
             
             questions.forEach(q => {
-                const typeSelect = q.querySelector('select[onchange*="toggleQuestionType"]');
-                const type = typeSelect ? typeSelect.value : 'unknown';
+                const type = getQuestionType(q) || 'unknown';
                 questionTypes[type] = (questionTypes[type] || 0) + 1;
                 
                 // Calculate question size (sum of all text fields)
                 let questionSize = 0;
                 const questionText = q.querySelector('textarea[placeholder*="Enter question text"]');
                 const setupText = q.querySelector('textarea[placeholder*="Enter set-up text"]');
-                const guideAnswer = q.querySelector('#guide-answer-container textarea, .guide-answer-notes');
+                const guideAnswerValue = getGuideAnswerValue(q, type, { trim: false });
                 
                 if (questionText) questionSize += (questionText.value || '').length;
                 if (setupText) questionSize += (setupText.value || '').length;
-                if (guideAnswer) questionSize += (guideAnswer.value || '').length;
+                questionSize += guideAnswerValue.length;
                 
                 questionSizes.push(questionSize);
             });
@@ -9627,30 +9652,8 @@
 
         // Render guide answer preview (for free_form, annotate, create_table)
         function renderGuideAnswerPreview(questionEl, questionType) {
-            // Check all possible locations for guide answer
-            let guideAnswerTextarea = null;
-            
-            // First, check in #guide-answer-container (for multiple_choice, checkbox, free_form, annotate, create_table)
-            const guideAnswerContainer = questionEl.querySelector('#guide-answer-container');
-            if (guideAnswerContainer) {
-                guideAnswerTextarea = guideAnswerContainer.querySelector('textarea');
-            }
-            
-            // If not found, check in blanks container (for fill_in_the_blanks)
-            if (!guideAnswerTextarea) {
-                const blanksContainer = questionEl.querySelector('#blanks-container');
-                if (blanksContainer) {
-                    guideAnswerTextarea = blanksContainer.querySelector('.guide-answer-notes');
-                }
-            }
-            
-            // If not found, check in matching container (for matching)
-            if (!guideAnswerTextarea) {
-                const matchingContainer = questionEl.querySelector('#matching-container');
-                if (matchingContainer) {
-                    guideAnswerTextarea = matchingContainer.querySelector('.guide-answer-notes');
-                }
-            }
+            const resolvedType = questionType || getQuestionType(questionEl);
+            const guideAnswerTextarea = getGuideAnswerTextarea(questionEl, resolvedType);
             
             if (!guideAnswerTextarea || !guideAnswerTextarea.value || !guideAnswerTextarea.value.trim()) {
                 return '';
@@ -9665,14 +9668,7 @@
             
             // Find the selector for the guide answer textarea
             const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
-            let guideSelector = '';
-            if (questionEl.querySelector('#guide-answer-container textarea')) {
-                guideSelector = '#guide-answer-container textarea';
-            } else if (questionEl.querySelector('#blanks-container .guide-answer-notes')) {
-                guideSelector = '#blanks-container .guide-answer-notes';
-            } else if (questionEl.querySelector('#matching-container .guide-answer-notes')) {
-                guideSelector = '#matching-container .guide-answer-notes';
-            }
+            const guideSelector = getGuideAnswerSelectorForType(resolvedType);
             
             return buildPreviewBox({
                 title: 'Guide Answer',
@@ -9929,14 +9925,13 @@
             if (questionsContainer) {
                 const questions = questionsContainer.querySelectorAll('.array-item');
                 questions.forEach((question, index) => {
+                    const qType = getQuestionType(question) || '';
                     const questionIdInput = question.querySelector('input[placeholder*="e.g., 1"]');
                     const questionId = questionIdInput?.value || '';
                     const questionText = question.querySelector('textarea[placeholder*="Enter question text"]')?.value || '';
                     const setupText = question.querySelector('textarea[placeholder*="Text shared across"]')?.value || '';
-                    const guideAnswer = question.querySelector('textarea[placeholder*="Enter guide answer"]')?.value || '';
-                    const guideAnswerNotes = question.querySelector('.guide-answer-notes')?.value || '';
+                    const guideAnswer = getGuideAnswerValue(question, qType, { trim: false });
                     
-                    const qType = getQuestionType(question) || '';
                     const typeLabel = qType === 'multiple_choice' ? 'MCQ' : qType === 'checkbox' ? 'Checkbox' : qType === 'fill_in_the_blanks' ? 'Fill-in-Blanks' : qType === 'matching' ? 'Matching' : 'Question';
                     
                     // Get question number - use ID if available, otherwise use index + 1
@@ -9986,16 +9981,6 @@
                         });
                     }
                     
-                    if (guideAnswerNotes && guideAnswerNotes.toLowerCase().includes(lowerTerm)) {
-                        results.push({
-                            type: typeLabel,
-                            title: questionTitle + ' (Answer Notes)',
-                            preview: getContextPreview(guideAnswerNotes, term),
-                            element: question,
-                            index: index + 1
-                        });
-                    }
-                    
                     // Check each choice individually - only for MCQ and Checkbox questions
                     if (qType === 'multiple_choice' || qType === 'checkbox') {
                         const choiceTextareas = question.querySelectorAll('.choice-text');
@@ -10020,22 +10005,6 @@
                     
                     // Check blank answers for fill-in-the-blanks questions
                     if (qType === 'fill_in_the_blanks') {
-                        // Check guide answer (optional) for fill-in-the-blanks
-                        const blanksContainer = question.querySelector('#blanks-container');
-                        const blanksGuideAnswer = blanksContainer?.querySelector('.guide-answer-notes');
-                        if (blanksGuideAnswer) {
-                            const blanksGuideAnswerText = blanksGuideAnswer.value || '';
-                            if (blanksGuideAnswerText.toLowerCase().includes(lowerTerm)) {
-                                results.push({
-                                    type: typeLabel,
-                                    title: questionTitle + ' (Answer Notes)',
-                                    preview: getContextPreview(blanksGuideAnswerText, term),
-                                    element: question,
-                                    index: index + 1
-                                });
-                            }
-                        }
-                        
                         // Check individual blank answers
                         const blankItems = question.querySelectorAll('.blank-answer-item');
                         blankItems.forEach((blankItem, blankIndex) => {
@@ -10057,22 +10026,6 @@
                     
                     // Check matching left and right items
                     if (qType === 'matching') {
-                        // Check guide answer (optional) for matching questions
-                        const matchingContainer = question.querySelector('#matching-container');
-                        const matchingGuideAnswer = matchingContainer?.querySelector('.guide-answer-notes');
-                        if (matchingGuideAnswer) {
-                            const matchingGuideAnswerText = matchingGuideAnswer.value || '';
-                            if (matchingGuideAnswerText.toLowerCase().includes(lowerTerm)) {
-                                results.push({
-                                    type: typeLabel,
-                                    title: questionTitle + ' (Answer Notes)',
-                                    preview: getContextPreview(matchingGuideAnswerText, term),
-                                    element: question,
-                                    index: index + 1
-                                });
-                            }
-                        }
-                        
                         const leftList = question.querySelector('[id^="matching-left-list-"]');
                         const rightList = question.querySelector('[id^="matching-right-list-"]');
                         
@@ -10675,43 +10628,15 @@
             const questionEl = selectElement.closest('.array-item');
             if (!questionEl) return;
             
+            const previousType = getQuestionType(questionEl);
+            const currentGuideAnswer = getGuideAnswerValue(questionEl, previousType, { trim: false });
+
             // Update dataset (canonical source of truth)
             const currentType = selectElement.value || 'free_form';
             questionEl.dataset.questionType = currentType;
             
             const guideAnswerContainer = questionEl.querySelector('#guide-answer-container');
             const choicesContainer = questionEl.querySelector('#choices-container');
-            
-            // Save current guide answer value before switching
-            let currentGuideAnswer = '';
-            // Check main guide answer container (free_form, annotate, create_table)
-            const guideAnswerTextareaMain = guideAnswerContainer?.querySelector('textarea');
-            if (guideAnswerTextareaMain && guideAnswerTextareaMain.value) {
-                currentGuideAnswer = guideAnswerTextareaMain.value;
-            }
-            // Check blanks container
-            if (!currentGuideAnswer) {
-                const blanksContainer = questionEl.querySelector('#blanks-container');
-                const blanksGuideAnswer = blanksContainer?.querySelector('.guide-answer-notes');
-                if (blanksGuideAnswer && blanksGuideAnswer.value) {
-                    currentGuideAnswer = blanksGuideAnswer.value;
-                }
-            }
-            // Check matching container
-            if (!currentGuideAnswer) {
-                const matchingContainer = questionEl.querySelector('#matching-container');
-                const matchingGuideAnswer = matchingContainer?.querySelector('.guide-answer-notes');
-                if (matchingGuideAnswer && matchingGuideAnswer.value) {
-                    currentGuideAnswer = matchingGuideAnswer.value;
-                }
-            }
-            // Check choices container
-            if (!currentGuideAnswer) {
-                const choicesGuideAnswer = choicesContainer?.querySelector('.guide-answer-notes');
-                if (choicesGuideAnswer && choicesGuideAnswer.value) {
-                    currentGuideAnswer = choicesGuideAnswer.value;
-                }
-            }
             
             // Find fields by label text
             const setupContainer = Array.from(questionEl.querySelectorAll('.form-group')).find(el => 
@@ -10878,36 +10803,8 @@
                 }
             }
             
-            // Restore guide answer value to the appropriate field for the new question type
-            if (currentGuideAnswer) {
-                if (currentType === 'free_form' || currentType === 'annotate' || currentType === 'create_table') {
-                    // Use the main guide answer container
-                    const guideAnswerTextarea = guideAnswerContainer?.querySelector('textarea');
-                    if (guideAnswerTextarea) {
-                        guideAnswerTextarea.value = currentGuideAnswer;
-                    }
-                } else if (currentType === 'fill_in_the_blanks') {
-                    // Use the blanks container guide answer
-                    const blanksContainer = questionEl.querySelector('#blanks-container');
-                    const guideAnswerNotes = blanksContainer?.querySelector('.guide-answer-notes');
-                    if (guideAnswerNotes) {
-                        guideAnswerNotes.value = currentGuideAnswer;
-                    }
-                } else if (currentType === 'matching') {
-                    // Use the matching container guide answer
-                    const matchingContainer = questionEl.querySelector('#matching-container');
-                    const guideAnswerNotes = matchingContainer?.querySelector('.guide-answer-notes');
-                    if (guideAnswerNotes) {
-                        guideAnswerNotes.value = currentGuideAnswer;
-                    }
-                } else if (currentType === 'multiple_choice' || currentType === 'checkbox') {
-                    // Use the choices container guide answer
-                    const choicesGuideAnswer = choicesContainer?.querySelector('.guide-answer-notes');
-                    if (choicesGuideAnswer) {
-                        choicesGuideAnswer.value = currentGuideAnswer;
-                    }
-                }
-            }
+            // Restore guide answer value to the new active type field only.
+            setGuideAnswerValue(questionEl, currentGuideAnswer, currentType);
             
             
             // Reinitialize previews for all textareas in this question after type change
@@ -18067,13 +17964,12 @@
          * @returns {Object} Object with either {choices, value/values, guide_answer} or {guide_answer}
          */
         function collectChoicesOrAnswer(questionEl) {
-            const questionType = getFieldValue(questionEl, 'Question Type', 'select');
+            const questionType = getQuestionType(questionEl);
             if (questionType === 'multiple_choice' || questionType === 'checkbox') {
                 const choices = collectChoicesData(questionEl);
                 
-                // Get optional guide answer notes (now a textarea for both types)
-                const guideAnswerNotesTextarea = questionEl.querySelector('.guide-answer-notes');
-                const guideAnswer = guideAnswerNotesTextarea ? guideAnswerNotesTextarea.value.trim() : '';
+                // Get optional guide answer notes from the active type-specific field
+                const guideAnswer = getGuideAnswerValue(questionEl, questionType, { trim: true });
                 
                 const result = {
                     choices: choices,
@@ -18134,7 +18030,7 @@
          */
         function collectQuestionData(questionEl) {
             const questionId = getFieldValue(questionEl, 'Question ID');
-            const questionType = getFieldValue(questionEl, 'Question Type', 'select');
+            const questionType = getQuestionType(questionEl);
             
             // Collect all fields for all types (annotate and create_table are like free_form)
             const setupText = getFieldValue(questionEl, 'Set-up Text', 'textarea') || null;
@@ -18197,13 +18093,13 @@
             if (questionType === 'fill_in_the_blanks') {
                 // Fill in the blanks: add values array
                 questionData.values = choicesOrAnswer.values || [];
-                questionData.guide_answer = choicesOrAnswer.guide_answer;
+                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
             } else if (questionType === 'matching') {
                 // Matching: add left, right, relationship
                 questionData.left = choicesOrAnswer.left || [];
                 questionData.right = choicesOrAnswer.right || [];
                 questionData.relationship = choicesOrAnswer.relationship || [];
-                questionData.guide_answer = choicesOrAnswer.guide_answer;
+                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
             } else if ((questionType === 'multiple_choice' || questionType === 'checkbox') && choicesOrAnswer.choices) {
                 // Multiple choice or checkbox: add choices
                 questionData.choices = choicesOrAnswer.choices;
@@ -18214,10 +18110,10 @@
                 } else if (questionType === 'checkbox' && choicesOrAnswer.values !== undefined) {
                     questionData.values = choicesOrAnswer.values;
                 }
-                questionData.guide_answer = choicesOrAnswer.guide_answer;
+                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
             } else {
                 // Free form: add guide_answer normally
-                questionData.guide_answer = choicesOrAnswer.guide_answer;
+                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
             }
             
             questionData.question_images = questionImages;
@@ -23024,17 +22920,11 @@
                     // Rebuild UI using centralized hook
                     afterQuestionTypeListMutation(qEl);
                     
-                    // Populate guide answer notes (optional) for both multiple choice and checkbox
-                    const guideAnswerNotesTextarea = qEl.querySelector('.guide-answer-notes');
-                    if (guideAnswerNotesTextarea) {
-                        guideAnswerNotesTextarea.value = (q.guide_answer ?? '').toString();
-                    }
+                    // Populate guide answer for the active type-specific field
+                    setGuideAnswerValue(qEl, q.guide_answer, questionType);
                 } else {
                     // Free form - fill guide answer
-                    const guideAnswerTextarea = qEl.querySelector('#guide-answer-container textarea');
-                    if (guideAnswerTextarea) {
-                        guideAnswerTextarea.value = (q.guide_answer ?? '').toString();
-                    }
+                    setGuideAnswerValue(qEl, q.guide_answer, questionType);
                 }
                 
                 // Find Guide PDF Page field by label
@@ -27695,72 +27585,14 @@
         
         function getCurrentWhatsNewVersionInput() {
             if (!Array.isArray(WHATS_NEW_RELEASES) || WHATS_NEW_RELEASES.length === 0) {
-                return WHATS_NEW_CURRENT_RELEASE_INPUT.version;
+                return DISPLAY_VERSION;
             }
-            return WHATS_NEW_RELEASES[0].version || WHATS_NEW_CURRENT_RELEASE_INPUT.version;
-        }
-
-        function mapWhatsNewSectionKey(title) {
-            const normalized = (title || '').trim();
-            if (normalized === 'New Features') return 'new_features';
-            if (normalized === 'Enhancements') return 'enhancements';
-            if (normalized === 'Bug Fixes') return 'bug_fixes';
-            if (normalized === 'Fixes & Improvements') return 'fixes_improvements';
-            return 'notes';
-        }
-
-        function extractWhatsNewReleasesFromDom(legacyCurrentVersion) {
-            const modalBody = document.querySelector('#whats-new-modal .whats-new-modal-body');
-            if (!modalBody) return [];
-
-            const releaseBlocks = Array.from(modalBody.children).filter((el) =>
-                el.tagName === 'DIV' && (el.getAttribute('style') || '').includes('margin-bottom: 40px;')
-            );
-
-            return releaseBlocks.map((block) => {
-                const currentVersionNode = block.querySelector('#whats-new-current-version');
-                let version = '';
-                if (currentVersionNode) {
-                    version = legacyCurrentVersion;
-                } else {
-                    const versionBadge = block.querySelector('span');
-                    const badgeText = versionBadge ? versionBadge.textContent || '' : '';
-                    const match = badgeText.match(/Version\s+([0-9.]+)/);
-                    version = match ? match[1] : '';
-                }
-
-                const sections = Array.from(block.children)
-                    .filter((child, index) =>
-                        index > 0 &&
-                        child.querySelector('h3.whats-new-modal-header') &&
-                        child.querySelector('ul.whats-new-modal-list')
-                    )
-                    .map((sectionEl) => {
-                        const header = sectionEl.querySelector('h3.whats-new-modal-header');
-                        const icon = header ? header.querySelector('i') : null;
-                        const ul = sectionEl.querySelector('ul.whats-new-modal-list');
-                        const items = ul
-                            ? Array.from(ul.querySelectorAll(':scope > li')).map((li) => li.innerHTML)
-                            : [];
-                        const title = header ? header.textContent.trim() : '';
-                        return {
-                            key: mapWhatsNewSectionKey(title),
-                            title,
-                            iconClass: icon ? icon.className : '',
-                            iconColor: icon ? (icon.style.color || '#28a745') : '#28a745',
-                            wrapStyle: sectionEl.getAttribute('style') || '',
-                            items
-                        };
-                    });
-
-                return { version, sections };
-            });
+            return WHATS_NEW_RELEASES[0].version || DISPLAY_VERSION;
         }
 
         function initializeWhatsNewReleases() {
-            if (Array.isArray(WHATS_NEW_RELEASES) && WHATS_NEW_RELEASES.length > 0) return;
-            const legacyReleases = extractWhatsNewReleasesFromDom(WHATS_NEW_LEGACY_CURRENT_VERSION_INPUT);
-            WHATS_NEW_RELEASES = [WHATS_NEW_CURRENT_RELEASE_INPUT, ...legacyReleases];
+            // Releases are now fully hardcoded in WHATS_NEW_RELEASES.
+            // Keep this hook for compatibility with existing initialization flow.
         }
 
         function renderWhatsNewReleaseBlock(release, isCurrent) {
@@ -27782,26 +27614,30 @@
             if (!modalBody) return;
 
             const footer = modalBody.querySelector('.whats-new-modal-footer');
-            const oldBlocks = Array.from(modalBody.children).filter((el) =>
-                el.tagName === 'DIV' && (el.getAttribute('style') || '').includes('margin-bottom: 40px;')
-            );
-            oldBlocks.forEach((el) => el.remove());
-
-            let container = document.getElementById('whats-new-releases-container');
-            if (!container) {
-                container = document.createElement('div');
-                container.id = 'whats-new-releases-container';
+            const existingContainer = document.getElementById('whats-new-releases-container');
+            if (existingContainer) {
+                existingContainer.remove();
             }
+
+            const container = document.createElement('div');
+            container.id = 'whats-new-releases-container';
 
             container.innerHTML = (releases || []).map((release, index) =>
                 renderWhatsNewReleaseBlock(release, index === 0)
             ).join('');
 
+            const firstLegacyReleaseBlock = Array.from(modalBody.children).find((el) =>
+                el.tagName === 'DIV' && (el.getAttribute('style') || '').includes('margin-bottom: 40px;')
+            );
+            if (firstLegacyReleaseBlock) {
+                modalBody.insertBefore(container, firstLegacyReleaseBlock);
+                return;
+            }
             if (footer) {
                 modalBody.insertBefore(container, footer);
-            } else {
-                modalBody.appendChild(container);
+                return;
             }
+            modalBody.appendChild(container);
         }
 
         function openWhatsNew() {
