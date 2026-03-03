@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.8';
+        const DISPLAY_VERSION = '7.9';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,12 +23,28 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.8';
+        const CURRENT_VERSION = '7.9';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
+            {
+                version: '7.9',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Auto-resize ON lag reduced with isolated, scoped updates:</strong> Performance paths were tightened so edits and section actions avoid heavy global refresh work and stay focused on the active field/section. This makes heavy subtabs much smoother during common actions. <strong>Examples:</strong> typing in long question/content fields, switching back to Questions after visiting other tabs (including Final Preview), duplicating non-free-form questions, and loading larger JSON data. If your device still feels slow on very heavy pages, you can always turn <strong>Auto-Resize</strong> off from the top toggle.',
+                            '<strong>Quick Jump labels now include section numbers:</strong> Quick Jump entries now show numbered labels in addition to existing identifiers, so navigation is clearer in large forms. <strong>Examples:</strong> Content entries appear like <code>Section 12 - Photosynthesis Intro</code>, and question entries appear like <code>Question 27 - ID: Q-27A</code>.'
+                        ]
+                    }
+                ]
+            },
             {
                 version: '7.8',
                 sections: [
@@ -6446,10 +6462,19 @@
                     }
                     const coupled = findCoupledPreview(el);
                     if (coupled) {
-                        if (previewHasImageOrBbox(coupled)) {
-                            scheduleFit(coupled, 'markDirty');
-                        } else if (isMeasurable(coupled) && fitHeightToContent(coupled)) {
-                            markFitted(coupled);
+                        // If the preview is already managed by the live preview pipeline,
+                        // avoid double-fitting it here on every keystroke.
+                        const previewPipelineOwnsFit = !!(
+                            el.__livePreviewBound &&
+                            el.__livePreviewInstance &&
+                            el.__livePreviewInstance.previewEl === coupled
+                        );
+                        if (!previewPipelineOwnsFit) {
+                            if (previewHasImageOrBbox(coupled)) {
+                                scheduleFit(coupled, 'markDirty');
+                            } else if (isMeasurable(coupled) && fitHeightToContent(coupled)) {
+                                markFitted(coupled);
+                            }
                         }
                     }
                     return;
@@ -6533,6 +6558,121 @@
         
         // Hydration flag: true ONLY during loadJSON() and initial restore flow
         let isDocumentHydrating = false;
+
+        // Input isolation guardrails and lightweight counters for typing performance.
+        const INPUT_ISOLATION_VIOLATIONS = {
+            APPLY_BBOXES_EVERYWHERE: 'applyBboxesEverywhere',
+            GENERATE_FINAL_PREVIEW: 'generateFinalPreview',
+            REFRESH_STYLE_CHANGE_BROAD: 'refreshStyleChangeBroad'
+        };
+        window.__inputIsolationPerfCounters = window.__inputIsolationPerfCounters || {
+            scopeDepth: 0,
+            totalScopedInputs: 0,
+            violations: {
+                applyBboxesEverywhere: 0,
+                generateFinalPreview: 0,
+                refreshStyleChangeBroad: 0
+            },
+            lastViolation: null,
+            lastScopedSource: null
+        };
+        function getInputIsolationPerfCounters() {
+            return window.__inputIsolationPerfCounters;
+        }
+        function enterInputIsolationScope(source) {
+            const counters = getInputIsolationPerfCounters();
+            counters.scopeDepth += 1;
+            counters.totalScopedInputs += 1;
+            counters.lastScopedSource = source || '';
+        }
+        function exitInputIsolationScope() {
+            const counters = getInputIsolationPerfCounters();
+            if (counters.scopeDepth > 0) counters.scopeDepth -= 1;
+        }
+        function isInputIsolationScopeActive() {
+            const counters = getInputIsolationPerfCounters();
+            return counters.scopeDepth > 0;
+        }
+        function noteInputIsolationViolation(type, detail) {
+            const counters = getInputIsolationPerfCounters();
+            if (!counters.violations.hasOwnProperty(type)) return;
+            counters.violations[type] += 1;
+            counters.lastViolation = {
+                type: type,
+                detail: detail || '',
+                ts: Date.now()
+            };
+        }
+        function isBroadAutosizeRoot(rootEl) {
+            if (!rootEl) return true;
+            if (rootEl === document || rootEl === document.documentElement || rootEl === document.body) return true;
+            if (rootEl.id === 'input-form') return true;
+            return !!(rootEl.classList && rootEl.classList.contains('main-tab-content'));
+        }
+        function describeAutosizeRoot(rootEl) {
+            if (!rootEl) return 'null-root';
+            if (rootEl.id) return '#' + rootEl.id;
+            return rootEl.className || rootEl.tagName || 'unknown-root';
+        }
+        function installInputIsolationGuards() {
+            if (window.__inputIsolationGuardsInstalled) return;
+            window.__inputIsolationGuardsInstalled = true;
+
+            if (typeof applyBboxesEverywhere === 'function' && !applyBboxesEverywhere.__inputIsolationWrapped) {
+                const originalApplyBboxesEverywhere = applyBboxesEverywhere;
+                const guardedApplyBboxesEverywhere = function(opts) {
+                    if (isInputIsolationScopeActive()) {
+                        noteInputIsolationViolation(
+                            INPUT_ISOLATION_VIOLATIONS.APPLY_BBOXES_EVERYWHERE,
+                            'typing-scope'
+                        );
+                        return;
+                    }
+                    return originalApplyBboxesEverywhere.call(this, opts);
+                };
+                guardedApplyBboxesEverywhere.__inputIsolationWrapped = true;
+                guardedApplyBboxesEverywhere.__original = originalApplyBboxesEverywhere;
+                applyBboxesEverywhere = guardedApplyBboxesEverywhere;
+            }
+
+            if (typeof generateFinalPreview === 'function' && !generateFinalPreview.__inputIsolationWrapped) {
+                const originalGenerateFinalPreview = generateFinalPreview;
+                const guardedGenerateFinalPreview = function() {
+                    if (isInputIsolationScopeActive()) {
+                        noteInputIsolationViolation(
+                            INPUT_ISOLATION_VIOLATIONS.GENERATE_FINAL_PREVIEW,
+                            'typing-scope'
+                        );
+                        return;
+                    }
+                    return originalGenerateFinalPreview.apply(this, arguments);
+                };
+                guardedGenerateFinalPreview.__inputIsolationWrapped = true;
+                guardedGenerateFinalPreview.__original = originalGenerateFinalPreview;
+                generateFinalPreview = guardedGenerateFinalPreview;
+            }
+
+            if (
+                typeof AutoSizeManager !== 'undefined' &&
+                AutoSizeManager.refreshStyleChange &&
+                !AutoSizeManager.refreshStyleChange.__inputIsolationWrapped
+            ) {
+                const originalRefreshStyleChange = AutoSizeManager.refreshStyleChange;
+                const guardedRefreshStyleChange = function(rootEl) {
+                    if (isInputIsolationScopeActive() && isBroadAutosizeRoot(rootEl)) {
+                        noteInputIsolationViolation(
+                            INPUT_ISOLATION_VIOLATIONS.REFRESH_STYLE_CHANGE_BROAD,
+                            describeAutosizeRoot(rootEl)
+                        );
+                        return;
+                    }
+                    return originalRefreshStyleChange.call(AutoSizeManager, rootEl);
+                };
+                guardedRefreshStyleChange.__inputIsolationWrapped = true;
+                guardedRefreshStyleChange.__original = originalRefreshStyleChange;
+                AutoSizeManager.refreshStyleChange = guardedRefreshStyleChange;
+            }
+        }
         
         // Get Input Form scroll container (for quick jump - uses universal scroller)
         function getInputFormScrollContainer() {
@@ -7052,8 +7192,50 @@
             const root = rootEl || resolveActivePanelRoot();
             // Tab switch: only ensure previews are rendered. Do NOT run autosize (no full scan).
             if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
-                PreviewBox.ensureRendered(root);
+                if (!root.__previewHydrated) {
+                    PreviewBox.ensureRendered(root);
+                    root.__previewHydrated = true;
+                }
             }
+        }
+
+        const deferredTabHydrationState = { content: false, questions: false };
+        function markDeferredTabHydration(tabName, pending = true) {
+            if (!deferredTabHydrationState.hasOwnProperty(tabName)) return;
+            deferredTabHydrationState[tabName] = !!pending;
+            const tabRoot = document.getElementById(tabName);
+            if (tabRoot) tabRoot.__previewHydrated = !pending;
+        }
+        function hydrateDeferredTabIfNeeded(tabName, rootEl) {
+            if (!deferredTabHydrationState[tabName]) return false;
+            const tabRoot = rootEl || document.getElementById(tabName);
+            if (!tabRoot) return false;
+
+            if (tabName === 'content') {
+                const sections = tabRoot.querySelectorAll('#content_sections_container > .array-item');
+                sections.forEach(sectionEl => {
+                    attachPreviews(sectionEl);
+                    attachBboxValidation(sectionEl);
+                });
+            } else if (tabName === 'questions') {
+                const questions = tabRoot.querySelectorAll('#questions_container > .array-item');
+                questions.forEach(questionEl => {
+                    attachPreviews(questionEl);
+                    attachBboxValidation(questionEl);
+                    attachChoiceListeners(questionEl);
+                    afterQuestionTypeListMutation(questionEl);
+                });
+            }
+
+            deferredTabHydrationState[tabName] = false;
+            tabRoot.__previewHydrated = false; // let refreshActivePanel ensure any remaining empty previews
+
+            if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
+                if (AutoSizeManager.register) AutoSizeManager.register(tabRoot);
+                if (AutoSizeManager.finalizeSpawn) AutoSizeManager.finalizeSpawn(tabRoot);
+                if (AutoSizeManager.fitPending) AutoSizeManager.fitPending(tabRoot);
+            }
+            return true;
         }
 
         // Debounced autosize recalc after bbox canvas render; no-op if autosize toggle is OFF.
@@ -7112,7 +7294,18 @@
             const targetTabContent = document.getElementById(tabName);
             if (targetTabContent && scrollContainer && targetTabContent.parentElement === scrollContainer) {
                 targetTabContent.classList.add('active');
+                const didHydrateDeferred = hydrateDeferredTabIfNeeded(tabName, targetTabContent);
                 refreshActivePanel(targetTabContent);
+                const typographyVersion = window.__typographyVersion || 0;
+                if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined' && AutoSizeManager.refreshStyleChange) {
+                    if ((targetTabContent.__lastTypographyVersion || 0) !== typographyVersion) {
+                        AutoSizeManager.refreshStyleChange(targetTabContent);
+                        targetTabContent.__lastTypographyVersion = typographyVersion;
+                    }
+                }
+                if (didHydrateDeferred) {
+                    schedulePostLayoutBboxRefresh(targetTabContent);
+                }
                 // Cheap first-fit for any pending autosize targets in this newly activated panel
                 if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.fitPending) {
                     AutoSizeManager.fitPending(targetTabContent);
@@ -8190,6 +8383,21 @@
 
         // Tab switches don't trigger re-apply unless dirtyVersion changed.
         if (typeof window.__previewDirtyVersion === 'undefined') window.__previewDirtyVersion = 0;
+        function collectBboxRefreshRoots(scopeEl) {
+            if (!scopeEl || !scopeEl.querySelectorAll) return [];
+            if (scopeEl.id === 'final-preview-content') {
+                return scopeEl.querySelector('.image-placeholder-container') ? [scopeEl] : [];
+            }
+            var roots = [];
+            var seen = new Set();
+            scopeEl.querySelectorAll('.live-preview .image-placeholder-container').forEach(function (placeholder) {
+                var root = placeholder.closest && placeholder.closest('.live-preview');
+                if (!root || seen.has(root)) return;
+                seen.add(root);
+                roots.push(root);
+            });
+            return roots;
+        }
         // Debounced post-layout bbox refresh: 2 rAFs then apply to active panel only (or everywhere if no scope).
         var __bboxPostLayoutScheduled = false;
         function schedulePostLayoutBboxRefresh(scopeEl) {
@@ -8200,12 +8408,11 @@
                     __bboxPostLayoutScheduled = false;
                     var activeRoot = scopeEl || resolveActivePanelRoot();
                     if (activeRoot) {
-                        var roots = Array.from(activeRoot.querySelectorAll('.live-preview'));
-                        var fpContent = document.getElementById('final-preview-content');
-                        if (fpContent && (activeRoot.id === 'final-preview-content' || activeRoot.contains(fpContent))) roots.push(fpContent);
-                        var currentVer = window.__previewDirtyVersion || 0;
-                        var needRefresh = roots.some(function (r) { return r.__lastAppliedDirtyVersion !== currentVer || r.__needsVisibleBboxApply; });
-                        if (!needRefresh) return;
+                        var roots = collectBboxRefreshRoots(activeRoot);
+                        if (!scopeEl) {
+                            roots = roots.filter(function (root) { return !!root.__needsVisibleBboxApply; });
+                        }
+                        if (roots.length === 0) return;
                         roots.forEach(function (root) {
                             if (root.classList && root.classList.contains('live-preview')) retagPreviewPlaceholdersUnder(root);
                             applyBboxesToPreviewRoot(root);
@@ -8223,9 +8430,12 @@
             if (window.__bboxTabSwitchHookAttached) return;
             window.__bboxTabSwitchHookAttached = true;
             document.addEventListener('click', function (e) {
-                var tab = e.target && e.target.closest && e.target.closest('.tab');
+                // Only react to Input Form sub-tab switches, not main-tab transitions.
+                var tab = e.target && e.target.closest && e.target.closest('#sub-tabs-container .tab');
                 if (!tab) return;
-                schedulePostLayoutBboxRefresh();
+                requestAnimationFrame(function () {
+                    schedulePostLayoutBboxRefresh();
+                });
             });
         }
 
@@ -10369,6 +10579,25 @@
             
             return { contentSections, questions };
         }
+
+        function getSectionNumberFromId(sectionId, fallbackNumber) {
+            const match = /-(\d+)$/.exec(sectionId || '');
+            if (match) return parseInt(match[1], 10);
+            return fallbackNumber;
+        }
+
+        function formatQuickJumpSectionLabel(sectionType, sectionNumber, detailText, maxLen = 46) {
+            const base = `${sectionType} ${sectionNumber}`;
+            const detail = (detailText || '').trim();
+            if (!detail) return base;
+            const separator = ' - ';
+            const allowedDetailLength = maxLen - base.length - separator.length;
+            if (allowedDetailLength <= 0) return base;
+            const clippedDetail = detail.length > allowedDetailLength
+                ? `${detail.substring(0, Math.max(0, allowedDetailLength - 3))}...`
+                : detail;
+            return `${base}${separator}${clippedDetail}`;
+        }
         
         // Update quick jump menu with dynamic content
         function updateQuickJumpMenu() {
@@ -10385,32 +10614,33 @@
             const { contentSections, questions } = collectValidSections();
             
             // Add content sections
-            contentSections.forEach((section) => {
+            contentSections.forEach((section, index) => {
                 const sectionId = section.getAttribute('data-section-id');
                 if (!sectionId) return; // Guard: missing ID
                 
+                const sectionNumber = getSectionNumberFromId(sectionId, index + 1);
                 const titleInput = section.querySelector('input[placeholder="Section title"]');
                 const title = titleInput ? titleInput.value.trim() : '';
-                const displayTitle = title || `Section ${sectionId.replace('content-', '')}`;
                 
                 const option = document.createElement('option');
                 option.value = sectionId;
-                option.textContent = `${displayTitle.substring(0, 30)}${displayTitle.length > 30 ? '...' : ''}`;
+                option.textContent = formatQuickJumpSectionLabel('Section', sectionNumber, title);
                 contentGroup.appendChild(option);
             });
             
             // Add questions
-            questions.forEach((question) => {
+            questions.forEach((question, index) => {
                 const sectionId = question.getAttribute('data-section-id');
                 if (!sectionId) return; // Guard: missing ID
                 
+                const sectionNumber = getSectionNumberFromId(sectionId, index + 1);
                 const questionIdInput = findFieldByLabel(question, 'Question ID', 'input');
-                const title = questionIdInput ? questionIdInput.value.trim() : '';
-                const displayTitle = title || `Question ${sectionId.replace('question-', '')}`;
+                const questionId = questionIdInput ? questionIdInput.value.trim() : '';
+                const detailText = questionId ? `ID: ${questionId}` : '';
                 
                 const option = document.createElement('option');
                 option.value = sectionId;
-                option.textContent = `${displayTitle.substring(0, 30)}${displayTitle.length > 30 ? '...' : ''}`;
+                option.textContent = formatQuickJumpSectionLabel('Question', sectionNumber, detailText);
                 questionsGroup.appendChild(option);
             });
         }
@@ -10634,6 +10864,7 @@
             // Update dataset (canonical source of truth)
             const currentType = selectElement.value || 'free_form';
             questionEl.dataset.questionType = currentType;
+            const suspendBootstrap = window.__suspendQuestionTypeBootstrap === true;
             
             const guideAnswerContainer = questionEl.querySelector('#guide-answer-container');
             const choicesContainer = questionEl.querySelector('#choices-container');
@@ -10696,11 +10927,11 @@
                 // Initialize with at least one item on each side if empty
                 const leftList = questionEl.querySelector('[id^="matching-left-list-"]');
                 const rightList = questionEl.querySelector('[id^="matching-right-list-"]');
-                if (leftList && leftList.querySelectorAll('.matching-item').length === 0) {
+                if (!suspendBootstrap && leftList && leftList.querySelectorAll('.matching-item').length === 0) {
                     const addLeftBtn = questionEl.querySelector('button[onclick*="addMatchingItem"][onclick*="left"]');
                     if (addLeftBtn) addMatchingItem(addLeftBtn, 'left');
                 }
-                if (rightList && rightList.querySelectorAll('.matching-item').length === 0) {
+                if (!suspendBootstrap && rightList && rightList.querySelectorAll('.matching-item').length === 0) {
                     const addRightBtn = questionEl.querySelector('button[onclick*="addMatchingItem"][onclick*="right"]');
                     if (addRightBtn) addMatchingItem(addRightBtn, 'right');
                 }
@@ -10763,7 +10994,7 @@
                                     
                                     // Add change listener for real-time summary update (UID-based)
                                     const newCheckbox = choiceItem.querySelector('.choice-correct');
-                                    if (newCheckbox) {
+                                    if (newCheckbox && newCheckbox.dataset.choiceCheckedSyncBound !== 'true') {
                                         ensureChoiceUids(questionEl);
                                         const choiceUid = choiceItem.dataset.choiceUid;
                                         newCheckbox.addEventListener('change', () => {
@@ -10778,6 +11009,7 @@
                                             markFormAsChanged();
                                             triggerAutoSave();
                                         });
+                                        newCheckbox.dataset.choiceCheckedSyncBound = 'true';
                                     }
                                 } else if (currentType === 'multiple_choice' && existingCorrectField) {
                                     // Remove correct field for multiple_choice type
@@ -10788,15 +11020,17 @@
                             });
                             
                             // Initialize with at least one choice if empty
-                            if (choicesList.children.length === 0) {
+                            if (!suspendBootstrap && choicesList.children.length === 0) {
                                 addChoice(choicesContainer.querySelector('.add-btn'), 'end', currentType);
                             }
                         }
                     }
                     // Update the correct answer UI after a small delay to ensure DOM is ready
+                    if (!suspendBootstrap) {
                         setTimeout(() => {
-                        syncChoiceUI(questionEl);
+                            syncChoiceUI(questionEl);
                         }, 50);
+                    }
                 } else {
                     if (guideAnswerContainer) guideAnswerContainer.style.display = 'block';
                     if (choicesContainer) choicesContainer.style.display = 'none';
@@ -10807,19 +11041,26 @@
             setGuideAnswerValue(questionEl, currentGuideAnswer, currentType);
             
             
-            // Reinitialize previews for all textareas in this question after type change
-            // This ensures newly shown fields get previews and direction is properly set
-            attachPreviews(questionEl);
-            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
-                PreviewBox.ensureRendered(questionEl);
+            if (!suspendBootstrap) {
+                // Reinitialize previews for all textareas in this question after type change
+                // This ensures newly shown fields get previews and direction is properly set
+                attachPreviews(questionEl);
+                if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                    PreviewBox.ensureRendered(questionEl);
+                }
+                handleQuestionImageStructureChange(questionEl, 'toggleType');
             }
-            handleQuestionImageStructureChange(questionEl, 'toggleType');
             // Track question type change
         }
 
-        function addChoice(button, position = 'end', questionType = null) {
+        function addChoice(button, position = 'end', questionType = null, options = {}) {
             const choicesContainer = button.closest('#choices-container');
             const choicesList = choicesContainer.querySelector('[id^="choices-list-"]');
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
+            const skipRecord = options.skipRecord === true || inBulkFastPath;
+            const skipFinalize = options.skipFinalize === true || inBulkFastPath;
+            const skipQuestionSync = options.skipQuestionSync === true || inBulkFastPath;
+            const skipListenerBind = options.skipListenerBind === true || inBulkFastPath;
             
             // Determine question type if not provided
             if (!questionType) {
@@ -10855,15 +11096,17 @@
             }
             
             // Record action for undo/redo (after adding to DOM so we have the actual element)
-            const nextSibling = choiceItem.nextSibling;
-            recordFormAction({
-                type: ACTION_TYPES.ADD_ITEM,
-                element: choiceItem,
-                parent: choicesList,
-                nextSibling: nextSibling,
-                containerId: null, // Choices don't have a container ID
-                updateNumbers: false
-            });
+            if (!skipRecord) {
+                const nextSibling = choiceItem.nextSibling;
+                recordFormAction({
+                    type: ACTION_TYPES.ADD_ITEM,
+                    element: choiceItem,
+                    parent: choicesList,
+                    nextSibling: nextSibling,
+                    containerId: null, // Choices don't have a container ID
+                    updateNumbers: false
+                });
+            }
             
             // Set RTL direction for choice text input
             const textarea = choiceItem.querySelector('textarea');
@@ -10871,54 +11114,22 @@
                 textarea.setAttribute('dir', 'rtl');
             }
             // Use canonical finalizer for previews, fonts, and autosize
-            finalizeElement(choiceItem, { previews: true, fonts: true, bbox: false, refresh: true, autoSize: true });
+            if (!skipFinalize) {
+                finalizeElement(choiceItem, { previews: true, fonts: true, bbox: false, refresh: true, autoSize: true });
+            }
             
             // Update correct answer UI (radio buttons or checkbox summary)
             const questionEl = choicesContainer.closest('.array-item');
             // Use centralized hook for UI updates
-            afterQuestionTypeListMutation(questionEl);
-            
-            // Add real-time listeners for UI updates
-            if (questionType === 'checkbox') {
-                const correctCheckbox = choiceItem.querySelector('.choice-correct');
-                if (correctCheckbox) {
-                    ensureChoiceUids(questionEl);
-                    const choiceUid = choiceItem.dataset.choiceUid;
-                    correctCheckbox.addEventListener('change', () => {
-                        const correctUids = getCorrectChoiceUids(questionEl);
-                        if (correctCheckbox.checked) {
-                            correctUids.add(choiceUid);
-                        } else {
-                            correctUids.delete(choiceUid);
-                        }
-                        setCorrectChoiceUids(questionEl, correctUids);
-                        updateCheckboxSummary(questionEl);
-                        markFormAsChanged();
-                        triggerAutoSave();
-                    });
-                }
-            } else if (questionType === 'multiple_choice') {
-                // Add listener to choice text for real-time radio button updates
-                const choiceTextArea = choiceItem.querySelector('.choice-text');
-                if (choiceTextArea) {
-                    choiceTextArea.addEventListener('input', () => {
-                        // Ensure the live preview is rendered first
-                        if (choiceTextArea.__livePreviewHandler) {
-                            choiceTextArea.__livePreviewHandler();
-                        } else {
-                            renderLivePreview(choiceTextArea);
-                        }
-                        syncChoiceUI(questionEl);
-                    });
-                }
-                // Add listener to choice ID for real-time radio button updates
-                const choiceIdInput = choiceItem.querySelector('.choice-id');
-                if (choiceIdInput) {
-                    choiceIdInput.addEventListener('input', () => {
-                        rebuildCorrectAnswerUI(questionEl);
-                    });
-                }
+            if (!skipQuestionSync) {
+                afterQuestionTypeListMutation(questionEl);
             }
+            
+            // Add real-time listeners using the deduped canonical binder
+            if (!skipListenerBind) {
+                bindChoiceRealtimeListeners(questionEl, choiceItem, questionType);
+            }
+            return choiceItem;
         }
 
         function addChoiceBefore(button) {
@@ -10959,7 +11170,7 @@
             // Update correct answer UI when ID changes
             const questionEl = choiceItem.parentElement?.closest('.array-item');
             if (questionEl) {
-                syncChoiceUI(questionEl);
+                scheduleChoiceUISync(questionEl);
             }
         }
 
@@ -11210,7 +11421,7 @@
             }
             // Apply universal font settings to this subtree so Correct Answer labels/previews match other output (same pipeline)
             if (typeof applyFontSettings === 'function') {
-                applyFontSettings(questionEl);
+                applyFontSettings(questionEl, { refreshLayout: false });
             }
         }
 
@@ -11239,6 +11450,64 @@
                             }
         }
 
+        // Coalesce rapid choice UI refreshes into one render per frame for each question.
+        const choiceUiSyncRafMap = new WeakMap();
+        function scheduleChoiceUISync(questionEl) {
+            if (!questionEl) return;
+            if (choiceUiSyncRafMap.has(questionEl)) return;
+            const rafId = requestAnimationFrame(() => {
+                choiceUiSyncRafMap.delete(questionEl);
+                if (!questionEl.isConnected) return;
+                syncChoiceUI(questionEl);
+            });
+            choiceUiSyncRafMap.set(questionEl, rafId);
+        }
+
+        // Canonical deduped listener binder for dynamically added/restored choices.
+        function bindChoiceRealtimeListeners(questionEl, choiceItem, questionType = null) {
+            if (!questionEl || !choiceItem) return;
+            const resolvedType = questionType || getQuestionType(questionEl);
+
+            if (resolvedType === 'multiple_choice') {
+                const choiceTextArea = choiceItem.querySelector('.choice-text');
+                if (choiceTextArea && choiceTextArea.dataset.choiceTextSyncBound !== 'true') {
+                    choiceTextArea.addEventListener('input', () => {
+                        // Keep choice preview in sync first, then update MCQ radios once per frame.
+                        if (choiceTextArea.__livePreviewHandler) {
+                            choiceTextArea.__livePreviewHandler();
+                        } else {
+                            renderLivePreview(choiceTextArea);
+                        }
+                        scheduleChoiceUISync(questionEl);
+                    });
+                    choiceTextArea.dataset.choiceTextSyncBound = 'true';
+                }
+                return;
+            }
+
+            if (resolvedType === 'checkbox') {
+                const correctCheckbox = choiceItem.querySelector('.choice-correct');
+                if (correctCheckbox && correctCheckbox.dataset.choiceCheckedSyncBound !== 'true') {
+                    correctCheckbox.addEventListener('change', () => {
+                        ensureChoiceUids(questionEl);
+                        const choiceUid = choiceItem.dataset.choiceUid;
+                        if (!choiceUid) return;
+                        const correctUids = getCorrectChoiceUids(questionEl);
+                        if (correctCheckbox.checked) {
+                            correctUids.add(choiceUid);
+                        } else {
+                            correctUids.delete(choiceUid);
+                        }
+                        setCorrectChoiceUids(questionEl, correctUids);
+                        updateCheckboxSummary(questionEl);
+                        markFormAsChanged();
+                        triggerAutoSave();
+                    });
+                    correctCheckbox.dataset.choiceCheckedSyncBound = 'true';
+                }
+            }
+        }
+
         function attachChoiceListeners(questionEl) {
             const questionType = getQuestionType(questionEl);
             const choicesList = questionEl.querySelector('[id^="choices-list-"]');
@@ -11247,53 +11516,7 @@
             
             const choiceItems = choicesList.querySelectorAll('.choice-item');
             choiceItems.forEach((choiceItem) => {
-                if (questionType === 'multiple_choice') {
-                    // Add listeners for multiple choice
-                    const choiceTextArea = choiceItem.querySelector('.choice-text');
-                    const choiceIdInput = choiceItem.querySelector('.choice-id');
-                    
-                    if (choiceTextArea && !choiceTextArea.dataset.listenerAttached) {
-                        choiceTextArea.addEventListener('input', () => {
-                            // Ensure the live preview is rendered first
-                            if (choiceTextArea.__livePreviewHandler) {
-                                choiceTextArea.__livePreviewHandler();
-                            } else {
-                                renderLivePreview(choiceTextArea);
-                            }
-                            syncChoiceUI(questionEl);
-                        });
-                        choiceTextArea.dataset.listenerAttached = 'true';
-                    }
-                    
-                    if (choiceIdInput && !choiceIdInput.dataset.listenerAttached) {
-                        choiceIdInput.addEventListener('input', () => {
-                            syncChoiceUI(questionEl);
-                        });
-                        choiceIdInput.dataset.listenerAttached = 'true';
-                    }
-                } else if (questionType === 'checkbox') {
-                    // Add listeners for checkbox (UID-based)
-                    const correctCheckbox = choiceItem.querySelector('.choice-correct');
-                    if (correctCheckbox && !correctCheckbox.dataset.listenerAttached) {
-                        ensureChoiceUids(questionEl);
-                        const choiceUid = choiceItem.dataset.choiceUid;
-                        if (choiceUid) {
-                            correctCheckbox.addEventListener('change', () => {
-                                const correctUids = getCorrectChoiceUids(questionEl);
-                                if (correctCheckbox.checked) {
-                                    correctUids.add(choiceUid);
-                                } else {
-                                    correctUids.delete(choiceUid);
-                                }
-                                setCorrectChoiceUids(questionEl, correctUids);
-                                updateCheckboxSummary(questionEl);
-                                markFormAsChanged();
-                                triggerAutoSave();
-                            });
-                            correctCheckbox.dataset.listenerAttached = 'true';
-                        }
-                    }
-                }
+                bindChoiceRealtimeListeners(questionEl, choiceItem, questionType);
             });
         }
 
@@ -11654,6 +11877,9 @@
                     insertBefore: sectionEl.nextSibling,
                     isReplacement: false,
                     targetEl: null
+                }, {
+                    bulkBuild: true,
+                    deferFinalize: true
                 });
                 
                 // Record action for undo/redo
@@ -11669,8 +11895,9 @@
                     snapshotState: isQuestion ? serializeQuestionState(newSection) : collectContentData(newSection)
                 });
                 
-                // Initialize the new section using canonical finalizer
-                finalizeElement(newSection, { containerId: isQuestion ? 'questions_container' : 'content_sections_container' });
+                // Finalize once after full deserialization (bulk path avoids nested-item finalization storms).
+                finalizeDeserializedSection(newSection, isQuestion ? 'question' : 'content');
+                afterListMutation(isQuestion ? 'questions_container' : 'content_sections_container');
                 
                 // Per-key refresh only for bbox keys in the new section (queued, no lag storm)
                 var bboxContainers = newSection.querySelectorAll('.bbox-container');
@@ -11757,12 +11984,13 @@
                     insertBefore: null,
                     isReplacement: true,
                     targetEl: sectionEl
+                }, {
+                    bulkBuild: true,
+                    deferFinalize: true
                 });
                 
-                // Spawn finalization: force-fit textareas/previews with current content (values already set by deserialize)
-                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
-                    AutoSizeManager.finalizeSpawn(sectionEl);
-                }
+                // Finalize once after full deserialization.
+                finalizeDeserializedSection(sectionEl, isQuestion ? 'question' : 'content');
                 
                 // Record action for undo/redo (after section is replaced)
                 const pastedState = sectionEl.cloneNode(true);
@@ -11844,12 +12072,14 @@
                     insertBefore: null,
                     isReplacement: false,
                     targetEl: null
+                }, {
+                    bulkBuild: true,
+                    deferFinalize: true
                 });
                 
-                // Spawn finalization: force-fit textareas/previews with current content (values already set by deserialize)
-                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
-                    AutoSizeManager.finalizeSpawn(newSection);
-                }
+                // Finalize once after full deserialization.
+                finalizeDeserializedSection(newSection, sectionData.type === 'question' ? 'question' : 'content');
+                afterListMutation(sectionData.type === 'question' ? 'questions_container' : 'content_sections_container');
                 
                 // Per-key refresh only for bbox keys in the pasted section (queued)
                 var bboxContainers = newSection.querySelectorAll('.bbox-container');
@@ -12126,6 +12356,18 @@
 
         // Flag to prevent redundant updates during bulk operations
         let isBulkOperation = false;
+        let performanceBulkBuildDepth = 0;
+        function isPerformanceBulkBuildActive() {
+            return performanceBulkBuildDepth > 0;
+        }
+        function withPerformanceBulkBuild(fn) {
+            performanceBulkBuildDepth++;
+            try {
+                return fn();
+            } finally {
+                performanceBulkBuildDepth = Math.max(0, performanceBulkBuildDepth - 1);
+            }
+        }
 
         /**
          * Unified helper for adding/inserting content sections and questions.
@@ -12193,7 +12435,15 @@
             
             // Finalize: skipBulkCheck only for non-end positions (before/after always update immediately)
             const skipBulk = position !== 'end';
-            finalizeElement(newElement, { containerId: containerId, skipBulkCheck: skipBulk });
+            const inBulkFastPath = isPerformanceBulkBuildActive();
+            finalizeElement(newElement, {
+                containerId: containerId,
+                skipBulkCheck: skipBulk,
+                previews: !inBulkFastPath,
+                bbox: !inBulkFastPath,
+                refresh: !inBulkFastPath,
+                autoSize: !inBulkFastPath
+            });
             
             return newElement;
         }
@@ -12474,7 +12724,7 @@
         // Helper: Finalize a bbox row (apply validation and font settings)
         function finalizeBBoxRow(item) {
             attachBboxValidationToItem(item);
-            applyFontSettings(item);
+            applyFontSettings(item, { refreshLayout: false });
         }
         
         /**
@@ -12555,7 +12805,7 @@
             }
             
             if (fonts) {
-                applyFontSettings(el);
+                applyFontSettings(el, { refreshLayout: false });
             }
             
             if (bbox) {
@@ -14186,6 +14436,42 @@
             // WeakMap to track initialized previews and prevent double-binding
             const initializedPreviews = new WeakMap();
             let previewInstanceCounter = 0;
+            const VALIDATION_DEBOUNCE_MS = 180;
+            const validationTimerByField = new WeakMap();
+
+            function runFieldValidationDisplays(textarea) {
+                if (!textarea || !textarea.isConnected) return;
+                showTableValidationErrors(textarea);
+                showListValidationErrors(textarea);
+                showBlockquoteValidationErrors(textarea);
+                showLatexValidationErrors(textarea);
+                showImageValidationErrors(textarea);
+                showQuoteValidationErrors(textarea);
+                showBrTagValidationErrors(textarea);
+                showHtmlListTagValidationErrors(textarea);
+            }
+
+            function clearScheduledFieldValidation(textarea) {
+                const t = validationTimerByField.get(textarea);
+                if (t) clearTimeout(t);
+                validationTimerByField.delete(textarea);
+            }
+
+            function scheduleFieldValidation(textarea) {
+                if (!textarea) return;
+                clearScheduledFieldValidation(textarea);
+                const t = setTimeout(() => {
+                    validationTimerByField.delete(textarea);
+                    runFieldValidationDisplays(textarea);
+                }, VALIDATION_DEBOUNCE_MS);
+                validationTimerByField.set(textarea, t);
+            }
+
+            function flushFieldValidationNow(textarea) {
+                if (!textarea) return;
+                clearScheduledFieldValidation(textarea);
+                runFieldValidationDisplays(textarea);
+            }
             
             /**
              * Universal PreviewBox component
@@ -14311,33 +14597,41 @@
                 
                 // Create instance
                 const instanceId = ++previewInstanceCounter;
-                function renderNow(valueOverride, force) {
+                function renderNow(valueOverride, force, inputScoped) {
                     const nextValue = valueOverride != null ? valueOverride : (sourceEl.value || '');
                     if (!force && nextValue === instance.__lastRenderedValue) return;
-                    const info = renderLivePreview(sourceEl, previewEl, { sourceText: nextValue });
-                    instance.__lastRenderedValue = nextValue;
-                    instance.__lastHasMath = info && info.hasMath;
-                    instance.__lastHasBbox = info && info.hasBbox;
-                    // Content changed; bump renderVersion so scheduleFit runs when text/KaTeX changes height
-                    previewEl.__renderVersion = (previewEl.__renderVersion || 0) + 1;
-                    if (autoResize && autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
-                        // Defer fit for image/bbox previews so we fit once after layout settles (avoids fit-twice lag)
-                        var hasImageBbox = previewEl.querySelector('.image-placeholder-container') || previewEl.querySelector('.fp-bbox-canvas');
-                        if (hasImageBbox && AutoSizeManager.scheduleFit) {
-                            AutoSizeManager.scheduleFit(previewEl, 'update');
-                        } else {
-                            AutoSizeManager.fitHeightToContent(previewEl);
+                    const isInputScoped = inputScoped === true;
+                    if (isInputScoped && typeof enterInputIsolationScope === 'function') {
+                        enterInputIsolationScope('preview-render');
+                    }
+                    try {
+                        const info = renderLivePreview(sourceEl, previewEl, { sourceText: nextValue });
+                        instance.__lastRenderedValue = nextValue;
+                        instance.__lastHasMath = info && info.hasMath;
+                        instance.__lastHasBbox = info && info.hasBbox;
+                        // Content changed; bump renderVersion so scheduleFit runs when text/KaTeX changes height
+                        previewEl.__renderVersion = (previewEl.__renderVersion || 0) + 1;
+                        if (autoResize && autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
+                            // Defer fit for image/bbox previews so we fit once after layout settles (avoids fit-twice lag)
+                            var hasImageBbox = previewEl.querySelector('.image-placeholder-container') || previewEl.querySelector('.fp-bbox-canvas');
+                            if (hasImageBbox && AutoSizeManager.scheduleFit) {
+                                AutoSizeManager.scheduleFit(previewEl, 'update');
+                            } else {
+                                AutoSizeManager.fitHeightToContent(previewEl);
+                            }
+                        }
+                        if (mode === 'live') {
+                            if (force || !isInputScoped) {
+                                flushFieldValidationNow(sourceEl);
+                            } else {
+                                scheduleFieldValidation(sourceEl);
+                            }
+                        }
+                    } finally {
+                        if (isInputScoped && typeof exitInputIsolationScope === 'function') {
+                            exitInputIsolationScope();
                         }
                     }
-                    // Show validation errors
-                    showTableValidationErrors(sourceEl);
-                    showListValidationErrors(sourceEl);
-                    showBlockquoteValidationErrors(sourceEl);
-                    showLatexValidationErrors(sourceEl);
-                    showImageValidationErrors(sourceEl);
-                    showQuoteValidationErrors(sourceEl);
-                    showBrTagValidationErrors(sourceEl);
-                    showHtmlListTagValidationErrors(sourceEl);
                 }
                 
                 const instance = {
@@ -14350,6 +14644,7 @@
                     __instanceId: instanceId,
                     __rafId: null,
                     __pendingValue: null,
+                    __pendingInputScoped: false,
                     __lastRenderedValue: null,
                     __lastHasMath: false,
                     __lastHasBbox: false,
@@ -14366,6 +14661,7 @@
                         const options = opts || {};
                         const immediate = options.immediate === true;
                         const force = options.force === true;
+                        const inputScoped = options.inputScoped === true;
                         const valueOverride = options.value;
                         const nextValue = valueOverride != null ? valueOverride : (sourceEl.value || '');
                         if (!force && nextValue === this.__lastRenderedValue) return;
@@ -14373,16 +14669,20 @@
                             if (this.__rafId) cancelAnimationFrame(this.__rafId);
                             this.__rafId = null;
                             this.__pendingValue = null;
-                            renderNow(nextValue, force);
+                            this.__pendingInputScoped = false;
+                            renderNow(nextValue, force, inputScoped);
                             return;
                         }
                         this.__pendingValue = nextValue;
+                        this.__pendingInputScoped = this.__pendingInputScoped || inputScoped;
                         if (this.__rafId) return;
                         this.__rafId = requestAnimationFrame(() => {
                             this.__rafId = null;
                             const pending = this.__pendingValue;
+                            const pendingInputScoped = this.__pendingInputScoped === true;
                             this.__pendingValue = null;
-                            renderNow(pending, force);
+                            this.__pendingInputScoped = false;
+                            renderNow(pending, force, pendingInputScoped);
                         });
                     },
                     destroy: function() {
@@ -14396,6 +14696,17 @@
                         if (sourceEl.__livePreviewBound) {
                             delete sourceEl.__livePreviewBound;
                         }
+                        if (sourceEl.__livePreviewBlurHandler) {
+                            sourceEl.removeEventListener('blur', sourceEl.__livePreviewBlurHandler);
+                            delete sourceEl.__livePreviewBlurHandler;
+                        }
+                        if (sourceEl.__livePreviewBlurInstance) {
+                            delete sourceEl.__livePreviewBlurInstance;
+                        }
+                        if (sourceEl.__livePreviewBlurBound) {
+                            delete sourceEl.__livePreviewBlurBound;
+                        }
+                        clearScheduledFieldValidation(sourceEl);
                         initializedPreviews.delete(sourceEl);
                     }
                 };
@@ -14420,7 +14731,7 @@
                     }
                     if (!sourceEl.__livePreviewBound) {
                         const handler = () => {
-                            instance.update();
+                            instance.update({ inputScoped: true });
                         };
                         handler.__previewInstanceId = instanceId;
                         sourceEl.addEventListener('input', handler);
@@ -14428,20 +14739,35 @@
                         sourceEl.__livePreviewInstance = instance;
                         sourceEl.__livePreviewBound = true;
                     }
+                    const existingBlurHandler = sourceEl.__livePreviewBlurHandler;
+                    const existingBlurInstance = sourceEl.__livePreviewBlurInstance;
+                    if (sourceEl.__livePreviewBlurBound) {
+                        if (existingBlurInstance === instance && existingBlurHandler) {
+                            // Already bound for this instance; keep it
+                        } else {
+                            if (existingBlurHandler) {
+                                sourceEl.removeEventListener('blur', existingBlurHandler);
+                            }
+                            sourceEl.__livePreviewBlurBound = false;
+                        }
+                    }
+                    if (!sourceEl.__livePreviewBlurBound) {
+                        const blurHandler = () => {
+                            flushFieldValidationNow(sourceEl);
+                        };
+                        blurHandler.__previewInstanceId = instanceId;
+                        sourceEl.addEventListener('blur', blurHandler);
+                        sourceEl.__livePreviewBlurHandler = blurHandler;
+                        sourceEl.__livePreviewBlurInstance = instance;
+                        sourceEl.__livePreviewBlurBound = true;
+                    }
                 }
                 
                 // NOTE: Auto-resize for textareas is now handled by AutoSizeManager
                 
                 // Show validation errors on initial load
                 if (mode === 'live') {
-                    showTableValidationErrors(sourceEl);
-                    showListValidationErrors(sourceEl);
-                    showBlockquoteValidationErrors(sourceEl);
-                    showLatexValidationErrors(sourceEl);
-                    showImageValidationErrors(sourceEl);
-                    showQuoteValidationErrors(sourceEl);
-                    showBrTagValidationErrors(sourceEl);
-                    showHtmlListTagValidationErrors(sourceEl);
+                    flushFieldValidationNow(sourceEl);
                 }
                 
                 // Store instance
@@ -14538,6 +14864,8 @@
                 ensureRendered: ensureRendered,
                 // Expose WeakMap for external access
                 getInitializedPreviews: () => initializedPreviews,
+                scheduleFieldValidation: scheduleFieldValidation,
+                flushFieldValidationNow: flushFieldValidationNow,
                 // Expose for backward compatibility during migration
                 attachPreviews: function(root = document) {
                     initPreviewBoxes(root);
@@ -14770,6 +15098,7 @@
         // UI preference updates (fonts/dir) should not mark dirty or autosave.
         let isUiPreferenceUpdate = false;
         let pendingTypographyRefresh = false;
+        window.__typographyVersion = window.__typographyVersion || 0;
         function withAutosaveSuppressed(fn) {
             const prev = isUiPreferenceUpdate;
             isUiPreferenceUpdate = true;
@@ -14781,35 +15110,47 @@
         }
         function refreshTextLayoutAfterTypographyChange() {
             if (typeof AutoSizeManager === 'undefined' || !AutoSizeManager.refreshStyleChange) return;
-            const inputRoot = document.getElementById('input-form') || document.body;
             const activeRoot = resolveActivePanelRoot();
             const finalPreviewActive = (typeof isFinalPreviewActive === 'function' && isFinalPreviewActive());
+            const inputRoot = document.getElementById('input-form');
             // Font changes affect text metrics; re-measure autosize targets after styles apply.
             requestAnimationFrame(() => {
                 if (finalPreviewActive && typeof scheduleInputAutosizeResizeRefresh === 'function') {
                     // Use the canonical debounced scheduler so Final Preview image/bbox previews follow deferred scheduleFit path.
                     scheduleInputAutosizeResizeRefresh();
-                } else {
+                } else if (activeRoot) {
                     AutoSizeManager.refreshStyleChange(activeRoot);
-                }
-                if (inputRoot && inputRoot !== activeRoot) {
-                    AutoSizeManager.refreshStyleChange(inputRoot);
+                    if (activeRoot.classList && activeRoot.classList.contains('tab-content')) {
+                        activeRoot.__lastTypographyVersion = window.__typographyVersion || 0;
+                    }
                 }
                 const inputActive = inputRoot && inputRoot.classList && inputRoot.classList.contains('active');
                 pendingTypographyRefresh = !inputActive;
             });
         }
-        // Apply font settings to specific elements or all elements
-        function applyFontSettings(container) {
+        // Apply font settings globally via CSS vars.
+        // refreshLayout=true is reserved for real typography changes (size/line-height controls).
+        function applyFontSettings(container, options = {}) {
             return withAutosaveSuppressed(function () {
+                const { refreshLayout = false, forceCssWrite = false } = options;
                 const savedFontSize = localStorage.getItem('fontSize') || '14';
                 const savedLineHeight = localStorage.getItem('lineHeight') || '1.5';
                 const root = document.querySelector('.container') || document.documentElement;
                 if (root) {
-                    root.style.setProperty('--app-font-size', savedFontSize + 'px');
-                    root.style.setProperty('--app-line-height', savedLineHeight);
+                    const nextFontSize = savedFontSize + 'px';
+                    const nextLineHeight = savedLineHeight;
+                    if (forceCssWrite || root.style.getPropertyValue('--app-font-size') !== nextFontSize) {
+                        root.style.setProperty('--app-font-size', nextFontSize);
+                    }
+                    if (forceCssWrite || root.style.getPropertyValue('--app-line-height') !== nextLineHeight) {
+                        root.style.setProperty('--app-line-height', nextLineHeight);
+                    }
                 }
+
+                if (!refreshLayout) return;
+
                 pendingTypographyRefresh = true;
+                window.__typographyVersion = (window.__typographyVersion || 0) + 1;
                 // Typography changes must bump layout version so deferred preview scheduleFit won't skip.
                 if (typeof requestLayoutRefit === 'function') {
                     requestLayoutRefit('typography-change');
@@ -14826,15 +15167,7 @@
                 const sizeStr = String(size);
                 // Save to localStorage (save as string)
                 localStorage.setItem('fontSize', sizeStr);
-                applyFontSettings();
-                
-                // If final preview tab is active, regenerate it to apply font size
-                const finalPreviewTab = document.getElementById('final-preview');
-                if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
-                    generateFinalPreview();
-                }
-                
-                refreshTextLayoutAfterTypographyChange();
+                applyFontSettings(null, { refreshLayout: true, forceCssWrite: true });
             });
         }
         
@@ -14844,15 +15177,7 @@
                 const heightStr = String(height);
                 // Save to localStorage (save as string)
                 localStorage.setItem('lineHeight', heightStr);
-                applyFontSettings();
-                
-                // If final preview tab is active, regenerate it to apply line height
-                const finalPreviewTab = document.getElementById('final-preview');
-                if (finalPreviewTab && finalPreviewTab.classList.contains('active')) {
-                    generateFinalPreview();
-                }
-                
-                refreshTextLayoutAfterTypographyChange();
+                applyFontSettings(null, { refreshLayout: true, forceCssWrite: true });
             });
         }
         
@@ -15502,7 +15827,11 @@
 
         // Ensure preview updates after helper insertions
         function refreshPreviewFor(textarea) {
-            if (textarea) renderLivePreview(textarea);
+            if (!textarea) return;
+            renderLivePreview(textarea);
+            if (typeof PreviewBox !== 'undefined' && PreviewBox.flushFieldValidationNow) {
+                PreviewBox.flushFieldValidationNow(textarea);
+            }
         }
 
         // Paste a bbox/image JSON snippet copied from the bbox tool (no permission dialog)
@@ -18181,6 +18510,44 @@
                 };
             }
         }
+
+        function updateDirectionButtonsInScope(scopeEl) {
+            if (!scopeEl || !scopeEl.querySelectorAll) return;
+            const dirBtns = scopeEl.querySelectorAll('.dir-btn');
+            dirBtns.forEach(btn => {
+                const field = btn.closest('.text-field-container')?.querySelector('textarea, input[type="text"]') ||
+                            btn.parentElement?.querySelector('textarea, input[type="text"]');
+                if (!field) return;
+                const isLTR = field.hasAttribute('data-ltr');
+                btn.textContent = isLTR ? 'RTL' : 'LTR';
+            });
+        }
+
+        function finalizeDeserializedSection(sectionEl, type) {
+            if (!sectionEl) return;
+            const sectionType = type === 'question' ? 'question' : 'content';
+
+            attachPreviews(sectionEl);
+            attachBboxValidation(sectionEl);
+
+            if (sectionType === 'question') {
+                const questionType = getQuestionType(sectionEl);
+                if (questionType === 'multiple_choice' || questionType === 'checkbox') {
+                    attachChoiceListeners(sectionEl);
+                    syncChoiceUI(sectionEl);
+                } else if (questionType === 'matching') {
+                    updateMatchingItemNumbers(sectionEl, 'left');
+                    ensureMatchingUids(sectionEl);
+                    rebuildMatchingRelationshipUI(sectionEl);
+                }
+                if (typeof handleQuestionImageStructureChange === 'function') {
+                    handleQuestionImageStructureChange(sectionEl, 'deserialize');
+                }
+            }
+
+            finalizePastedSection(sectionEl, { type: sectionType });
+            updateDirectionButtonsInScope(sectionEl);
+        }
         
         /**
          * Canonical deserializer: builds DOM and populates from payload
@@ -18189,7 +18556,7 @@
          * @param {Object} targetContext - {container: HTMLElement, insertBefore: HTMLElement|null, isReplacement: boolean, targetEl: HTMLElement|null}
          * @returns {HTMLElement} The created/populated section element
          */
-        function deserializeSection(payload, targetContext) {
+        function deserializeSection(payload, targetContext, options = {}) {
             if (!payload || !payload.type || !payload.data) {
                 throw new Error('Invalid payload format');
             }
@@ -18197,9 +18564,9 @@
             const { container, insertBefore, isReplacement, targetEl } = targetContext;
             
             if (payload.type === 'question') {
-                return deserializeQuestion(payload.data, { container, insertBefore, isReplacement, targetEl });
+                return deserializeQuestion(payload.data, { container, insertBefore, isReplacement, targetEl }, options);
             } else if (payload.type === 'content') {
-                return deserializeContentSection(payload.data, { container, insertBefore, isReplacement, targetEl });
+                return deserializeContentSection(payload.data, { container, insertBefore, isReplacement, targetEl }, options);
             } else {
                 throw new Error(`Unknown section type: ${payload.type}`);
             }
@@ -18209,8 +18576,10 @@
          * Deserialize a question from payload data
          * Handles ALL question types: free_form, multiple_choice, checkbox, fill_in_the_blanks, matching, annotate, create_table
          */
-        function deserializeQuestion(data, context) {
+        function deserializeQuestion(data, context, options = {}) {
             const { container, insertBefore, isReplacement, targetEl } = context;
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
+            const deferFinalize = options.deferFinalize === true || inBulkFastPath;
             
             let questionEl;
             if (isReplacement && targetEl) {
@@ -18219,10 +18588,8 @@
             } else {
                 // Creating new question
                 const questionCount = container.querySelectorAll(':scope > .array-item').length + 1;
-                questionEl = document.createElement('div');
-                questionEl.className = 'array-item';
-                questionEl.setAttribute('data-item-type', 'question');
-                questionEl.innerHTML = getQuestionHTML(questionCount);
+                questionEl = buildQuestionItem(questionCount, { setDataset: true });
+                setupQuestionDirections(questionEl);
                 if (insertBefore) {
                     container.insertBefore(questionEl, insertBefore);
                 } else {
@@ -18242,7 +18609,17 @@
             const questionTypeSelect = questionEl.querySelector('select.question-type-select, select[onchange*="toggleQuestionType"]');
             if (questionTypeSelect) {
                 // Trigger toggle to show/hide appropriate fields
-                toggleQuestionType(questionTypeSelect);
+                const previousSuspend = window.__suspendQuestionTypeBootstrap === true;
+                if (inBulkFastPath) {
+                    window.__suspendQuestionTypeBootstrap = true;
+                }
+                try {
+                    toggleQuestionType(questionTypeSelect);
+                } finally {
+                    if (inBulkFastPath) {
+                        window.__suspendQuestionTypeBootstrap = previousSuspend;
+                    }
+                }
             }
             
             setFieldValue(questionEl, 'Set-up Text', data.set_up_text || '', 'textarea');
@@ -18254,9 +18631,9 @@
             if (questionType === 'fill_in_the_blanks') {
                 deserializeFillInBlanks(questionEl, data);
             } else if (questionType === 'matching') {
-                deserializeMatching(questionEl, data);
+                deserializeMatching(questionEl, data, { bulkBuild: inBulkFastPath });
             } else if (questionType === 'multiple_choice' || questionType === 'checkbox') {
-                deserializeChoices(questionEl, data, questionType);
+                deserializeChoices(questionEl, data, questionType, { bulkBuild: inBulkFastPath });
             } else {
                 // Free form, annotate, create_table
                 deserializeFreeForm(questionEl, data);
@@ -18272,22 +18649,9 @@
                 fillBboxGroup(answerImagesGroup, data.guide_answer_images || []);
             }
             
-            // Finalize the element (attach previews, validation, etc.)
-            setTimeout(() => {
-                attachPreviews(questionEl);
-                attachBboxValidation(questionEl);
-                finalizePastedSection(questionEl, { type: 'question' });
-                
-                // Update direction buttons
-                const dirBtns = questionEl.querySelectorAll('.dir-btn');
-                dirBtns.forEach(btn => {
-                    const textarea = btn.closest('.text-field-container')?.querySelector('textarea');
-                    if (textarea) {
-                        const isLTR = textarea.hasAttribute('data-ltr');
-                        btn.textContent = isLTR ? 'RTL' : 'LTR';
-                    }
-                });
-            }, 100);
+            if (!deferFinalize) {
+                finalizeDeserializedSection(questionEl, 'question');
+            }
             
             return questionEl;
         }
@@ -18320,7 +18684,8 @@
         /**
          * Deserialize matching question
          */
-        function deserializeMatching(questionEl, data) {
+        function deserializeMatching(questionEl, data, options = {}) {
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
             const leftList = questionEl.querySelector('[id^="matching-left-list-"]');
             const rightList = questionEl.querySelector('[id^="matching-right-list-"]');
             
@@ -18330,7 +18695,12 @@
                 data.left.forEach((itemText) => {
                     const addLeftBtn = questionEl.querySelector('button[onclick*="addMatchingItem"][onclick*="left"]');
                     if (addLeftBtn) {
-                        addMatchingItem(addLeftBtn, 'left');
+                        addMatchingItem(addLeftBtn, 'left', inBulkFastPath ? {
+                            bulkBuild: true,
+                            skipFinalize: true,
+                            skipRecord: true,
+                            skipSync: true
+                        } : {});
                         const lastItem = leftList.lastElementChild;
                         if (lastItem) {
                             const textarea = lastItem.querySelector('.matching-item-text');
@@ -18346,7 +18716,12 @@
                 data.right.forEach((itemText) => {
                     const addRightBtn = questionEl.querySelector('button[onclick*="addMatchingItem"][onclick*="right"]');
                     if (addRightBtn) {
-                        addMatchingItem(addRightBtn, 'right');
+                        addMatchingItem(addRightBtn, 'right', inBulkFastPath ? {
+                            bulkBuild: true,
+                            skipFinalize: true,
+                            skipRecord: true,
+                            skipSync: true
+                        } : {});
                         const lastItem = rightList.lastElementChild;
                         if (lastItem) {
                             const textarea = lastItem.querySelector('.matching-item-text');
@@ -18376,7 +18751,12 @@
                 data.relationship.forEach(([leftIdx, rightIdx]) => {
                     const addRelBtn = questionEl.querySelector('button[onclick*="addRelationship"]');
                     if (addRelBtn) {
-                        addRelationship(addRelBtn);
+                        addRelationship(addRelBtn, inBulkFastPath ? {
+                            bulkBuild: true,
+                            skipFinalize: true,
+                            skipRecord: true,
+                            skipSync: true
+                        } : {});
                         const lastRel = relationshipsList.lastElementChild;
                         if (lastRel) {
                             const leftUid = leftIndexToUid.get(leftIdx);
@@ -18386,7 +18766,6 @@
                         }
                     }
                 });
-                afterQuestionTypeListMutation(questionEl);
             }
             
             // Set guide answer (in matching container)
@@ -18400,12 +18779,19 @@
         /**
          * Deserialize multiple choice or checkbox question
          */
-        function deserializeChoices(questionEl, data, questionType) {
+        function deserializeChoices(questionEl, data, questionType, options = {}) {
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
             const choicesList = questionEl.querySelector('[id^="choices-list-"]');
             if (choicesList && data.choices && Array.isArray(data.choices)) {
                 choicesList.innerHTML = '';
                 data.choices.forEach((choice) => {
-                    addChoice(choicesList.parentElement.querySelector('.add-btn'), 'end', questionType);
+                    addChoice(choicesList.parentElement.querySelector('.add-btn'), 'end', questionType, inBulkFastPath ? {
+                        bulkBuild: true,
+                        skipFinalize: true,
+                        skipRecord: true,
+                        skipQuestionSync: true,
+                        skipListenerBind: true
+                    } : {});
                     const lastChoice = choicesList.lastElementChild;
                     if (lastChoice) {
                         const choiceIdInput = lastChoice.querySelector('.choice-id');
@@ -18465,10 +18851,6 @@
                 }
                 setCorrectChoiceUids(questionEl, correctUids);
             }
-            
-            // Attach listeners and sync UI
-            attachChoiceListeners(questionEl);
-            afterQuestionTypeListMutation(questionEl);
         }
         
         /**
@@ -18484,17 +18866,21 @@
         /**
          * Deserialize a content section from payload data
          */
-        function deserializeContentSection(data, context) {
+        function deserializeContentSection(data, context, options = {}) {
             const { container, insertBefore, isReplacement, targetEl } = context;
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
+            const deferFinalize = options.deferFinalize === true || inBulkFastPath;
             
             let sectionEl;
             if (isReplacement && targetEl) {
                 sectionEl = targetEl;
             } else {
-                addContentSection();
-                sectionEl = container.lastElementChild;
-                if (insertBefore && sectionEl) {
+                const sectionCount = container.querySelectorAll(':scope > .array-item').length + 1;
+                sectionEl = buildContentSectionItem(sectionCount);
+                if (insertBefore) {
                     container.insertBefore(sectionEl, insertBefore);
+                } else {
+                    container.appendChild(sectionEl);
                 }
             }
             
@@ -18508,22 +18894,9 @@
                 fillBboxGroup(imagesGroup, data.images || []);
             }
             
-            // Finalize the element
-            setTimeout(() => {
-                attachPreviews(sectionEl);
-                attachBboxValidation(sectionEl);
-                finalizePastedSection(sectionEl, { type: 'content' });
-                
-                // Update direction buttons
-                const dirBtns = sectionEl.querySelectorAll('.dir-btn');
-                dirBtns.forEach(btn => {
-                    const textarea = btn.closest('.text-field-container')?.querySelector('textarea');
-                    if (textarea) {
-                        const isLTR = textarea.hasAttribute('data-ltr');
-                        btn.textContent = isLTR ? 'RTL' : 'LTR';
-                    }
-                });
-            }, 100);
+            if (!deferFinalize) {
+                finalizeDeserializedSection(sectionEl, 'content');
+            }
             
             return sectionEl;
         }
@@ -20593,7 +20966,11 @@
             onStructuralMutation('removeMatchingItem');
         }
 
-        function addMatchingItem(button, side) {
+        function addMatchingItem(button, side, options = {}) {
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
+            const skipFinalize = options.skipFinalize === true || inBulkFastPath;
+            const skipRecord = options.skipRecord === true || inBulkFastPath;
+            const skipSync = options.skipSync === true || inBulkFastPath;
             const questionEl = button.closest('.array-item');
             const listContainer = questionEl.querySelector(`#matching-${side}-list-${questionEl.querySelector('[id^="matching-left-list-"]').id.split('-')[3]}`);
             
@@ -20617,26 +20994,32 @@
             ensureMatchingUids(questionEl);
             
             // Finalize the item: apply font settings, attach previews, set RTL
-            finalizeMatchingListItem(itemDiv);
+            if (!skipFinalize) {
+                finalizeMatchingListItem(itemDiv);
+            }
             
             // Record action for undo/redo (after adding to DOM so we have the actual element)
-            recordFormAction({
-                type: ACTION_TYPES.ADD_ITEM,
-                element: itemDiv,
-                parent: listContainer,
-                nextSibling: itemDiv.nextSibling,
-                containerId: null,
-                updateNumbers: false,
-                isMatchingItem: true, // Flag to identify matching items
-                questionEl: questionEl, // Store question element for UI updates
-                side: side // Store which side (left/right)
-            });
+            if (!skipRecord) {
+                recordFormAction({
+                    type: ACTION_TYPES.ADD_ITEM,
+                    element: itemDiv,
+                    parent: listContainer,
+                    nextSibling: itemDiv.nextSibling,
+                    containerId: null,
+                    updateNumbers: false,
+                    isMatchingItem: true, // Flag to identify matching items
+                    questionEl: questionEl, // Store question element for UI updates
+                    side: side // Store which side (left/right)
+                });
+            }
             
             // Update all item numbers
-            updateMatchingItemNumbers(questionEl, side);
-            
-            // Update relationship UI
-            syncMatchingUI(questionEl);
+            if (!skipSync) {
+                updateMatchingItemNumbers(questionEl, side);
+                // Update relationship UI
+                syncMatchingUI(questionEl);
+            }
+            return itemDiv;
         }
 
         function addMatchingItemBefore(button) {
@@ -20871,13 +21254,19 @@
          * Add a relationship between left and right items
          * @param {HTMLElement} button - The add button
          */
-        function addRelationship(button) {
+        function addRelationship(button, options = {}) {
+            const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
+            const skipFinalize = options.skipFinalize === true || inBulkFastPath;
+            const skipRecord = options.skipRecord === true || inBulkFastPath;
+            const skipSync = options.skipSync === true || inBulkFastPath;
             const questionEl = button.closest('.array-item');
             const leftItems = questionEl.querySelectorAll('[id^="matching-left-list-"] .matching-item');
             const rightItems = questionEl.querySelectorAll('[id^="matching-right-list-"] .matching-item');
             
             if (leftItems.length === 0 || rightItems.length === 0) {
-                alert('Please add items to both left and right lists before creating relationships.');
+                if (!inBulkFastPath) {
+                    alert('Please add items to both left and right lists before creating relationships.');
+                }
                 return;
             }
             
@@ -20920,24 +21309,33 @@
             relationshipsList.appendChild(relationshipDiv);
             
             // Finalize the relationship item: apply font settings
-            finalizeMatchingListItem(relationshipDiv);
+            if (!skipFinalize) {
+                finalizeMatchingListItem(relationshipDiv);
+            }
             
             // Record action for undo/redo (after adding to DOM so we have the actual element)
-            recordFormAction({
-                type: ACTION_TYPES.ADD_ITEM,
-                element: relationshipDiv,
-                parent: relationshipsList,
-                nextSibling: relationshipDiv.nextSibling,
-                containerId: null,
-                updateNumbers: false,
-                isRelationship: true,
-                questionEl: questionEl
-            });
+            if (!skipRecord) {
+                recordFormAction({
+                    type: ACTION_TYPES.ADD_ITEM,
+                    element: relationshipDiv,
+                    parent: relationshipsList,
+                    nextSibling: relationshipDiv.nextSibling,
+                    containerId: null,
+                    updateNumbers: false,
+                    isRelationship: true,
+                    questionEl: questionEl
+                });
+            }
             
             // Update UI using centralized hook
-            afterQuestionTypeListMutation(questionEl);
+            if (!skipSync) {
+                afterQuestionTypeListMutation(questionEl);
+            }
             
-            onStructuralMutation('removeRelationship');
+            if (!skipRecord) {
+                onStructuralMutation('removeRelationship');
+            }
+            return relationshipDiv;
         }
 
         /**
@@ -21070,27 +21468,33 @@
                 }
                 
                 // Update stored UIDs when selection changes
-                leftSelect.addEventListener('change', () => {
-                    const selectedUid = leftSelect.value;
-                    if (selectedUid) {
-                        relDiv.dataset.leftUid = selectedUid;
-                    } else {
-                        delete relDiv.dataset.leftUid;
-                    }
-                    markFormAsChanged();
-                    triggerAutoSave();
-                });
+                if (leftSelect.dataset.relationshipLeftBound !== 'true') {
+                    leftSelect.addEventListener('change', () => {
+                        const selectedUid = leftSelect.value;
+                        if (selectedUid) {
+                            relDiv.dataset.leftUid = selectedUid;
+                        } else {
+                            delete relDiv.dataset.leftUid;
+                        }
+                        markFormAsChanged();
+                        triggerAutoSave();
+                    });
+                    leftSelect.dataset.relationshipLeftBound = 'true';
+                }
                 
-                rightSelect.addEventListener('change', () => {
-                    const selectedUid = rightSelect.value;
-                    if (selectedUid) {
-                        relDiv.dataset.rightUid = selectedUid;
-                    } else {
-                        delete relDiv.dataset.rightUid;
-                    }
-                    markFormAsChanged();
-                    triggerAutoSave();
-                });
+                if (rightSelect.dataset.relationshipRightBound !== 'true') {
+                    rightSelect.addEventListener('change', () => {
+                        const selectedUid = rightSelect.value;
+                        if (selectedUid) {
+                            relDiv.dataset.rightUid = selectedUid;
+                        } else {
+                            delete relDiv.dataset.rightUid;
+                        }
+                        markFormAsChanged();
+                        triggerAutoSave();
+                    });
+                    rightSelect.dataset.relationshipRightBound = 'true';
+                }
             });
         }
         
@@ -21109,6 +21513,7 @@
             
             ensureMatchingUids(questionEl);
             rebuildMatchingRelationshipUI(questionEl);
+            if (isPerformanceBulkBuildActive()) return;
             
             // Spawn finalization: force-fit textareas/previews in this question with current content
             if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
@@ -21123,13 +21528,19 @@
             if (!questionEl) return;
             
             const questionType = getQuestionType(questionEl);
+            const inBulkFastPath = isPerformanceBulkBuildActive();
             
             // Use centralized sync helpers
             if (questionType === 'multiple_choice' || questionType === 'checkbox') {
-                syncChoiceUI(questionEl);
+                if (inBulkFastPath) {
+                    ensureChoiceUids(questionEl);
+                } else {
+                    syncChoiceUI(questionEl);
+                }
             } else if (questionType === 'matching') {
                 syncMatchingUI(questionEl);
             }
+            if (inBulkFastPath) return;
             
             // Spawn finalization: force-fit textareas/previews in this question with current content
             if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
@@ -22612,7 +23023,8 @@
             });
         }
 
-        function populateContentSections(data, defaultPage) {
+        function populateContentSections(data, defaultPage, options = {}) {
+            const { deferHydration = false } = options;
             const sections = Array.isArray(data?.instructional_content) ? data.instructional_content : [];
             const container = document.getElementById('content_sections_container');
             
@@ -22637,6 +23049,9 @@
             
             // Ensure numbering is correct after populating all sections
             updateContentSectionNumbers();
+            if (deferHydration) {
+                markDeferredTabHydration('content', true);
+            }
         }
 
         // Helper function to find form field by label text
@@ -22710,7 +23125,8 @@
 
         // ========== END CATEGORY 3 REFACTORING ==========
 
-        function populateQuestions(data, defaultPage) {
+        function populateQuestions(data, defaultPage, options = {}) {
+            const { deferHydration = false } = options;
             const questions = Array.isArray(data?.practice_questions) ? data.practice_questions : [];
             const container = document.getElementById('questions_container');
             
@@ -22759,7 +23175,9 @@
                             if (textarea && q.values[index] !== undefined) {
                                 textarea.value = q.values[index];
                                 // Trigger preview
-                                attachPreviews(item);
+                                if (!deferHydration) {
+                                    attachPreviews(item);
+                                }
                             }
                         });
                         
@@ -22784,13 +23202,20 @@
                         q.left.forEach((itemText) => {
                             const addLeftBtn = qEl.querySelector('button[onclick*="addMatchingItem"][onclick*="left"]');
                             if (addLeftBtn) {
-                                addMatchingItem(addLeftBtn, 'left');
+                                addMatchingItem(addLeftBtn, 'left', deferHydration ? {
+                                    bulkBuild: true,
+                                    skipFinalize: true,
+                                    skipRecord: true,
+                                    skipSync: true
+                                } : {});
                                 const lastItem = leftList.lastElementChild;
                                 if (lastItem) {
                                     const textarea = lastItem.querySelector('.matching-item-text');
                                     if (textarea) {
                                         textarea.value = itemText;
-                                        attachPreviews(lastItem);
+                                        if (!deferHydration) {
+                                            attachPreviews(lastItem);
+                                        }
                                     }
                                 }
                             }
@@ -22803,13 +23228,20 @@
                         q.right.forEach((itemText) => {
                             const addRightBtn = qEl.querySelector('button[onclick*="addMatchingItem"][onclick*="right"]');
                             if (addRightBtn) {
-                                addMatchingItem(addRightBtn, 'right');
+                                addMatchingItem(addRightBtn, 'right', deferHydration ? {
+                                    bulkBuild: true,
+                                    skipFinalize: true,
+                                    skipRecord: true,
+                                    skipSync: true
+                                } : {});
                                 const lastItem = rightList.lastElementChild;
                                 if (lastItem) {
                                     const textarea = lastItem.querySelector('.matching-item-text');
                                     if (textarea) {
                                         textarea.value = itemText;
-                                        attachPreviews(lastItem);
+                                        if (!deferHydration) {
+                                            attachPreviews(lastItem);
+                                        }
                                     }
                                 }
                             }
@@ -22836,7 +23268,12 @@
                         q.relationship.forEach(([leftIdx, rightIdx]) => {
                             const addRelBtn = qEl.querySelector('button[onclick*="addRelationship"]');
                             if (addRelBtn) {
-                                addRelationship(addRelBtn);
+                                addRelationship(addRelBtn, deferHydration ? {
+                                    bulkBuild: true,
+                                    skipFinalize: true,
+                                    skipRecord: true,
+                                    skipSync: true
+                                } : {});
                                 const lastRel = relationshipsList.lastElementChild;
                                 if (lastRel) {
                                     const leftUid = leftIndexToUid.get(leftIdx);
@@ -22847,7 +23284,9 @@
                             }
                         });
                         // Rebuild UI to show correct selections
-                        afterQuestionTypeListMutation(qEl);
+                        if (!deferHydration) {
+                            afterQuestionTypeListMutation(qEl);
+                        }
                     }
                     
                     // Populate guide answer notes (optional) - query within matching container
@@ -22862,7 +23301,13 @@
                     if (choicesList) {
                         choicesList.innerHTML = '';
                         q.choices.forEach((choice, choiceIndex) => {
-                            addChoice(choicesList.parentElement.querySelector('.add-btn'), 'end', questionType);
+                            addChoice(choicesList.parentElement.querySelector('.add-btn'), 'end', questionType, deferHydration ? {
+                                bulkBuild: true,
+                                skipFinalize: true,
+                                skipRecord: true,
+                                skipQuestionSync: true,
+                                skipListenerBind: true
+                            } : {});
                             const lastChoice = choicesList.lastElementChild;
                             if (lastChoice) {
                                 const choiceIdInput = lastChoice.querySelector('.choice-id');
@@ -22888,7 +23333,9 @@
                     }
                     
                     // Attach listeners for real-time updates
-                    attachChoiceListeners(qEl);
+                    if (!deferHydration) {
+                        attachChoiceListeners(qEl);
+                    }
                     
                     // Ensure UIDs exist and restore correct answer state from UID-based state
                     ensureChoiceUids(qEl);
@@ -22918,7 +23365,9 @@
                         setCorrectChoiceUids(qEl, correctUids);
                     }
                     // Rebuild UI using centralized hook
-                    afterQuestionTypeListMutation(qEl);
+                    if (!deferHydration) {
+                        afterQuestionTypeListMutation(qEl);
+                    }
                     
                     // Populate guide answer for the active type-specific field
                     setGuideAnswerValue(qEl, q.guide_answer, questionType);
@@ -22955,8 +23404,10 @@
                 }
                 
                 // Attach previews and bbox validation after populating
-                attachPreviews(qEl);
-                attachBboxValidation(qEl);
+                if (!deferHydration) {
+                    attachPreviews(qEl);
+                    attachBboxValidation(qEl);
+                }
             });
             
             // Reset bulk operation flag
@@ -22965,9 +23416,13 @@
             // Ensure numbering is correct after populating all questions
             updateQuestionNumbers();
             
-            // Render previews for restored questions only (scoped)
-            if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
-                PreviewBox.ensureRendered(container);
+            if (deferHydration) {
+                markDeferredTabHydration('questions', true);
+            } else {
+                // Render previews for restored questions only (scoped)
+                if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
+                    PreviewBox.ensureRendered(container);
+                }
             }
         }
 
@@ -22975,7 +23430,7 @@
             // No special scroll code at start - hydration reset happens at the end
             
             // Clear entire form first
-            resetForm(true);
+            resetForm(true, { deferReinit: true });
 
             // Basic info
             setInputValue('#textbook_page', data.textbook_page ?? '');
@@ -23012,14 +23467,19 @@
 
             const defaultPage = data.textbook_pdf_page || data.textbook_page || 0;
 
-            // Content sections
-            populateContentSections(data, defaultPage);
-
-            // Questions
-            populateQuestions(data, defaultPage);
+            withPerformanceBulkBuild(() => {
+                // Content sections
+                populateContentSections(data, defaultPage, { deferHydration: true });
+                // Questions
+                populateQuestions(data, defaultPage, { deferHydration: true });
+            });
             
-            // Attach bbox validation to all loaded bboxes
-            attachBboxValidation(document);
+            // Attach bbox validation to currently active root only.
+            // Deferred tabs are hydrated lazily when opened.
+            const hydrationRootForValidation = resolveActivePanelRoot();
+            if (hydrationRootForValidation) {
+                attachBboxValidation(hydrationRootForValidation);
+            }
             
             // Ensure all textareas maintain correct direction after population
             const allTextareas = document.querySelectorAll('textarea, input[type="text"]');
@@ -23050,15 +23510,7 @@
             // Apply font settings synchronously so Correct Answer Position and all output get font in same tick (no timer)
             const inputFormEl = document.getElementById('input-form');
             if (inputFormEl && typeof applyFontSettings === 'function') {
-                applyFontSettings(inputFormEl);
-            }
-            const savedFontSize = localStorage.getItem('fontSize');
-            const savedLineHeight = localStorage.getItem('lineHeight');
-            if (savedFontSize && typeof changeFontSize === 'function') {
-                changeFontSize(savedFontSize);
-            }
-            if (savedLineHeight && typeof changeLineHeight === 'function') {
-                changeLineHeight(savedLineHeight);
+                applyFontSettings(inputFormEl, { refreshLayout: false, forceCssWrite: true });
             }
             
             // Mark all Final Preview blocks dirty after load/restore.
@@ -23080,13 +23532,13 @@
             // After JSON population is complete, ensure previews and register autosize targets for whole input form
             const mainActive = document.querySelector('.main-tab-content.active');
             const activeRoot = (mainActive && mainActive.id === 'input-form' && mainActive.querySelector('.tab-content.active')) || mainActive || document;
-            const inputForm = document.getElementById('input-form');
             if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
                 PreviewBox.ensureRendered(activeRoot);
+                activeRoot.__previewHydrated = true;
             }
             if (typeof AutoSizeManager !== 'undefined') {
                 if (AutoSizeManager.register) {
-                    AutoSizeManager.register(inputForm || activeRoot);
+                    AutoSizeManager.register(activeRoot);
                 }
                 // Force-fit visible panel with current content (values already set by populate)
                 if (AutoSizeManager.finalizeSpawn) {
@@ -23319,12 +23771,12 @@
         function loadJSON() {
             const txt = document.getElementById('json_input').value;
             if (!txt || !txt.trim()) {
-                alert('⚠️ Please paste your JSON data in the text box before clicking "Load JSON".');
+                alert('Please paste your JSON data in the text box before clicking "Load JSON".');
                 return;
             }
             
             // Add confirmation popup for loading JSON
-            if (!confirm('⚠️ Warning: Loading new JSON will delete everything you\'ve entered in the form.\n\nDo you want to continue?')) {
+            if (!confirm('Warning: Loading new JSON will delete everything you\'ve entered in the form.\n\nDo you want to continue?')) {
                 return;
             }
             
@@ -23336,93 +23788,107 @@
                 console.warn('Could not save form state for undo:', e);
             }
             
-            let data;
-            let convertedText = txt;
-            
-            // Try parsing as regular JSON first
-            try {
-                data = JSON.parse(txt);
-            } catch (e) {
-                // If it fails, try converting Python dict syntax to JSON
+            if (window.__jsonLoadInProgress) return;
+            window.__jsonLoadInProgress = true;
+
+            const runLoad = () => {
+                let data;
+                let convertedText = txt;
+                // Parse after tab switch so UI can move to Basic first.
                 try {
-                    convertedText = convertPythonDictToJSON(txt);
-                    data = JSON.parse(convertedText);
-                } catch (e2) {
-                    // If Python conversion also fails, try repair
-                    const result = attemptRepairAndParseJSON(convertedText);
-                    if (!result.ok) {
-                        alert('❌ Problem: The data you pasted is not valid JSON or Python dict format and couldn\'t be fixed automatically.\n\n➡️ Fix: Check for common issues:\n   • Missing commas between items\n   • Missing quotation marks\n   • Extra or missing brackets { }\n   • Python: Use True/False/None (will be auto-converted)\n\n💡 Tip: Use a JSON validator tool to find the exact error.');
-                        return;
+                    data = JSON.parse(txt);
+                } catch (e) {
+                    try {
+                        convertedText = convertPythonDictToJSON(txt);
+                        data = JSON.parse(convertedText);
+                    } catch (e2) {
+                        const result = attemptRepairAndParseJSON(convertedText);
+                        if (!result.ok) {
+                            alert('Problem: The data you pasted is not valid JSON or Python dict format and could not be fixed automatically.\n\nFix: Check for common issues:\n   - Missing commas between items\n   - Missing quotation marks\n   - Extra or missing brackets { }\n   - Python: Use True/False/None (will be auto-converted)\n\nTip: Use a JSON validator tool to find the exact error.');
+                            window.__jsonLoadInProgress = false;
+                            return;
+                        }
+                        data = result.data;
                     }
-                    data = result.data;
                 }
-            }
-            try {
-                // Clear saved data when loading new JSON
-                clearSavedData();
-                
-                // Set hydration flag to prevent scroll restoration during load
-                isDocumentHydrating = true;
-                
-                // Record action for undo/redo BEFORE populating (so population actions aren't recorded)
-                recordFormAction({
-                    type: ACTION_TYPES.LOAD_JSON,
-                    jsonData: data,
-                    previousState: previousState
-                });
-                
-                // Set flag to prevent actions during population from being recorded
-                isFormUndoRedoInProgress = true;
+
                 try {
-                populateFormFromJSON(data);
+                    // Clear saved data when loading new JSON
+                    clearSavedData();
+                    
+                    // Set hydration flag to prevent scroll restoration during load
+                    isDocumentHydrating = true;
+                    
+                    // Record action for undo/redo BEFORE populating (so population actions aren't recorded)
+                    recordFormAction({
+                        type: ACTION_TYPES.LOAD_JSON,
+                        jsonData: data,
+                        previousState: previousState
+                    });
+                    
+                    // Set flag to prevent actions during population from being recorded
+                    isFormUndoRedoInProgress = true;
+                    try {
+                        populateFormFromJSON(data);
+                    } finally {
+                        isFormUndoRedoInProgress = false;
+                    }
+                    retagTopLevelIndices();
+                    window.__fpFormState = data;
+                    
+                    // Start a new session when JSON is loaded (user is starting new work)
+                    // Clear previous undo history but keep the LOAD_JSON action we just recorded
+                    if (formUndoHistory.length > 1) {
+                        const loadJsonAction = formUndoHistory[formUndoHistory.length - 1];
+                        formUndoHistory.length = 0;
+                        formUndoHistory.push(loadJsonAction);
+                    }
+                    // Redo history is already cleared by recordFormAction
+                    updateUndoRedoButtons();
+                    
+                    // Register/finalize only the active root to avoid global autosize scans.
+                    const activeRoot = resolveActivePanelRoot() || document.getElementById('basic');
+                    if (typeof AutoSizeManager !== 'undefined' && activeRoot) {
+                        if (AutoSizeManager.register) {
+                            AutoSizeManager.register(activeRoot);
+                        }
+                        if (AutoSizeManager.finalizeSpawn) {
+                            AutoSizeManager.finalizeSpawn(activeRoot);
+                        }
+                        if (AutoSizeManager.fitPending) {
+                            AutoSizeManager.fitPending(activeRoot);
+                        }
+                    }
+                    window.__previewDirtyVersion = (window.__previewDirtyVersion || 0) + 1;
+                    schedulePostLayoutBboxRefresh(activeRoot);
+                
+                    // Mark form as changed and trigger autosave after loading JSON
+                    // This ensures autosave flow runs (with validation gating)
+                    markFormAsChanged();
+                    triggerAutoSave();
+                    
+                    alert('Success! Your form has been filled with the data from the JSON.');
+                } catch (e) {
+                    console.error(e);
+                    alert('Failed to populate form from JSON: ' + e.message);
+                    // Clear hydration flag on error
+                    isDocumentHydrating = false;
                 } finally {
-                    isFormUndoRedoInProgress = false;
+                    window.__jsonLoadInProgress = false;
                 }
-                retagTopLevelIndices();
-                window.__fpFormState = data;
-                
-                // Start a new session when JSON is loaded (user is starting new work)
-                // Clear previous undo history but keep the LOAD_JSON action we just recorded
-                if (formUndoHistory.length > 1) {
-                    const loadJsonAction = formUndoHistory[formUndoHistory.length - 1];
-                    formUndoHistory.length = 0;
-                    formUndoHistory.push(loadJsonAction);
-                }
-                // Redo history is already cleared by recordFormAction
-                updateUndoRedoButtons();
-                
-                // Register whole input form; spawn-finalize visible panel (force-fit with current content)
-                if (typeof AutoSizeManager !== 'undefined') {
-                    if (AutoSizeManager.register) {
-                        AutoSizeManager.register(document.getElementById('input-form') || document.body);
-                    }
-                    const activeRoot = resolveActivePanelRoot();
-                    if (AutoSizeManager.finalizeSpawn) {
-                        AutoSizeManager.finalizeSpawn(activeRoot);
-                    }
-                if (AutoSizeManager.fitPending) {
-                    AutoSizeManager.fitPending(activeRoot);
-                }
-            }
-                window.__previewDirtyVersion = (window.__previewDirtyVersion || 0) + 1;
-                applyBboxesEverywhere({ forceRetag: true });
-            
-                // Mark form as changed and trigger autosave after loading JSON
-                // This ensures autosave flow runs (with validation gating)
-                markFormAsChanged();
-                triggerAutoSave();
-                
-                alert('✅ Success! Your form has been filled with the data from the JSON.');
-            } catch (e) {
-                console.error(e);
-                alert('Failed to populate form from JSON: ' + e.message);
-                // Clear hydration flag on error
-                isDocumentHydrating = false;
-            }
+            };
+
+            // Always jump to Input Form -> Basic before starting heavy JSON population.
+            showMainTab('input-form');
+            showTab('basic');
+            requestAnimationFrame(() => {
+                requestAnimationFrame(runLoad);
+            });
         }
 
         // Reset/clear the form fields
-        function resetForm(isInternalCall) {
+        function resetForm(isInternalCall, options = {}) {
+            const { deferReinit = false } = options;
             // Clear saved data when clearing form
             if (!isInternalCall) {
                 clearSavedData();
@@ -23475,35 +23941,37 @@
             }
             
             // Re-attach previews after clearing to ensure proper initialization
-            setTimeout(() => {
-                attachPreviews(document);
-                
-                // Ensure all textareas are set to correct direction after reset
-                const allTextareas = document.querySelectorAll('textarea, input[type="text"]');
-                allTextareas.forEach(ta => {
-                    if (ta.hasAttribute('data-ltr')) {
-                        // LTR fields (JSON input, lesson standards)
-                        ta.setAttribute('dir', 'ltr');
-                    } else {
-                        // RTL fields (content, questions, titles, etc.)
-                        ta.setAttribute('dir', 'rtl');
-                    }
-                    // CSS will handle the styling based on data-ltr attribute
-                });
-                
-                // Update all direction toggle buttons to show correct text
-                const allDirBtns = document.querySelectorAll('.dir-btn');
-                allDirBtns.forEach(btn => {
-                    const textarea = btn.closest('.text-field-container')?.querySelector('textarea') || 
-                                    btn.parentElement?.querySelector('textarea') ||
-                                    btn.parentElement?.querySelector('input[type="text"]');
-                    if (textarea) {
-                        const isLTR = textarea.hasAttribute('data-ltr');
-                        // Button shows what clicking it will do
-                        btn.textContent = isLTR ? 'RTL' : 'LTR';
-                    }
-                });
-            }, 100);
+            if (!deferReinit) {
+                setTimeout(() => {
+                    attachPreviews(document);
+                    
+                    // Ensure all textareas are set to correct direction after reset
+                    const allTextareas = document.querySelectorAll('textarea, input[type="text"]');
+                    allTextareas.forEach(ta => {
+                        if (ta.hasAttribute('data-ltr')) {
+                            // LTR fields (JSON input, lesson standards)
+                            ta.setAttribute('dir', 'ltr');
+                        } else {
+                            // RTL fields (content, questions, titles, etc.)
+                            ta.setAttribute('dir', 'rtl');
+                        }
+                        // CSS will handle the styling based on data-ltr attribute
+                    });
+                    
+                    // Update all direction toggle buttons to show correct text
+                    const allDirBtns = document.querySelectorAll('.dir-btn');
+                    allDirBtns.forEach(btn => {
+                        const textarea = btn.closest('.text-field-container')?.querySelector('textarea') || 
+                                        btn.parentElement?.querySelector('textarea') ||
+                                        btn.parentElement?.querySelector('input[type="text"]');
+                        if (textarea) {
+                            const isLTR = textarea.hasAttribute('data-ltr');
+                            // Button shows what clicking it will do
+                            btn.textContent = isLTR ? 'RTL' : 'LTR';
+                        }
+                    });
+                }, 100);
+            }
         }
 
 
@@ -24204,12 +24672,6 @@
             triggerAutoSave();
         }
         
-        // Canonical hook for structural mutations (add/remove/reorder/paste)
-        function onStructuralMutation(reason) {
-            markFormAsChanged();
-            triggerAutoSave();
-        }
-        
         // Debounced auto-save function
         function triggerAutoSave() {
             if (isUiPreferenceUpdate) return; // UI-only font/dir updates should not auto-save.
@@ -24720,21 +25182,21 @@
                 // Redo history is already cleared by recordFormAction
                 updateUndoRedoButtons();
                 
-                // Register whole input form; spawn-finalize visible panel (force-fit with current content)
-                if (typeof AutoSizeManager !== 'undefined') {
+                // Register/finalize only the active root to avoid global autosize scans.
+                const activeRoot = resolveActivePanelRoot() || document.getElementById('basic');
+                if (typeof AutoSizeManager !== 'undefined' && activeRoot) {
                     if (AutoSizeManager.register) {
-                        AutoSizeManager.register(document.getElementById('input-form') || document.body);
+                        AutoSizeManager.register(activeRoot);
                     }
-                    const activeRoot = resolveActivePanelRoot();
                     if (AutoSizeManager.finalizeSpawn) {
                         AutoSizeManager.finalizeSpawn(activeRoot);
                     }
-                if (AutoSizeManager.fitPending) {
-                    AutoSizeManager.fitPending(activeRoot);
+                    if (AutoSizeManager.fitPending) {
+                        AutoSizeManager.fitPending(activeRoot);
+                    }
                 }
-            }
                 window.__previewDirtyVersion = (window.__previewDirtyVersion || 0) + 1;
-                applyBboxesEverywhere({ forceRetag: true });
+                schedulePostLayoutBboxRefresh(activeRoot);
                 
                 // Mark form as changed and trigger autosave after restore
                 // This ensures autosave flow runs (with validation gating)
@@ -24982,6 +25444,7 @@
         let __inputAutosizeResizeTimer = null;
         let __lastViewportDpr = window.devicePixelRatio || 1;
         let __layoutRefitObserver = null;
+        let __lastStickyStackHeight = null;
         window.__layoutMetricsVersion = window.__layoutMetricsVersion || 0;
         function getLayoutRefitRootTargets() {
             const roots = [];
@@ -24991,16 +25454,18 @@
                 if (fpContent) roots.push(fpContent);
                 return roots;
             }
-            const inputRoot = document.getElementById('input-form');
-            if (inputRoot && inputRoot.classList && inputRoot.classList.contains('active')) roots.push(inputRoot);
+            const activeRoot = (typeof resolveActivePanelRoot === 'function') ? resolveActivePanelRoot() : null;
+            if (activeRoot && activeRoot.classList && activeRoot.classList.contains('tab-content')) roots.push(activeRoot);
             return roots;
         }
         function getLayoutRefitObservedTargets() {
-            const roots = getLayoutRefitRootTargets();
+            const roots = [];
+            const stickyStack = document.querySelector('.sticky-tabs-stack');
+            if (stickyStack) roots.push(stickyStack);
             const finalPreviewActive = (typeof isFinalPreviewActive === 'function' && isFinalPreviewActive());
-            if (!finalPreviewActive) {
-                const inputScroller = (typeof getInputFormScroller === 'function') ? getInputFormScroller() : null;
-                if (inputScroller && !roots.includes(inputScroller)) roots.push(inputScroller);
+            if (finalPreviewActive) {
+                const fpContent = document.getElementById('final-preview-content');
+                if (fpContent && !roots.includes(fpContent)) roots.push(fpContent);
             }
             return roots;
         }
@@ -25022,6 +25487,15 @@
             if (__inputAutosizeResizeTimer) clearTimeout(__inputAutosizeResizeTimer);
             __inputAutosizeResizeTimer = setTimeout(() => {
                 __inputAutosizeResizeTimer = null;
+                const refreshReason = reason || '';
+                if (refreshReason === 'sticky-tabs-height') {
+                    // Sticky stack height changes should not trigger root-wide style recalc.
+                    const activeRoot = (typeof resolveActivePanelRoot === 'function') ? resolveActivePanelRoot() : null;
+                    if (activeRoot && AutoSizeManager.fitPending) {
+                        AutoSizeManager.fitPending(activeRoot);
+                    }
+                    return;
+                }
                 // Layout/zoom changes affect text metrics; re-measure visible autosize targets after layout settles.
                 const passRefit = (passNo) => {
                     if (!AutoSizeManager.refreshStyleChange) return;
@@ -25029,12 +25503,6 @@
                     const roots = getLayoutRefitRootTargets();
                     roots.forEach(root => {
                         if (!root || !root.isConnected) return;
-                        if (typeof PreviewBox !== 'undefined' && PreviewBox.ensureRendered) {
-                            PreviewBox.ensureRendered(root);
-                        }
-                        if (AutoSizeManager.finalizeSpawn) {
-                            AutoSizeManager.finalizeSpawn(root);
-                        }
                         AutoSizeManager.refreshStyleChange(root);
                     });
                     // Keep settle bounded: at most one extra RAF for Final Preview/image-heavy content.
@@ -25069,17 +25537,25 @@
         }
         function updateStickyTabsHeight() {
             const stickyStack = document.querySelector('.sticky-tabs-stack');
+            let nextHeight = null;
             if (stickyStack) {
                 // Use getBoundingClientRect for precise measurement including borders
                 const rect = stickyStack.getBoundingClientRect();
-                const height = Math.ceil(rect.height); // Round up to avoid subpixel gaps
-                document.documentElement.style.setProperty('--sticky-stack-height', height + 'px');
+                nextHeight = Math.ceil(rect.height); // Round up to avoid subpixel gaps
             }
-            scheduleInputAutosizeResizeRefresh('sticky-tabs-height');
+            if (nextHeight == null) return;
+            if (__lastStickyStackHeight !== nextHeight) {
+                __lastStickyStackHeight = nextHeight;
+                document.documentElement.style.setProperty('--sticky-stack-height', nextHeight + 'px');
+                scheduleInputAutosizeResizeRefresh('sticky-tabs-height');
+            }
         }
+
+        installInputIsolationGuards();
 
         // Initialize page
         window.onload = function() {
+            installInputIsolationGuards();
             // Hydrate all static button groups first
             hydrateStaticButtons();
             
@@ -25349,9 +25825,8 @@
                             PreviewBox.ensureRendered(activeRoot);
                         }
                         if (typeof AutoSizeManager !== 'undefined') {
-                            const inputFormRoot = document.getElementById('input-form') || activeRoot;
                             if (AutoSizeManager.register) {
-                                AutoSizeManager.register(inputFormRoot);
+                                AutoSizeManager.register(activeRoot);
                             }
                             if (AutoSizeManager.finalizeSpawn) {
                                 AutoSizeManager.finalizeSpawn(activeRoot);
@@ -25361,7 +25836,7 @@
                             }
                         }
                         window.__previewDirtyVersion = (window.__previewDirtyVersion || 0) + 1;
-                        applyBboxesEverywhere({ forceRetag: true });
+                        schedulePostLayoutBboxRefresh(activeRoot);
                         alert('Your previous work has been restored!');
                     } catch (e) {
                         console.error('Failed to restore saved data:', e);
