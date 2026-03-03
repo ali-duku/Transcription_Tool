@@ -39,8 +39,9 @@
                         iconColor: '#28a745',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
-                            '<strong>Auto-resize ON lag reduced with isolated, scoped updates:</strong> Performance paths were tightened so edits and section actions avoid heavy global refresh work and stay focused on the active field/section. This makes heavy subtabs much smoother during common actions. <strong>Examples:</strong> typing in long question/content fields, switching back to Questions after visiting other tabs (including Final Preview), duplicating non-free-form questions, and loading larger JSON data. If your device still feels slow on very heavy pages, you can always turn <strong>Auto-Resize</strong> off from the top toggle.',
-                            '<strong>Quick Jump labels now include section numbers:</strong> Quick Jump entries now show numbered labels in addition to existing identifiers, so navigation is clearer in large forms. <strong>Examples:</strong> Content entries appear like <code>Section 12 - Photosynthesis Intro</code>, and question entries appear like <code>Question 27 - ID: Q-27A</code>.'
+                            '<strong>Editing is smoother with Auto-Resize ON:</strong> Typing, switching tabs, duplicating sections, and loading big files should feel faster with fewer freezes. If your device is still slow, you can turn Auto-Resize OFF anytime.',
+                            '<strong>Quick Jump is easier to use:</strong> Entries now include section or question numbers, so it is faster to find the exact place you want.',
+                            '<strong>Better field sizing with Auto-Resize OFF:</strong> After loading/restoring, changing fonts, duplicating, or pasting sections, text boxes open at a good size automatically, so you do less manual resizing.'
                         ]
                     }
                 ]
@@ -6330,6 +6331,7 @@
             const lastAppliedBboxSig = new WeakMap();
             const lastAppliedRenderVersion = new WeakMap();
             const lastAppliedLayoutVer = new WeakMap();
+            const inputFitRafByEl = new WeakMap();
             function scheduleFit(el, reason) {
                 if (!autoResizeEnabled || !el || !el.isConnected) return;
                 const gen = (scheduleFitGen.get(el) || 0) + 1;
@@ -6359,6 +6361,23 @@
                     });
                 }, 0);
                 scheduleFitTimeouts.set(el, timeoutId);
+            }
+
+            function scheduleInputFit(el) {
+                if (!autoResizeEnabled || !el || !el.isConnected) return;
+                if (inputFitRafByEl.has(el)) return;
+                noteInputPerfCounter('autosizeFitQueued');
+                const rafId = requestAnimationFrame(function () {
+                    inputFitRafByEl.delete(el);
+                    if (!autoResizeEnabled || !el || !el.isConnected) return;
+                    noteInputPerfCounter('autosizeFitExecuted');
+                    if (isMeasurable(el)) {
+                        if (fitHeightToContent(el)) markFitted(el);
+                    } else {
+                        pendingFit.add(el);
+                    }
+                });
+                inputFitRafByEl.set(el, rafId);
             }
             
             function markFitted(el) {
@@ -6451,15 +6470,13 @@
                 });
             }
             
-            // Mark one element dirty and fit it immediately (and coupled preview if textarea). No root scan.
-            // For previews with image/bbox, do not eager-fit; schedule a deferred fit so we fit once after layout settles.
+            // Mark one element dirty and queue a local fit (and coupled preview if textarea). No root scan.
+            // Input-time fitting is RAF-coalesced to avoid blocking keystrokes.
             function markDirty(el) {
                 if (!autoResizeEnabled || !el) return;
                 
                 if (el.tagName === 'TEXTAREA' && el.id !== 'json_input') {
-                    if (isMeasurable(el) && fitHeightToContent(el)) {
-                        markFitted(el);
-                    }
+                    scheduleInputFit(el);
                     const coupled = findCoupledPreview(el);
                     if (coupled) {
                         // If the preview is already managed by the live preview pipeline,
@@ -6472,18 +6489,16 @@
                         if (!previewPipelineOwnsFit) {
                             if (previewHasImageOrBbox(coupled)) {
                                 scheduleFit(coupled, 'markDirty');
-                            } else if (isMeasurable(coupled) && fitHeightToContent(coupled)) {
-                                markFitted(coupled);
+                            } else {
+                                scheduleInputFit(coupled);
                             }
                         }
                     }
                     return;
                 }
                 
-                if (el.classList && el.classList.contains('live-preview') && isMeasurable(el)) {
-                    if (fitHeightToContent(el)) {
-                        markFitted(el);
-                    }
+                if (el.classList && el.classList.contains('live-preview')) {
+                    scheduleInputFit(el);
                 }
             }
             
@@ -6565,19 +6580,33 @@
             GENERATE_FINAL_PREVIEW: 'generateFinalPreview',
             REFRESH_STYLE_CHANGE_BROAD: 'refreshStyleChangeBroad'
         };
-        window.__inputIsolationPerfCounters = window.__inputIsolationPerfCounters || {
-            scopeDepth: 0,
-            totalScopedInputs: 0,
-            violations: {
-                applyBboxesEverywhere: 0,
-                generateFinalPreview: 0,
-                refreshStyleChangeBroad: 0
-            },
-            lastViolation: null,
-            lastScopedSource: null
-        };
+        window.__inputIsolationPerfCounters = window.__inputIsolationPerfCounters || {};
         function getInputIsolationPerfCounters() {
-            return window.__inputIsolationPerfCounters;
+            const counters = window.__inputIsolationPerfCounters || {};
+            if (typeof counters.scopeDepth !== 'number') counters.scopeDepth = 0;
+            if (typeof counters.totalScopedInputs !== 'number') counters.totalScopedInputs = 0;
+            if (!counters.violations || typeof counters.violations !== 'object') {
+                counters.violations = {};
+            }
+            if (typeof counters.violations.applyBboxesEverywhere !== 'number') counters.violations.applyBboxesEverywhere = 0;
+            if (typeof counters.violations.generateFinalPreview !== 'number') counters.violations.generateFinalPreview = 0;
+            if (typeof counters.violations.refreshStyleChangeBroad !== 'number') counters.violations.refreshStyleChangeBroad = 0;
+            if (typeof counters.inputRenderImmediate !== 'number') counters.inputRenderImmediate = 0;
+            if (typeof counters.inputRenderDebounced !== 'number') counters.inputRenderDebounced = 0;
+            if (typeof counters.inputRenderFlushed !== 'number') counters.inputRenderFlushed = 0;
+            if (typeof counters.autosizeFitQueued !== 'number') counters.autosizeFitQueued = 0;
+            if (typeof counters.autosizeFitExecuted !== 'number') counters.autosizeFitExecuted = 0;
+            if (typeof counters.duplicateBindingAttempts !== 'number') counters.duplicateBindingAttempts = 0;
+            if (!Object.prototype.hasOwnProperty.call(counters, 'lastViolation')) counters.lastViolation = null;
+            if (!Object.prototype.hasOwnProperty.call(counters, 'lastScopedSource')) counters.lastScopedSource = null;
+            window.__inputIsolationPerfCounters = counters;
+            return counters;
+        }
+        function noteInputPerfCounter(counterKey, delta = 1) {
+            if (!counterKey) return;
+            const counters = getInputIsolationPerfCounters();
+            const current = typeof counters[counterKey] === 'number' ? counters[counterKey] : 0;
+            counters[counterKey] = current + delta;
         }
         function enterInputIsolationScope(source) {
             const counters = getInputIsolationPerfCounters();
@@ -11282,6 +11311,61 @@
             }
         }
 
+        // Canonical renderer for one Correct Answer option preview.
+        function renderCorrectAnswerOptionPreview(choiceTextArea, previewDiv, direction = 'rtl') {
+            if (!previewDiv) return;
+            const isRTL = direction !== 'ltr';
+            previewDiv.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
+            previewDiv.style.textAlign = isRTL ? 'right' : 'left';
+
+            const choiceText = choiceTextArea ? (choiceTextArea.value || '').trim() : '';
+            if (choiceText && choiceTextArea) {
+                renderLivePreview(choiceTextArea, previewDiv);
+                previewDiv.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
+                previewDiv.style.textAlign = isRTL ? 'right' : 'left';
+                previewDiv.style.opacity = '';
+                previewDiv.style.fontStyle = '';
+                return;
+            }
+
+            previewDiv.textContent = '(empty)';
+            previewDiv.style.opacity = '0.5';
+            previewDiv.style.fontStyle = 'italic';
+        }
+
+        // Update only one Correct Answer option preview (no full panel rebuild).
+        function updateCorrectAnswerOptionPreview(questionEl, choiceItem) {
+            if (!questionEl || !choiceItem) return false;
+            if (getQuestionType(questionEl) !== 'multiple_choice') return false;
+            const radiosContainer = questionEl.querySelector('[id^="correct-answer-radios-"]');
+            if (!radiosContainer) return false;
+
+            ensureChoiceUids(questionEl);
+            const choiceUid = choiceItem.dataset.choiceUid;
+            if (!choiceUid) {
+                scheduleChoiceUISync(questionEl);
+                return false;
+            }
+
+            const row = Array.from(radiosContainer.querySelectorAll('.radio-choice-wrapper'))
+                .find(wrapper => wrapper && wrapper.dataset && wrapper.dataset.choiceUid === choiceUid);
+            if (!row) {
+                scheduleChoiceUISync(questionEl);
+                return false;
+            }
+
+            const previewDiv = row.querySelector('.live-preview');
+            if (!previewDiv) {
+                scheduleChoiceUISync(questionEl);
+                return false;
+            }
+
+            const direction = radiosContainer.dataset.direction || 'rtl';
+            const choiceTextArea = choiceItem.querySelector('.choice-text');
+            renderCorrectAnswerOptionPreview(choiceTextArea, previewDiv, direction);
+            return true;
+        }
+
         // Rebuild correct answer UI for multiple choice questions (UID-based)
         function rebuildCorrectAnswerUI(questionEl) {
             const choicesList = questionEl.querySelector('[id^="choices-list-"]');
@@ -11328,7 +11412,6 @@
                     
                     const choiceTextArea = choice.querySelector('.choice-text');
                     const choiceIdInput = choice.querySelector('.choice-id');
-                    const choiceText = choiceTextArea ? choiceTextArea.value.trim() : '';
                     const choiceId = choiceIdInput ? choiceIdInput.value.trim() : '';
                     
                     // Display position (1-indexed) but use UID as value
@@ -11337,6 +11420,7 @@
                     
                     const radioWrapper = document.createElement('div');
                     radioWrapper.className = 'radio-choice-wrapper';
+                    radioWrapper.dataset.choiceUid = choiceUid;
                     radioWrapper.style.cssText = 'display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); transition: all 0.2s ease;';
                     
                     // Add hover effect
@@ -11394,21 +11478,8 @@
                     // Rendered preview (same pipeline as choice previews)
                     const previewDiv = document.createElement('div');
                     previewDiv.className = 'live-preview';
-                    // Match the same behavior as the main choice preview: use dir + textAlign based on direction
-                    const isRTL = currentDirection === 'rtl';
-                    previewDiv.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
-                    previewDiv.style.textAlign = isRTL ? 'right' : 'left';
-                    
-                    if (choiceText && choiceTextArea) {
-                        // Use the same renderer function as choice preview boxes
-                        renderLivePreview(choiceTextArea, previewDiv);
-                        previewDiv.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
-                        previewDiv.style.textAlign = isRTL ? 'right' : 'left';
-                    } else {
-                        previewDiv.textContent = '(empty)';
-                        previewDiv.style.opacity = '0.5';
-                        previewDiv.style.fontStyle = 'italic';
-                    }
+                    previewDiv.dataset.choiceUid = choiceUid;
+                    renderCorrectAnswerOptionPreview(choiceTextArea, previewDiv, currentDirection);
                     
                     radioLabel.appendChild(headerDiv);
                     radioLabel.appendChild(previewDiv);
@@ -11463,6 +11534,19 @@
             choiceUiSyncRafMap.set(questionEl, rafId);
         }
 
+        // Coalesce rapid per-choice preview refreshes into one render per frame.
+        const choiceOptionPreviewSyncRafMap = new WeakMap();
+        function scheduleCorrectAnswerOptionPreviewSync(questionEl, choiceItem) {
+            if (!questionEl || !choiceItem) return;
+            if (choiceOptionPreviewSyncRafMap.has(choiceItem)) return;
+            const rafId = requestAnimationFrame(() => {
+                choiceOptionPreviewSyncRafMap.delete(choiceItem);
+                if (!questionEl.isConnected || !choiceItem.isConnected) return;
+                updateCorrectAnswerOptionPreview(questionEl, choiceItem);
+            });
+            choiceOptionPreviewSyncRafMap.set(choiceItem, rafId);
+        }
+
         // Canonical deduped listener binder for dynamically added/restored choices.
         function bindChoiceRealtimeListeners(questionEl, choiceItem, questionType = null) {
             if (!questionEl || !choiceItem) return;
@@ -11472,15 +11556,15 @@
                 const choiceTextArea = choiceItem.querySelector('.choice-text');
                 if (choiceTextArea && choiceTextArea.dataset.choiceTextSyncBound !== 'true') {
                     choiceTextArea.addEventListener('input', () => {
-                        // Keep choice preview in sync first, then update MCQ radios once per frame.
-                        if (choiceTextArea.__livePreviewHandler) {
-                            choiceTextArea.__livePreviewHandler();
-                        } else {
-                            renderLivePreview(choiceTextArea);
-                        }
-                        scheduleChoiceUISync(questionEl);
+                        // Preview updates are owned by PreviewBox; keep MCQ options panel update scoped to this choice.
+                        scheduleCorrectAnswerOptionPreviewSync(questionEl, choiceItem);
                     });
                     choiceTextArea.dataset.choiceTextSyncBound = 'true';
+                } else if (choiceTextArea && choiceTextArea.dataset.choiceTextSyncBound === 'true') {
+                    noteInputPerfCounter('duplicateBindingAttempts');
+                    if (window.__debugInputBinding === true) {
+                        console.warn('[Choice] duplicate input binding prevented for choice textarea');
+                    }
                 }
                 return;
             }
@@ -11504,6 +11588,11 @@
                         triggerAutoSave();
                     });
                     correctCheckbox.dataset.choiceCheckedSyncBound = 'true';
+                } else if (correctCheckbox && correctCheckbox.dataset.choiceCheckedSyncBound === 'true') {
+                    noteInputPerfCounter('duplicateBindingAttempts');
+                    if (window.__debugInputBinding === true) {
+                        console.warn('[Choice] duplicate change binding prevented for checkbox choice');
+                    }
                 }
             }
         }
@@ -11821,6 +11910,7 @@
                 
                 // Use canonical serializer
                 const sectionData = serializeSection(sectionEl);
+                attachSectionPayloadUiMeta(sectionData, sectionEl);
                 
                 // Copy to clipboard
                 const jsonText = JSON.stringify(sectionData, null, 2);
@@ -11859,6 +11949,9 @@
                 
                 // Use canonical serializer
                 const sectionData = serializeSection(sectionEl);
+                const preservedTextareaHeights = !autoResizeEnabled
+                    ? captureSectionTextareaHeights(sectionEl)
+                    : null;
                 
                 // Determine container and insertion point
                 const isQuestion = sectionData.type === 'question';
@@ -11898,6 +11991,9 @@
                 // Finalize once after full deserialization (bulk path avoids nested-item finalization storms).
                 finalizeDeserializedSection(newSection, isQuestion ? 'question' : 'content');
                 afterListMutation(isQuestion ? 'questions_container' : 'content_sections_container');
+                if (!autoResizeEnabled && preservedTextareaHeights) {
+                    applySectionTextareaHeights(newSection, preservedTextareaHeights);
+                }
                 
                 // Per-key refresh only for bbox keys in the new section (queued, no lag storm)
                 var bboxContainers = newSection.querySelectorAll('.bbox-container');
@@ -11991,6 +12087,7 @@
                 
                 // Finalize once after full deserialization.
                 finalizeDeserializedSection(sectionEl, isQuestion ? 'question' : 'content');
+                applyOffModeTextareaHeightsFromPayload(sectionEl, sectionData);
                 
                 // Record action for undo/redo (after section is replaced)
                 const pastedState = sectionEl.cloneNode(true);
@@ -12080,6 +12177,7 @@
                 // Finalize once after full deserialization.
                 finalizeDeserializedSection(newSection, sectionData.type === 'question' ? 'question' : 'content');
                 afterListMutation(sectionData.type === 'question' ? 'questions_container' : 'content_sections_container');
+                applyOffModeTextareaHeightsFromPayload(newSection, sectionData);
                 
                 // Per-key refresh only for bbox keys in the pasted section (queued)
                 var bboxContainers = newSection.querySelectorAll('.bbox-container');
@@ -13427,6 +13525,15 @@
             if (!sourceText) return false;
             return /!\[[\s\S]*?\]\(\s*\d+\s*\)/.test(sourceText);
         }
+
+        let __markedPreviewDefaultsApplied = false;
+        function ensureMarkedPreviewDefaults() {
+            if (__markedPreviewDefaultsApplied) return;
+            if (window.marked?.setOptions) {
+                window.marked.setOptions({ gfm: true, breaks: true });
+                __markedPreviewDefaultsApplied = true;
+            }
+        }
         
         function renderLivePreview(textarea, previewOverride = null, options = {}) {
             const allowKatex = options.allowKatex !== false;
@@ -13492,26 +13599,6 @@
                 const mathBlocks = [];
                 const mathBlockErrors = [];
                 const imageDescriptionErrors = [];
-                const quoteValidationErrors = [];
-                const brTagErrors = [];
-                
-                // Validate quotes and dollar signs before processing markdown
-                const rawValue = sourceText || '';
-                const quoteErrors = validateQuotes(rawValue);
-                if (quoteErrors.length > 0) {
-                    quoteValidationErrors.push(...quoteErrors);
-                }
-                
-                const dollarErrors = validateDollarSigns(rawValue);
-                if (dollarErrors.length > 0) {
-                    quoteValidationErrors.push(...dollarErrors);
-                }
-                
-                // Validate <br> tags
-                const brErrors = validateBrTags(rawValue);
-                if (brErrors.length > 0) {
-                    brTagErrors.push(...brErrors);
-                }
                 
                 // Protect LaTeX math expressions inside image descriptions before validation
                 // This prevents false positives when descriptions contain LaTeX like $...$ or $\sqrt[3]{3}$
@@ -13656,9 +13743,7 @@
                         return `@@MATH_BLOCK_${idx}@@`;
                     });
                 }
-                if (window.marked?.setOptions) {
-                    window.marked.setOptions({ gfm: true, breaks: true });
-                }
+                ensureMarkedPreviewDefaults();
                 // Protect inline math $...$ before markdown parsing to avoid backslash escapes like \, turning into commas
                 // Increased limit to handle long expressions like arrays (was 200, now 5000)
                 const inlineMath = [];
@@ -13674,241 +13759,250 @@
                 
                 // Fix blockquotes: join consecutive lines unless separated by blank ">"
                 // Special handling for tables inside blockquotes - preserve newlines for table rows
-                // Process blockquotes line by line
-                const lines = md.split('\n');
-                let processedLines = [];
-                let inBlockquotePre = false;
-                let blockquoteBuffer = [];
-                
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    const isBlockquoteLine = /^>($| )/.test(line);
-                    const isBlankBlockquote = line.trim() === '>';
-                    const isBlankLine = line.trim() === '';
-                    const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
-                    const nextIsBlockquote = /^>($| )/.test(nextLine);
+                const hasBlockquoteLines = /(^|\n)>($| )/.test(md);
+                if (hasBlockquoteLines) {
+                    // Process blockquotes line by line
+                    const lines = md.split('\n');
+                    let processedLines = [];
+                    let inBlockquotePre = false;
+                    let blockquoteBuffer = [];
                     
-                    // Check if this blockquote line is part of a table
-                    // Strip blockquote prefix and check if it starts with |
-                    const strippedLine = isBlockquoteLine ? stripBlockquotePrefix(line) : '';
-                    const isTableRowInBlockquote = isBlockquoteLine && strippedLine.trim().startsWith('|');
-                    
-                    if (isBlockquoteLine) {
-                        if (!inBlockquotePre) {
-                            // Start of blockquote section
-                            inBlockquotePre = true;
-                            blockquoteBuffer = [];
-                        }
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        const isBlockquoteLine = /^>($| )/.test(line);
+                        const isBlankBlockquote = line.trim() === '>';
+                        const isBlankLine = line.trim() === '';
+                        const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
+                        const nextIsBlockquote = /^>($| )/.test(nextLine);
                         
-                        if (isBlankBlockquote) {
-                            // Blank ">" creates a paragraph break
-                            // Flush current buffer
-                            if (blockquoteBuffer.length > 0) {
-                                processedLines.push('> ' + blockquoteBuffer.join(' '));
-                                blockquoteBuffer = [];
-                            }
-                            // Add blank line in blockquote
-                            processedLines.push('> ');
-                        } else if (isTableRowInBlockquote) {
-                            // This is a table row inside a blockquote
-                            // Flush any non-table content first (regular blockquote text)
-                            if (blockquoteBuffer.length > 0) {
-                                processedLines.push('> ' + blockquoteBuffer.join(' '));
+                        // Check if this blockquote line is part of a table
+                        // Strip blockquote prefix and check if it starts with |
+                        const strippedLine = isBlockquoteLine ? stripBlockquotePrefix(line) : '';
+                        const isTableRowInBlockquote = isBlockquoteLine && strippedLine.trim().startsWith('|');
+                        
+                        if (isBlockquoteLine) {
+                            if (!inBlockquotePre) {
+                                // Start of blockquote section
+                                inBlockquotePre = true;
                                 blockquoteBuffer = [];
                             }
                             
-                            // Add the table row as-is (preserving the blockquote prefix and newline structure)
-                            // This preserves the table structure instead of joining with spaces
-                            processedLines.push(line);
-                        } else {
-                            // Regular blockquote line (not a table) - extract text after "> "
-                            const text = line.substring(1).trim();
-                            if (text) {
-                                blockquoteBuffer.push(text);
-                            }
-                            
-                            // If next line is not a blockquote or is blank ">", flush buffer
-                            if (!nextIsBlockquote || nextLine.trim() === '>') {
+                            if (isBlankBlockquote) {
+                                // Blank ">" creates a paragraph break
+                                // Flush current buffer
                                 if (blockquoteBuffer.length > 0) {
                                     processedLines.push('> ' + blockquoteBuffer.join(' '));
                                     blockquoteBuffer = [];
                                 }
+                                // Add blank line in blockquote
+                                processedLines.push('> ');
+                            } else if (isTableRowInBlockquote) {
+                                // This is a table row inside a blockquote
+                                // Flush any non-table content first (regular blockquote text)
+                                if (blockquoteBuffer.length > 0) {
+                                    processedLines.push('> ' + blockquoteBuffer.join(' '));
+                                    blockquoteBuffer = [];
+                                }
+                                
+                                // Add the table row as-is (preserving the blockquote prefix and newline structure)
+                                // This preserves the table structure instead of joining with spaces
+                                processedLines.push(line);
+                            } else {
+                                // Regular blockquote line (not a table) - extract text after "> "
+                                const text = line.substring(1).trim();
+                                if (text) {
+                                    blockquoteBuffer.push(text);
+                                }
+                                
+                                // If next line is not a blockquote or is blank ">", flush buffer
+                                if (!nextIsBlockquote || nextLine.trim() === '>') {
+                                    if (blockquoteBuffer.length > 0) {
+                                        processedLines.push('> ' + blockquoteBuffer.join(' '));
+                                        blockquoteBuffer = [];
+                                    }
+                                }
                             }
+                        } else if (isBlankLine) {
+                            // Blank line ends blockquote - flush buffer
+                            if (blockquoteBuffer.length > 0) {
+                                processedLines.push('> ' + blockquoteBuffer.join(' '));
+                                blockquoteBuffer = [];
+                            }
+                            inBlockquotePre = false;
+                            processedLines.push(line);
+                        } else {
+                            // Non-blockquote line - flush buffer and add line
+                            if (blockquoteBuffer.length > 0) {
+                                processedLines.push('> ' + blockquoteBuffer.join(' '));
+                                blockquoteBuffer = [];
+                            }
+                            inBlockquotePre = false;
+                            processedLines.push(line);
                         }
-                    } else if (isBlankLine) {
-                        // Blank line ends blockquote - flush buffer
-                        if (blockquoteBuffer.length > 0) {
-                            processedLines.push('> ' + blockquoteBuffer.join(' '));
-                            blockquoteBuffer = [];
-                        }
-                        inBlockquotePre = false;
-                        processedLines.push(line);
-                    } else {
-                        // Non-blockquote line - flush buffer and add line
-                        if (blockquoteBuffer.length > 0) {
-                            processedLines.push('> ' + blockquoteBuffer.join(' '));
-                            blockquoteBuffer = [];
-                        }
-                        inBlockquotePre = false;
-                        processedLines.push(line);
                     }
+                    
+                    // Flush any remaining buffer
+                    if (blockquoteBuffer.length > 0) {
+                        processedLines.push('> ' + blockquoteBuffer.join(' '));
+                    }
+                    
+                    md = processedLines.join('\n');
                 }
-                
-                // Flush any remaining buffer
-                if (blockquoteBuffer.length > 0) {
-                    processedLines.push('> ' + blockquoteBuffer.join(' '));
-                }
-                
-                md = processedLines.join('\n');
                 
                 // Fix horizontal rules: only allow them if they have blank lines before AND after
                 // Escape horizontal rules that don't meet this requirement
-                const hrLines = md.split('\n');
-                const hrProcessed = [];
-                for (let i = 0; i < hrLines.length; i++) {
-                    const line = hrLines[i];
-                    const trimmed = line.trim();
-                    const isHorizontalRule = /^[-*_]{3,}$/.test(trimmed);
-                    
-                    if (isHorizontalRule) {
-                        const prevLine = i > 0 ? hrLines[i - 1] : '';
-                        const nextLine = i < hrLines.length - 1 ? hrLines[i + 1] : '';
-                        const prevIsBlank = prevLine.trim() === '';
-                        const nextIsBlank = nextLine.trim() === '';
+                const hasHorizontalRuleSyntax = /(^|\n)\s*[-*_]{3,}\s*($|\n)/.test(md);
+                if (hasHorizontalRuleSyntax) {
+                    const hrLines = md.split('\n');
+                    const hrProcessed = [];
+                    for (let i = 0; i < hrLines.length; i++) {
+                        const line = hrLines[i];
+                        const trimmed = line.trim();
+                        const isHorizontalRule = /^[-*_]{3,}$/.test(trimmed);
                         
-                        // Only allow horizontal rule if both prev and next lines are blank
-                        if (prevIsBlank && nextIsBlank) {
-                            hrProcessed.push(line);
+                        if (isHorizontalRule) {
+                            const prevLine = i > 0 ? hrLines[i - 1] : '';
+                            const nextLine = i < hrLines.length - 1 ? hrLines[i + 1] : '';
+                            const prevIsBlank = prevLine.trim() === '';
+                            const nextIsBlank = nextLine.trim() === '';
+                            
+                            // Only allow horizontal rule if both prev and next lines are blank
+                            if (prevIsBlank && nextIsBlank) {
+                                hrProcessed.push(line);
+                            } else {
+                                // Escape it by adding a backslash or converting to text
+                                hrProcessed.push('\\' + line);
+                            }
                         } else {
-                            // Escape it by adding a backslash or converting to text
-                            hrProcessed.push('\\' + line);
+                            hrProcessed.push(line);
                         }
-                    } else {
-                        hrProcessed.push(line);
                     }
+                    
+                    md = hrProcessed.join('\n');
                 }
-                
-                md = hrProcessed.join('\n');
                 
                 // Merge multi-line table rows before markdown processing
                 // This allows cells to contain newlines while still being valid markdown tables
-                const mdLinesForTableMerge = md.split('\n');
-                const mergedTableLines = [];
-                let currentTableRow = null;
-                let inTable = false; // Track if we're currently inside a table
-                
-                for (let i = 0; i < mdLinesForTableMerge.length; i++) {
-                    const line = mdLinesForTableMerge[i];
-                    const trimmed = line.trim();
+                const hasPotentialTableSyntax = md.indexOf('|') !== -1 && md.indexOf('\n') !== -1;
+                if (hasPotentialTableSyntax) {
+                    const mdLinesForTableMerge = md.split('\n');
+                    const mergedTableLines = [];
+                    let currentTableRow = null;
+                    let inTable = false; // Track if we're currently inside a table
                     
-                    // Check if this line is part of a blockquote
-                    const isBlockquoteLine = /^\s*>/.test(line);
-                    // Strip blockquote prefix for table processing
-                    const lineForTableCheck = isBlockquoteLine ? stripBlockquotePrefix(trimmed) : trimmed;
-                    
-                    // Remove math expressions for detection
-                    let lineWithoutMath = removeMathExpressions(lineForTableCheck);
-                    
-                    // Check if line is a table row (using stripped content for blockquote tables)
-                    const startsWithPipe = lineWithoutMath.startsWith('|');
-                    const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
-                    const endsWithPipe = lineWithoutMath.endsWith('|');
-                    const isSeparator = /^[\s|:-]+$/.test(lineWithoutMath) && lineWithoutMath.includes('-');
-                    
-                    // Check if original line (before removing math and blockquote) starts with pipe
-                    // This is used for continuation detection - a line starting with LaTeX should still be a continuation
-                    const originalStartsWithPipe = lineForTableCheck.startsWith('|');
-                    
-                    // If we have an incomplete row and this line doesn't start with pipe in original,
-                    // it's a continuation even if it has pipes after removing math
-                    // Can only be a continuation if currentTableRow exists and doesn't end with |
-                    // Also check if both current and previous lines are blockquote lines (same blockquote context)
-                    const currentRowIsBlockquote = currentTableRow !== null && /^\s*>/.test(currentTableRow);
-                    const isContinuation = currentTableRow !== null && 
-                        !originalStartsWithPipe && 
-                        currentTableRow.trim() !== '' && 
-                        !currentTableRow.trim().endsWith('|') &&
-                        (isBlockquoteLine === currentRowIsBlockquote); // Must be in same context (both blockquote or both not)
-                    
-                    // Empty lines always end tables (check original line, not stripped)
-                    const isEmptyLine = lineForTableCheck.length === 0;
-                    
-                    // Determine if this line is part of a table
-                    // If it's a continuation, treat it as part of the table
-                    // Empty lines are NEVER table lines
-                    const isTableLine = !isEmptyLine && ((hasPipes || (startsWithPipe && inTable)) && !isContinuation);
-                    
-                    if ((isTableLine || isSeparator || isContinuation) && !isEmptyLine) {
-                        // We're in a table
-                        inTable = true;
+                    for (let i = 0; i < mdLinesForTableMerge.length; i++) {
+                        const line = mdLinesForTableMerge[i];
+                        const trimmed = line.trim();
                         
-                        if (isSeparator) {
-                            // Separator row - finish any incomplete row first
-                            if (currentTableRow !== null) {
-                                mergedTableLines.push(currentTableRow);
-                                currentTableRow = null;
-                            }
-                            mergedTableLines.push(line);
-                        } else if (isContinuation) {
-                            // Continuation of incomplete row (doesn't start with pipe, even if it has pipes)
-                            currentTableRow = currentTableRow + '\n' + line;
-                        } else if (startsWithPipe) {
-                            // Table row starting with pipe
-                            if (endsWithPipe) {
-                                // Complete row
+                        // Check if this line is part of a blockquote
+                        const isBlockquoteLine = /^\s*>/.test(line);
+                        // Strip blockquote prefix for table processing
+                        const lineForTableCheck = isBlockquoteLine ? stripBlockquotePrefix(trimmed) : trimmed;
+                        
+                        // Remove math expressions for detection
+                        let lineWithoutMath = removeMathExpressions(lineForTableCheck);
+                        
+                        // Check if line is a table row (using stripped content for blockquote tables)
+                        const startsWithPipe = lineWithoutMath.startsWith('|');
+                        const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
+                        const endsWithPipe = lineWithoutMath.endsWith('|');
+                        const isSeparator = /^[\s|:-]+$/.test(lineWithoutMath) && lineWithoutMath.includes('-');
+                        
+                        // Check if original line (before removing math and blockquote) starts with pipe
+                        // This is used for continuation detection - a line starting with LaTeX should still be a continuation
+                        const originalStartsWithPipe = lineForTableCheck.startsWith('|');
+                        
+                        // If we have an incomplete row and this line doesn't start with pipe in original,
+                        // it's a continuation even if it has pipes after removing math
+                        // Can only be a continuation if currentTableRow exists and doesn't end with |
+                        // Also check if both current and previous lines are blockquote lines (same blockquote context)
+                        const currentRowIsBlockquote = currentTableRow !== null && /^\s*>/.test(currentTableRow);
+                        const isContinuation = currentTableRow !== null && 
+                            !originalStartsWithPipe && 
+                            currentTableRow.trim() !== '' && 
+                            !currentTableRow.trim().endsWith('|') &&
+                            (isBlockquoteLine === currentRowIsBlockquote); // Must be in same context (both blockquote or both not)
+                        
+                        // Empty lines always end tables (check original line, not stripped)
+                        const isEmptyLine = lineForTableCheck.length === 0;
+                        
+                        // Determine if this line is part of a table
+                        // If it's a continuation, treat it as part of the table
+                        // Empty lines are NEVER table lines
+                        const isTableLine = !isEmptyLine && ((hasPipes || (startsWithPipe && inTable)) && !isContinuation);
+                        
+                        if ((isTableLine || isSeparator || isContinuation) && !isEmptyLine) {
+                            // We're in a table
+                            inTable = true;
+                            
+                            if (isSeparator) {
+                                // Separator row - finish any incomplete row first
                                 if (currentTableRow !== null) {
-                                    // Finish previous incomplete row
                                     mergedTableLines.push(currentTableRow);
                                     currentTableRow = null;
                                 }
                                 mergedTableLines.push(line);
-                            } else {
-                                // Incomplete row - start or continue
-                                if (currentTableRow === null) {
-                                    currentTableRow = line;
+                            } else if (isContinuation) {
+                                // Continuation of incomplete row (doesn't start with pipe, even if it has pipes)
+                                currentTableRow = currentTableRow + '\n' + line;
+                            } else if (startsWithPipe) {
+                                // Table row starting with pipe
+                                if (endsWithPipe) {
+                                    // Complete row
+                                    if (currentTableRow !== null) {
+                                        // Finish previous incomplete row
+                                        mergedTableLines.push(currentTableRow);
+                                        currentTableRow = null;
+                                    }
+                                    mergedTableLines.push(line);
                                 } else {
-                                    // Continue previous row
-                                    currentTableRow = currentTableRow + '\n' + line;
+                                    // Incomplete row - start or continue
+                                    if (currentTableRow === null) {
+                                        currentTableRow = line;
+                                    } else {
+                                        // Continue previous row
+                                        currentTableRow = currentTableRow + '\n' + line;
+                                    }
                                 }
+                            } else {
+                                // Shouldn't happen, but handle it
+                                mergedTableLines.push(line);
                             }
                         } else {
-                            // Shouldn't happen, but handle it
+                            // Not a table line - always end table mode
+                            if (currentTableRow !== null) {
+                                // Finish incomplete row
+                                mergedTableLines.push(currentTableRow);
+                                currentTableRow = null;
+                            }
+                            // Always exit table mode when we encounter non-table content
+                            inTable = false;
                             mergedTableLines.push(line);
                         }
-                    } else {
-                        // Not a table line - always end table mode
-                        if (currentTableRow !== null) {
-                            // Finish incomplete row
-                            mergedTableLines.push(currentTableRow);
-                            currentTableRow = null;
+                    }
+                    
+                    // Finish any remaining incomplete row
+                    if (currentTableRow !== null) {
+                        mergedTableLines.push(currentTableRow);
+                    }
+                    
+                    // Convert newlines within merged table rows to <br> tags
+                    // This preserves line breaks within cells for proper rendering
+                    // We need to be careful: only convert newlines that are within cells, not between rows
+                    for (let i = 0; i < mergedTableLines.length; i++) {
+                        let line = mergedTableLines[i];
+                        // Check if this line contains newlines (from merging multi-line cells)
+                        if (line.includes('\n')) {
+                            // This is a merged table row with newlines - convert them to <br>
+                            // The newlines are within the row content (cell content), so convert them
+                            // This will create: | Cell 1<br>continued | Cell 2 |
+                            line = line.replace(/\n/g, '<br>');
+                            mergedTableLines[i] = line;
                         }
-                        // Always exit table mode when we encounter non-table content
-                        inTable = false;
-                        mergedTableLines.push(line);
                     }
+                    
+                    md = mergedTableLines.join('\n');
                 }
-                
-                // Finish any remaining incomplete row
-                if (currentTableRow !== null) {
-                    mergedTableLines.push(currentTableRow);
-                }
-                
-                // Convert newlines within merged table rows to <br> tags
-                // This preserves line breaks within cells for proper rendering
-                // We need to be careful: only convert newlines that are within cells, not between rows
-                for (let i = 0; i < mergedTableLines.length; i++) {
-                    let line = mergedTableLines[i];
-                    // Check if this line contains newlines (from merging multi-line cells)
-                    if (line.includes('\n')) {
-                        // This is a merged table row with newlines - convert them to <br>
-                        // The newlines are within the row content (cell content), so convert them
-                        // This will create: | Cell 1<br>continued | Cell 2 |
-                        line = line.replace(/\n/g, '<br>');
-                        mergedTableLines[i] = line;
-                    }
-                }
-                
-                md = mergedTableLines.join('\n');
                 
                 // Normalize list spacing and empty list items to avoid list truncation
                 md = normalizeEmptyListItemsForPreview(md);
@@ -14080,60 +14174,24 @@
                 // Unescape HTML entities that were escaped during math processing
                 html = html.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
                 
-                // Fix blockquotes to end properly at blank lines
-                // Check original text to determine where blockquotes should actually end
-                const originalText = sourceText || '';
-                const originalLines = originalText.replace(/\r\n?/g, '\n').split('\n');
-                
-                // Find where blockquotes should end (at blank lines followed by non-blockquote text)
-                let blockquoteShouldEndAt = [];
-                let inBlockquoteCheck = false;
-                
-                for (let i = 0; i < originalLines.length; i++) {
-                    const line = originalLines[i];
-                    const isBlockquoteLine = /^>($| )/.test(line);
-                    const isBlankLine = line.trim() === '';
-                    const nextLine = i < originalLines.length - 1 ? originalLines[i + 1] : '';
-                    const nextIsBlockquote = /^>($| )/.test(nextLine);
-                    const nextIsBlank = nextLine.trim() === '';
-                    
-                    if (isBlockquoteLine) {
-                        inBlockquoteCheck = true;
-                    } else if (isBlankLine && inBlockquoteCheck && !nextIsBlank && !nextIsBlockquote) {
-                        // Blank line after blockquote, followed by regular text - blockquote should end here
-                        blockquoteShouldEndAt.push(i);
-                        inBlockquoteCheck = false;
-                    } else if (!isBlankLine && !isBlockquoteLine && inBlockquoteCheck) {
-                        // Regular text immediately after blockquote (no blank line) - mark previous line as end
-                        if (i > 0) {
-                            blockquoteShouldEndAt.push(i - 1);
-                        }
-                        inBlockquoteCheck = false;
-                    }
-                }
-                
-                // Fix blockquote HTML by splitting at positions where blockquotes should end
-                // Match blockquote tags and split them at the correct positions
-                let blockquoteIndex = 0;
-                html = html.replace(/<blockquote>([\s\S]*?)<\/blockquote>/g, (match, content) => {
-                    // Check if this blockquote should be split based on original text structure
-                    // Look for double <br> tags (representing blank lines) followed by content
-                    // Split the blockquote at those points
-                    const doubleBrRegex = /(<br\s*\/?>\s*){2,}/;
-                    if (doubleBrRegex.test(content)) {
-                        // Split at double <br> (blank lines)
-                        const parts = content.split(doubleBrRegex);
-                        if (parts.length > 1) {
-                            // First part is blockquote content, rest should be outside
-                            const blockquotePart = parts[0];
-                            const outsidePart = parts.slice(1).filter(p => p.trim()).join('');
-                            if (outsidePart.trim()) {
-                                return '<blockquote>' + blockquotePart + '</blockquote><p>' + outsidePart + '</p>';
+                // Fix blockquotes to end properly at blank lines.
+                if (html.indexOf('<blockquote>') !== -1) {
+                    // Split blockquote HTML where double breaks indicate a paragraph boundary.
+                    html = html.replace(/<blockquote>([\s\S]*?)<\/blockquote>/g, (match, content) => {
+                        const doubleBrRegex = /(<br\s*\/?>\s*){2,}/;
+                        if (doubleBrRegex.test(content)) {
+                            const parts = content.split(doubleBrRegex);
+                            if (parts.length > 1) {
+                                const blockquotePart = parts[0];
+                                const outsidePart = parts.slice(1).filter(p => p.trim()).join('');
+                                if (outsidePart.trim()) {
+                                    return '<blockquote>' + blockquotePart + '</blockquote><p>' + outsidePart + '</p>';
+                                }
                             }
                         }
-                    }
-                    return match;
-                });
+                        return match;
+                    });
+                }
                 
                 // Remove image description error tokens (errors now shown below preview)
                 imageDescriptionErrors.forEach((error, i) => {
@@ -14158,9 +14216,10 @@
                         return `<img ${cleaned} data-image-index="${src}">`;
                     });
                     const sigInfo = reuseImagesAllowed ? getFieldImageSignature(sourceText || '') : { signature: '', indices: [] };
-                    const prevSig = textarea.__renderImageSignature || '';
-                    reuseImages = reuseImagesAllowed && prevSig && sigInfo.signature === prevSig;
-                    textarea.__renderImageSignature = sigInfo.signature;
+                    const prevSig = preview.__renderImageSignature || '';
+                    const hasExistingImageContainers = !!preview.querySelector('.image-placeholder-container');
+                    reuseImages = reuseImagesAllowed && hasExistingImageContainers && prevSig && sigInfo.signature === prevSig;
+                    preview.__renderImageSignature = sigInfo.signature;
                     const existingByIndex = new Map();
                     if (reuseImages) {
                         preview.querySelectorAll('.image-placeholder-container').forEach((container) => {
@@ -14365,9 +14424,15 @@
                     });
                     applyKatexBidi(preview);
                 }
-                if (allowBboxes && hasBbox && !reuseImages) {
-                    // Only re-apply bbox when indices changed; text-only edits keep existing crops.
-                    applyBboxesToPreviewRoot(preview);
+                if (allowBboxes && hasBbox) {
+                    const hasExistingBboxVisuals = !!(
+                        preview.querySelector('.fp-bbox-canvas') ||
+                        preview.querySelector('.image-placeholder-container.has-bbox-preview')
+                    );
+                    if (!reuseImages || !hasExistingBboxVisuals) {
+                        // Re-apply bbox whenever indices changed OR when rendering into a fresh preview target.
+                        applyBboxesToPreviewRoot(preview);
+                    }
                 }
                 // Content changed; bump renderVersion so scheduleFit runs (text/KaTeX height updates)
                 preview.__renderVersion = (preview.__renderVersion || 0) + 1;
@@ -14437,7 +14502,48 @@
             const initializedPreviews = new WeakMap();
             let previewInstanceCounter = 0;
             const VALIDATION_DEBOUNCE_MS = 180;
+            const INPUT_RENDER_DEBOUNCE_MS = 140;
+            const INPUT_BURST_GAP_MS = 70;
+            const HEAVY_RENDER_MS = 10;
+            const HEAVY_TEXT_LENGTH = 900;
             const validationTimerByField = new WeakMap();
+            const adaptiveRenderStateByField = new WeakMap();
+
+            function getAdaptiveRenderState(field) {
+                if (!field) return null;
+                if (!adaptiveRenderStateByField.has(field)) {
+                    adaptiveRenderStateByField.set(field, {
+                        lastInputTs: 0,
+                        lastRenderDurationMs: 0,
+                        debounceTimer: null,
+                        pendingRaf: null
+                    });
+                }
+                return adaptiveRenderStateByField.get(field);
+            }
+
+            function looksHeavyForAdaptiveRender(value, lastRenderDurationMs) {
+                const text = value || '';
+                if (text.length >= HEAVY_TEXT_LENGTH) return true;
+                if (lastRenderDurationMs >= HEAVY_RENDER_MS) return true;
+                if (text.indexOf('$$') !== -1) return true;
+                if (text.indexOf('$') !== -1) return true;
+                if (text.indexOf('![') !== -1) return true;
+                if (text.indexOf('|') !== -1) return true;
+                if (text.indexOf('<img') !== -1) return true;
+                if (/^\s*>/m.test(text)) return true;
+                if (/^\s*[-*+]\s+/m.test(text)) return true;
+                if (/^\s*\d+\.\s+/m.test(text)) return true;
+                return false;
+            }
+
+            function noteDuplicateBindingAttempt(kind, sourceEl) {
+                noteInputPerfCounter('duplicateBindingAttempts');
+                if (window.__debugInputBinding === true) {
+                    const id = sourceEl && sourceEl.id ? sourceEl.id : '(no-id)';
+                    console.warn('[PreviewBox] duplicate binding prevented:', kind, id);
+                }
+            }
 
             function runFieldValidationDisplays(textarea) {
                 if (!textarea || !textarea.isConnected) return;
@@ -14601,6 +14707,9 @@
                     const nextValue = valueOverride != null ? valueOverride : (sourceEl.value || '');
                     if (!force && nextValue === instance.__lastRenderedValue) return;
                     const isInputScoped = inputScoped === true;
+                    const renderStartTs = (typeof performance !== 'undefined' && performance.now)
+                        ? performance.now()
+                        : Date.now();
                     if (isInputScoped && typeof enterInputIsolationScope === 'function') {
                         enterInputIsolationScope('preview-render');
                     }
@@ -14626,6 +14735,13 @@
                             } else {
                                 scheduleFieldValidation(sourceEl);
                             }
+                        }
+                        const renderEndTs = (typeof performance !== 'undefined' && performance.now)
+                            ? performance.now()
+                            : Date.now();
+                        const adaptiveState = getAdaptiveRenderState(sourceEl);
+                        if (adaptiveState) {
+                            adaptiveState.lastRenderDurationMs = Math.max(0, renderEndTs - renderStartTs);
                         }
                     } finally {
                         if (isInputScoped && typeof exitInputIsolationScope === 'function') {
@@ -14665,27 +14781,101 @@
                         const valueOverride = options.value;
                         const nextValue = valueOverride != null ? valueOverride : (sourceEl.value || '');
                         if (!force && nextValue === this.__lastRenderedValue) return;
+                        const adaptiveState = getAdaptiveRenderState(sourceEl);
                         if (immediate) {
+                            if (adaptiveState && adaptiveState.debounceTimer) {
+                                clearTimeout(adaptiveState.debounceTimer);
+                                adaptiveState.debounceTimer = null;
+                            }
                             if (this.__rafId) cancelAnimationFrame(this.__rafId);
                             this.__rafId = null;
+                            if (adaptiveState) adaptiveState.pendingRaf = null;
                             this.__pendingValue = null;
                             this.__pendingInputScoped = false;
                             renderNow(nextValue, force, inputScoped);
                             return;
                         }
+
+                        if (inputScoped && adaptiveState) {
+                            const now = Date.now();
+                            const sinceLastInput = adaptiveState.lastInputTs > 0
+                                ? (now - adaptiveState.lastInputTs)
+                                : Number.POSITIVE_INFINITY;
+                            adaptiveState.lastInputTs = now;
+                            const isBurstInput = sinceLastInput < INPUT_BURST_GAP_MS;
+                            const isHeavyField = looksHeavyForAdaptiveRender(nextValue, adaptiveState.lastRenderDurationMs || 0);
+                            if (isBurstInput && isHeavyField) {
+                                this.__pendingValue = nextValue;
+                                this.__pendingInputScoped = true;
+                                if (this.__rafId) {
+                                    cancelAnimationFrame(this.__rafId);
+                                    this.__rafId = null;
+                                    adaptiveState.pendingRaf = null;
+                                }
+                                if (adaptiveState.debounceTimer) {
+                                    clearTimeout(adaptiveState.debounceTimer);
+                                }
+                                noteInputPerfCounter('inputRenderDebounced');
+                                adaptiveState.debounceTimer = setTimeout(() => {
+                                    adaptiveState.debounceTimer = null;
+                                    const pending = this.__pendingValue;
+                                    const pendingInputScoped = this.__pendingInputScoped === true;
+                                    this.__pendingValue = null;
+                                    this.__pendingInputScoped = false;
+                                    renderNow(pending, force, pendingInputScoped);
+                                }, INPUT_RENDER_DEBOUNCE_MS);
+                                return;
+                            }
+                        }
+
+                        if (adaptiveState && adaptiveState.debounceTimer) {
+                            clearTimeout(adaptiveState.debounceTimer);
+                            adaptiveState.debounceTimer = null;
+                        }
                         this.__pendingValue = nextValue;
                         this.__pendingInputScoped = this.__pendingInputScoped || inputScoped;
                         if (this.__rafId) return;
+                        noteInputPerfCounter('inputRenderImmediate');
                         this.__rafId = requestAnimationFrame(() => {
                             this.__rafId = null;
+                            if (adaptiveState) adaptiveState.pendingRaf = null;
                             const pending = this.__pendingValue;
                             const pendingInputScoped = this.__pendingInputScoped === true;
                             this.__pendingValue = null;
                             this.__pendingInputScoped = false;
                             renderNow(pending, force, pendingInputScoped);
                         });
+                        if (adaptiveState) adaptiveState.pendingRaf = this.__rafId;
+                    },
+                    flushPendingInputRender: function() {
+                        const adaptiveState = getAdaptiveRenderState(sourceEl);
+                        if (adaptiveState && adaptiveState.debounceTimer) {
+                            clearTimeout(adaptiveState.debounceTimer);
+                            adaptiveState.debounceTimer = null;
+                        }
+                        if (this.__rafId) {
+                            cancelAnimationFrame(this.__rafId);
+                            this.__rafId = null;
+                        }
+                        if (adaptiveState) adaptiveState.pendingRaf = null;
+                        const pending = this.__pendingValue;
+                        const pendingInputScoped = this.__pendingInputScoped === true;
+                        this.__pendingValue = null;
+                        this.__pendingInputScoped = false;
+                        if (pending != null) {
+                            noteInputPerfCounter('inputRenderFlushed');
+                            renderNow(pending, false, pendingInputScoped);
+                            return true;
+                        }
+                        return false;
                     },
                     destroy: function() {
+                        const adaptiveState = getAdaptiveRenderState(sourceEl);
+                        if (adaptiveState && adaptiveState.debounceTimer) {
+                            clearTimeout(adaptiveState.debounceTimer);
+                            adaptiveState.debounceTimer = null;
+                        }
+                        if (adaptiveState) adaptiveState.pendingRaf = null;
                         if (sourceEl.__livePreviewHandler) {
                             sourceEl.removeEventListener('input', sourceEl.__livePreviewHandler);
                             delete sourceEl.__livePreviewHandler;
@@ -14707,6 +14897,7 @@
                             delete sourceEl.__livePreviewBlurBound;
                         }
                         clearScheduledFieldValidation(sourceEl);
+                        adaptiveRenderStateByField.delete(sourceEl);
                         initializedPreviews.delete(sourceEl);
                     }
                 };
@@ -14722,6 +14913,7 @@
                     if (sourceEl.__livePreviewBound) {
                         if (existingInstance === instance && existingHandler) {
                             // Already bound for this instance; keep it
+                            noteDuplicateBindingAttempt('preview-input', sourceEl);
                         } else {
                             if (existingHandler) {
                                 sourceEl.removeEventListener('input', existingHandler);
@@ -14744,6 +14936,7 @@
                     if (sourceEl.__livePreviewBlurBound) {
                         if (existingBlurInstance === instance && existingBlurHandler) {
                             // Already bound for this instance; keep it
+                            noteDuplicateBindingAttempt('preview-blur', sourceEl);
                         } else {
                             if (existingBlurHandler) {
                                 sourceEl.removeEventListener('blur', existingBlurHandler);
@@ -14753,6 +14946,9 @@
                     }
                     if (!sourceEl.__livePreviewBlurBound) {
                         const blurHandler = () => {
+                            if (instance && typeof instance.flushPendingInputRender === 'function') {
+                                instance.flushPendingInputRender();
+                            }
                             flushFieldValidationNow(sourceEl);
                         };
                         blurHandler.__previewInstanceId = instanceId;
@@ -14874,7 +15070,7 @@
         })();
 
         // Global state for auto-resize feature
-        let autoResizeEnabled = true; // Default to enabled
+        let autoResizeEnabled = false; // Default to OFF for first-time users
         
         // NOTE: Sizing logic is in AutoSizeManager.FUDGE_PX and AutoSizeManager.fitHeightToContent
         // These wrappers exist for backward compatibility with input handlers
@@ -14912,6 +15108,104 @@
             textareas.forEach(ta => {
                 autoResizeTextarea(ta);
             });
+        }
+
+        // One-time fit utility for OFF-mode hydration flows (load/restore).
+        // Fits textarea heights to content without enabling continuous auto-resize behavior.
+        function fitTextareasForRoot(root, options = {}) {
+            if (!root || !root.querySelectorAll) return;
+            if (typeof AutoSizeManager === 'undefined' || !AutoSizeManager.fitHeightToContent) return;
+            const textareas = root.querySelectorAll('textarea:not(#json_input)');
+            textareas.forEach(textarea => {
+                if (!textarea || !textarea.isConnected) return;
+                AutoSizeManager.fitHeightToContent(textarea);
+            });
+        }
+
+        // Make hidden tab roots temporarily measurable off-screen, then restore exact inline style.
+        function withTemporarilyMeasurableRoot(root, measureWidth, fn) {
+            if (!root || typeof fn !== 'function') return;
+            const previousStyle = root.getAttribute('style');
+            try {
+                root.style.display = 'block';
+                root.style.position = 'absolute';
+                root.style.visibility = 'hidden';
+                root.style.pointerEvents = 'none';
+                root.style.left = '-99999px';
+                root.style.top = '0';
+                if (measureWidth && measureWidth > 0) {
+                    root.style.width = Math.ceil(measureWidth) + 'px';
+                }
+                return fn();
+            } finally {
+                if (previousStyle === null) {
+                    root.removeAttribute('style');
+                } else {
+                    root.setAttribute('style', previousStyle);
+                }
+            }
+        }
+
+        // When auto-resize is OFF, run one immediate textarea fit across all Input Form subtabs after hydration.
+        function fitAllInputSubtabsOnceWhenAutoResizeOff(reason) {
+            if (autoResizeEnabled) return;
+            if (typeof AutoSizeManager === 'undefined' || !AutoSizeManager.fitHeightToContent) return;
+            const tabIds = ['basic', 'preamble', 'content', 'questions'];
+            const scroller = (typeof getInputFormScroller === 'function')
+                ? getInputFormScroller()
+                : document.querySelector('#input-form .input-form-scroll');
+            const measureWidth = scroller ? scroller.clientWidth : 0;
+
+            tabIds.forEach(tabId => {
+                const root = document.getElementById(tabId);
+                if (!root) return;
+                if (root.classList && root.classList.contains('active')) {
+                    fitTextareasForRoot(root, { reason });
+                    return;
+                }
+                withTemporarilyMeasurableRoot(root, measureWidth, () => {
+                    fitTextareasForRoot(root, { reason, hidden: true });
+                });
+            });
+        }
+
+        // Preserve manual/off-mode textarea sizing when duplicating sections.
+        function captureSectionTextareaHeights(sectionEl) {
+            if (!sectionEl || !sectionEl.querySelectorAll) return [];
+            return Array.from(sectionEl.querySelectorAll('textarea:not(#json_input)')).map(textarea => {
+                const h = textarea && textarea.style ? textarea.style.height : '';
+                return (h && h !== 'auto') ? h : '';
+            });
+        }
+
+        function applySectionTextareaHeights(sectionEl, heights) {
+            if (!sectionEl || !sectionEl.querySelectorAll || !Array.isArray(heights)) return;
+            const textareas = sectionEl.querySelectorAll('textarea:not(#json_input)');
+            textareas.forEach((textarea, index) => {
+                const height = heights[index];
+                if (!height) return;
+                textarea.style.height = height;
+            });
+        }
+
+        function getSectionPayloadTextareaHeights(sectionPayload) {
+            if (!sectionPayload || !sectionPayload.ui_meta) return null;
+            const heights = sectionPayload.ui_meta.textarea_heights;
+            return Array.isArray(heights) ? heights : null;
+        }
+
+        function attachSectionPayloadUiMeta(sectionPayload, sectionEl) {
+            if (!sectionPayload || !sectionEl || autoResizeEnabled) return sectionPayload;
+            sectionPayload.ui_meta = sectionPayload.ui_meta || {};
+            sectionPayload.ui_meta.textarea_heights = captureSectionTextareaHeights(sectionEl);
+            return sectionPayload;
+        }
+
+        function applyOffModeTextareaHeightsFromPayload(sectionEl, sectionPayload) {
+            if (autoResizeEnabled) return;
+            const heights = getSectionPayloadTextareaHeights(sectionPayload);
+            if (!heights) return;
+            applySectionTextareaHeights(sectionEl, heights);
         }
         
         function attachAutoResizeInputHandler() {
@@ -15005,7 +15299,7 @@
             if (saved !== null) {
                 autoResizeEnabled = saved === 'true';
             } else {
-                autoResizeEnabled = true; // Default to enabled
+                autoResizeEnabled = false; // Default to OFF for first-time users
             }
             
             const toggle = document.getElementById('autoResizeToggle');
@@ -15160,6 +15454,19 @@
                 refreshTextLayoutAfterTypographyChange();
             });
         }
+
+        let __offModeTypographyFitTimer = null;
+        function scheduleOffModeTypographyTextareaFit(reason) {
+            if (autoResizeEnabled) return;
+            if (typeof fitAllInputSubtabsOnceWhenAutoResizeOff !== 'function') return;
+            if (__offModeTypographyFitTimer) clearTimeout(__offModeTypographyFitTimer);
+            __offModeTypographyFitTimer = setTimeout(() => {
+                __offModeTypographyFitTimer = null;
+                requestAnimationFrame(() => {
+                    fitAllInputSubtabsOnceWhenAutoResizeOff(reason || 'typography-change');
+                });
+            }, 0);
+        }
         
         function changeFontSize(size) {
             return withAutosaveSuppressed(function () {
@@ -15168,6 +15475,7 @@
                 // Save to localStorage (save as string)
                 localStorage.setItem('fontSize', sizeStr);
                 applyFontSettings(null, { refreshLayout: true, forceCssWrite: true });
+                scheduleOffModeTypographyTextareaFit('font-size-change');
             });
         }
         
@@ -15178,6 +15486,7 @@
                 // Save to localStorage (save as string)
                 localStorage.setItem('lineHeight', heightStr);
                 applyFontSettings(null, { refreshLayout: true, forceCssWrite: true });
+                scheduleOffModeTypographyTextareaFit('line-height-change');
             });
         }
         
@@ -23536,7 +23845,7 @@
                 PreviewBox.ensureRendered(activeRoot);
                 activeRoot.__previewHydrated = true;
             }
-            if (typeof AutoSizeManager !== 'undefined') {
+            if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
                 if (AutoSizeManager.register) {
                     AutoSizeManager.register(activeRoot);
                 }
@@ -23547,6 +23856,9 @@
                 if (AutoSizeManager.fitPending) {
                     AutoSizeManager.fitPending(activeRoot);
                 }
+            } else {
+                // OFF mode: one-time hydration fit for textareas across all input subtabs.
+                fitAllInputSubtabsOnceWhenAutoResizeOff('populateFormFromJSON');
             }
             
             // Reset scroll to top at the end of hydration (ONLY for load JSON / restore flows)
@@ -24662,6 +24974,7 @@
         // Track that form has changes
         function markFormAsChanged() {
             if (isUiPreferenceUpdate) return; // UI-only font/dir updates should not mark dirty.
+            if (hasUnsavedChanges) return;
             hasUnsavedChanges = true;
             updateSaveIndicator('unsaved');
         }
@@ -25746,6 +26059,7 @@
             
             // Initialize font settings
             initializeFontSettings();
+            ensureMarkedPreviewDefaults();
             
             // Initialize auto-resize toggle
             initializeAutoResize();
