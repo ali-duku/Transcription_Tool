@@ -15,7 +15,7 @@
         // ===== VERSION CONFIGURATION =====
         // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
         // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.9';
+        const DISPLAY_VERSION = '7.9.1';
         
         // CURRENT_VERSION: Internal version number that triggers the What's New modal
         // Update this when you release a new version to trigger:
@@ -23,12 +23,29 @@
         //   - Version reload checks
         // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
         // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.9';
+        const CURRENT_VERSION = '7.9.1';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
+
+
+            {
+                version: '7.9.1',
+                sections: [
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Period typing fix:</strong> Adding a period at the end of your text no longer makes the preview suddenly look bold.'
+                        ]
+                    }
+                ]
+            },
             {
                 version: '7.9',
                 sections: [
@@ -83,6 +100,499 @@
                         items: [
                             '<strong>Clean JSON placeholder on startup:</strong> Fixed an issue where the JSON output box showed leading blank spaces/lines before any generation. The empty-state placeholder now renders cleanly from the first load, matching the loaded/reset state.',
                             '<strong>No ghost terminology box in Final Preview:</strong> Fixed an issue where an empty terminology row in Lesson Preamble could still render an empty TERMINOLOGY preview box. Empty terminology fields are now ignored in Final Preview.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.6',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Nested list indentation rules + examples:</strong> Markdown preview now supports nested lists with type-specific indentation rules in the shared renderer.<div style="margin-top: 8px;"><strong>Bullets:</strong> use <code>2 spaces</code> or <code>1 tab</code> per level.<div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;"><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Input</div><code style="display:block; white-space:pre-wrap;">* hi\n  * hihi\n    * hihihi</code></div><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div><code style="display:block; white-space:pre-wrap;">&bull; hi\n  &deg; hihi\n    &#9642; hihihi</code></div></div></div><div style="margin-top: 8px;"><strong>Ordered:</strong> use <code>4 spaces</code> or <code>2 tabs</code> per level.<div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;"><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Input</div><code style="display:block; white-space:pre-wrap;">1. one\n    1. one-one\n        1. one-one-one</code></div><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div><code style="display:block; white-space:pre-wrap;">1. one\n    1. one-one\n        1. one-one-one</code></div></div></div>'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Trailing Spaces Indicator no longer breaks markdown tables:</strong> Fixed an issue where enabling the Trailing Spaces Indicator could break table rendering when rows had extra spaces (especially separator rows). Tables now render correctly in both live preview and final preview.',
+                            '<strong>Trailing space highlights now work inside table cells:</strong> Fixed an issue where table indicators disappeared after the table-rendering fix. The tool now shows trailing/leading/consecutive space indicators inside table cell content while keeping table syntax safe.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.5',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Auto-navigation prefers Guide PDF Page:</strong> When focusing on the Guide PDF Page field or other guide-related fields (Guide Answer, choices, blanks, relationships) in the Questions tab, the PDF viewer now navigates to the page specified in that question\'s Guide PDF Page field when available, instead of defaulting to the Guidebook PDF Pages (Start - End) range. Falls back to the guidebook range when the field is empty or not available.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Dark mode highlight for pen edit button:</strong> Fixed the highlight shown when clicking the edit pen in the Final Preview tab, it now uses a clear accent color instead of yellowish in dark mode.',
+                            '<strong>Dark mode highlight for Quick Jump:</strong> Fixed the highlight shown when using the Quick Jump menu, it now uses a clear accent color instead of yellowish in dark mode.',
+                            '<strong>Search result navigation from Final Preview:</strong> Fixed an issue where clicking a search result while on the Final Preview tab did nothing. It now correctly switches to the Input Form tab and navigates to the matching element.',
+                            '<strong>Preview overflow when auto-resize is off:</strong> Fixed an issue where preview output fields would overflow and show content outside their box when the auto-resize toggle was turned off and new content was added. Preview boxes now correctly grow with content in that case.',
+                            '<strong>Auto-resize on tab switch:</strong> Fixed an issue where turning auto-resize ON and then switching to another tab (Content, Questions, Lesson Preamble) left input fields not resized until edited. Now all tabs\' fields are registered when the toggle is turned on, so they resize correctly when you switch to them.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.4',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Question Text Requirement (warning only):</strong> Some questions have no question text, so the question text field is not required anymore in the tool. This is your responsibility to check and fill in the question text if it is missing. The tool will only give you a warning if the question text is empty.',
+                            '<strong>Optional guidebook-related fields:</strong> Some tasks will be missing the guidebook pages, and the guidance is to leave the related fields empty. So, the following fields will not flag an error if you leave them empty anymore, but it is your responsibility to leave them empty if the task does not have a guidebook or fill them in if the task has a guidebook. The fields are: Guidebook PDF Pages (Start - End), Guide PDF Page, Guide Answer, Correct Answer Position (Multiple Choice), Correct Answers Summary (Checkbox), and Fill-in-the-blanks answer fields.',
+                            '<strong>Multiple Choice "Clear Selection":</strong> A "Clear Selection" button lets you clear the selected correct answer.',
+                            '<strong>Forbidden LaTeX commands validated:</strong> The tool now flags <code>\\\\neq</code> and <code>\\\\nearrow</code>.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Output preview overflow with Auto-Resize:</strong> Changing font size or line height no longer leaves image/bbox preview boxes stuck at the old height; typography changes now trigger correct re-measure and resize.',
+                            '<strong>Bbox preview refresh on either PDF change:</strong> Image placeholder and bbox previews now refresh when either the Textbook or Guidebook PDF is changed, not only when the textbook changes.'
+                        ]
+                    },
+                    {
+                        key: 'we_need_your_help',
+                        title: 'We need your help',
+                        iconClass: 'fas fa-info-circle',
+                        iconColor: '#17a2b8',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            'We are currently looking into reported lagging issues. If you experience lag, please send <strong>videos of the issue happening</strong> in addition to your JSON files so we can investigate. For now, you can disable the auto resize feature from the top right corner of the page to minimize the lag.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.3',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Save and auto-save always persist:</strong> Manual save and auto-save now always write your draft to storage, even when there are validation errors or warnings. No alerts or warnings are shown during save. Validation still runs when you use "Generate JSON"—only generation is blocked by errors.',
+                            '<strong>Question ID validation is disabled:</strong> Question ID validation is disabled now, you can use the same question ID multiple times.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.2',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Layout refresh after font changes:</strong> When you change fonts, input fields and preview boxes automatically re-measure and resize to fit their content correctly.',
+                            '<strong>Browser zoom and input sizing:</strong> Input textareas now automatically re-measure and resize when browser zoom changes, eliminating clipping and wrong heights.',
+                            '<strong>HTML List Tags Blocked:</strong> Raw HTML list tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) are no longer allowed. Use markdown bullets (<code>- </code> or <code>* </code>) instead. A validation error appears below the textarea if you use HTML list tags.',
+                            '<strong>Image description width:</strong> The text under preview images now always uses the full width of the preview, whether an image is shown or only a placeholder.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Font settings as UI preferences:</strong> Changing font size, line height, or text direction (RTL/LTR) no longer triggers autosave, "unsaved changes," or undo/redo.',
+                            '<strong>Unified typography and Final Preview:</strong> Fixed typography so input form, preview boxes, and Final Preview share the same font styling via CSS variables. Final Preview now matches the input form exactly (no more wrong sizes or divergent rendering).',
+                            '<strong>Bullet list + image preview:</strong> Fixed an issue where bullet lists followed by images could display as raw HTML tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) instead of a properly rendered list. Markdown lists now always render correctly regardless of image placement.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.1',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffd700',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Image placeholders:</strong> Instead of image placeholders, we now use the actual boxed images in the preview.'
+                        ]
+                    },
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Performance:</strong> Editing stays smooth even with a large number of content sections and questions.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Search dropdown overlay:</strong> Search results now appear below the search field as an overlay instead of being trapped inside the header.',
+                            '<strong>Scroll to top:</strong> The scroll-to-top button now scrolls the correct panel (Input form or Final Preview) to the top. It does nothing when you are on the PDF or JSON view.',
+                            '<strong>Undo and redo:</strong> Undo and redo now update the Final Preview correctly and trigger auto-save like other edits.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '7.0',
+                sections: [
+                    {
+                        key: 'updates',
+                        title: 'Updates',
+                        iconClass: 'fas fa-info-circle',
+                        iconColor: '#17a2b8',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            'A lot of improvements have been made.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.9',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffd700',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Extra Spaces and Empty Lines Indicator:</strong> A toggle in the header helps you spot leading spaces, trailing spaces, consecutive spaces, and empty lines. When enabled, preview boxes show a warning badge and highlight where problems are. Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.',
+                            '<strong>Basic Info and Lesson Preamble in Final Preview:</strong> The Final Preview tab now displays Basic Info and Lesson Preamble sections before Content and Questions. Basic Info shows textbook and PDF page numbers, guidebook range, and page type. Lesson Preamble shows lesson ID, title, standards, terminology, and lesson text with markdown and edit buttons.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Fixed LaTeX Array Alignment:</strong> Fixed an issue where LaTeX arrays were always center-aligned regardless of the alignment specifier (like <code>\\\\begin{array}{r}</code> for right alignment or <code>\\\\begin{array}{l}</code> for left alignment). Arrays now correctly respect their alignment settings (<code>r</code>, <code>l</code>, or <code>c</code>) in all preview outputs.',
+                            '<strong>Fixed Arabic Text Direction in LaTeX:</strong> Fixed an issue where mixed Arabic and English text within LaTeX <code>\\\\text{}</code> commands was not displaying with the correct text direction. Arabic text now flows right-to-left and English text flows left-to-right correctly, preserving the source order of elements in the LaTeX expression.',
+                            '<strong>Fixed Font Size Reset on JSON Load:</strong> Fixed an issue where loading a JSON file using the Load button would reset the font size in the input form to the default value instead of preserving the user\'s previously selected font size setting. Now, when you load a JSON file, your saved font size preference is automatically restored and applied to all form elements.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.8',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Increased Maximum Zoom:</strong> The maximum zoom level has been increased to 8x (800%) for both the bounding box drawing modal and the PDF viewer. This allows for much more detailed work when drawing bounding boxes or examining PDF pages at high magnification.',
+                            '<strong>Zoom Indicator in Bounding Box Modal:</strong> A zoom percentage display has been added to the bounding box drawing modal, matching the functionality in the main PDF viewer. You can now see the current zoom level at a glance while drawing bounding boxes.',
+                            '<strong>Optimized Layout for Better Space Usage:</strong> The UI has been enhanced to make better use of available screen space. Both the left and right columns now utilize the full vertical and horizontal real estate, adapting responsively to different zoom levels and screen sizes. This makes the interface more efficient and provides more room for your work.',
+                            '<strong>Expanded Font Size Options:</strong> Additional larger font sizes have been added to the font size selector. You can now choose from sizes up to 48px, giving you more flexibility to customize the text size for better readability.',
+                            '<strong>Font Size Persistence:</strong> The tool now remembers and automatically applies your last selected font size when you reload or refresh the page. Your font size preference is saved and restored automatically, so you don\'t have to adjust it every time.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Fixed Collapsed Section Navigation:</strong> Fixed an issue where clicking an edit button in the Final Preview tab to navigate to a collapsed section would not automatically expand that section. Now, when you click an edit button, the target section will automatically uncollapse so you can see and edit the field immediately.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.7',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffd700',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Final Preview Tab:</strong> A new "Final Preview" tab provides a comprehensive preview of all your content sections and questions in one place. This consolidated view shows everything exactly as it will appear in the final output, making it easy to review your work. Each preview box includes an edit button that takes you directly to the corresponding input field for quick editing.',
+                            '<strong>Collapsible Sections:</strong> You can now collapse and expand content and question sections to manage your workspace more easily. Click the <i class="fas fa-chevron-down"></i> button in the section header to hide or show its content. The button rotates when collapsed to indicate its state.',
+                            '<strong>Image Description Text Direction:</strong> All image descriptions in the preview now always display from left to right, regardless of the preview\'s text direction setting. This ensures consistent and readable image descriptions for all users.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.6',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffd700',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Smart Bbox Zoom & Centering:</strong> When you press the Draw button for a bounding box that already has coordinates, the PDF viewer now automatically zooms to show the entire bounding box clearly and centers it in the middle of the screen. The zoom level is calculated to fit the bbox with optimal padding, making it easy to see and edit existing bounding boxes. This saves time when reviewing or adjusting previously drawn boxes.',
+                            '<strong>Form-Level Undo/Redo Buttons:</strong> New undo and redo buttons at the top of the page let you reverse or redo actions throughout the form. These buttons affect structural changes like adding or removing sections, questions, terminology, choices, matching items, bounding boxes, and images. They can save your work if you accidentally remove a section or even if you clear the entire form using the "Clear Form" button or load a JSON file. <strong>Important:</strong> This is completely different from the undo/redo buttons in each text field (which only affect markdown formatting operations like bold, italic, lists, etc.). The form-level undo/redo buttons work independently and track all major form actions, giving you a safety net for your work.',
+                            '<strong>Smart Search:</strong> Find anything instantly across all your content sections and questions. As you type, a dropdown shows matching results with a preview of the text and highlights your search term. Each result clearly shows whether it\'s a section title, content text, question answer, choice, or other field. Click any result to jump directly to it, or use arrow keys to navigate. The search bar shows how many results were found and keeps your search term so you can easily check multiple matches.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.5',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffd700',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Auto-Save:</strong> Your work is now automatically saved as you edit! The form saves your changes automatically after you finish editing a field, so you won\'t lose your progress. You\'ll see "Saving..." and "All saved" indicators to track the save status.',
+                            '<strong>Blockquote Formatting Button:</strong> A new blockquote button in the markdown toolbar makes it easy to format quotes. Select your text and click the quote button, or click it on an empty line to start typing a quote.',
+                            '<strong>Blockquote Format Validation:</strong> The form now checks that blockquotes use the correct format (one space after the ">" character). This ensures your quotes are properly formatted and prevents formatting issues when generating the final output.',
+                            '<strong>Blank in LaTeX Validation:</strong> The tool now prevents you from writing blanks (<code>___1___</code>, <code>___2___</code>, etc.) inside LaTeX expressions. If you try to use a blank inside inline LaTeX (<code>$...$</code>) or block LaTeX (<code>$$\\\\n...\\\\n$$</code>), you\'ll see an error message and won\'t be able to save or generate the JSON until you move the blank outside the LaTeX expression.',
+                            '<strong>LaTeX Always Reads Left-to-Right:</strong> Math formulas in the preview now always display from left to right, even when your text is set to right-to-left (RTL). This makes math expressions easier to read and ensures they display correctly regardless of the text direction you\'ve chosen.',
+                            '<strong>Reload Button & Reminder:</strong> A new reload button in the top bar lets you quickly refresh the page. The tool will also remind you to reload every few days to make sure you\'re using the latest version of the tool and getting all the newest features and improvements. This is especially important since the tool is updated regularly with new capabilities and bug fixes.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.4',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Smarter Table Validation:</strong> Table validation now correctly handles LaTeX expressions inside table cells. Pipes inside LaTeX formulas (like <code>$\\\\cancel{||||}$</code>) are no longer counted as table delimiters, preventing false validation errors.',
+                            '<strong>Improved Image Description Validation:</strong> Image description validation now correctly handles LaTeX commands. LaTeX commands like <code>\\\\neq</code> or <code>\\\\right(</code> that contain <code>\\\\n</code> or <code>\\\\r</code> are no longer flagged as errors. Block LaTeX (<code>$$\\\\n...\\\\n$$</code>) in image descriptions is now properly detected and blocked with a helpful error message suggesting to use inline LaTeX instead.',
+                            '<strong>Fixed Direction Button Issue:</strong> Direction buttons (RTL/LTR) now work correctly even after validation errors appear. Previously, clicking the direction button after an error would not update the preview, but this has been fixed.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.3',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffc107',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Multi-Line Table Cells:</strong> You can now press Enter inside table cells to create line breaks. The preview will show your content on multiple lines within the same cell.',
+                            '<strong>List Validation:</strong> The tool now reminds you to add an empty line after lists. If you forget, you\'ll see a helpful error message to fix it.',
+                            '<strong>Blockquote Validation:</strong> The tool now reminds you to add an empty line after blockquotes. If you forget, you\'ll see a helpful error message to fix it.'
+                        ]
+                    },
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Better Table Validation:</strong> Table validation is now smarter and won\'t show errors when you use line breaks inside cells.',
+                            '<strong>Unified Error Display:</strong> All validation errors (tables, lists, blockquotes, LaTeX, images, quotes, and HTML tags) now appear in a consistent format and are displayed right after the input box for easier visibility.',
+                            '<strong>Customizable Font Settings:</strong> You can now adjust font size and line height directly from the top bar. Your preferences are saved and apply to all text inputs and previews for both Arabic and English text.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.2',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Simplified PDF Upload:</strong> The two separate buttons "Upload Textbook PDF" and "Upload Guide PDF" in the JSON Preview tab have been combined into a single "Upload PDFs" button for a cleaner interface. You can still upload both types of PDFs from the modal.',
+                            '<strong>Improved PDF Viewer Stability:</strong> The PDF viewer now stays exactly where you left it when using the Draw button or working with image fields. It won\'t change pages, zoom levels, or switch between books unexpectedly, making it much easier to work with multiple images without losing your place.',
+                            '<strong>Better Performance:</strong> The tool now renders PDFs more efficiently, only updating the display when necessary for smoother interactions and faster response times.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.1',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffc107',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Markdown Toolbar:</strong> New formatting buttons (Bold, Italic, Bullet List, Numbered List, Inline LaTeX $, Block LaTeX $$) in all text fields let you quickly format text without typing markdown syntax. Select text and click a button, or click to insert formatting placeholders. Undo and Redo buttons let you reverse or reapply your last formatting operations.',
+                            '<strong>Search/Filter:</strong> New search box in the top bar lets you quickly find content sections and questions by searching through titles, content text, question IDs, question text, and answers. Matching items are highlighted with a colored border.',
+                            '<strong>Auto-Resize Toggle:</strong> New circular button (↕) in the top bar lets you control whether text boxes grow automatically as you type. Green = auto-resize on, red = off. Your preference is saved.',
+                            '<strong>HTML Tag Validation:</strong> The tool now prevents using <code>&lt;br&gt;</code> tags in your content. You\'ll see a red error message if you try to use them, and you won\'t be able to save until they\'re removed.',
+                            '<strong>Helpful Tooltips:</strong> All buttons and form fields now have tooltips that appear when you hover over them, making it easier to understand what each feature does.'
+                        ]
+                    },
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Button Improvements:</strong> All buttons now have the same size for a cleaner look.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '6.0',
+                sections: [
+                    {
+                        key: 'fixes_improvements',
+                        title: 'Fixes & Improvements',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>LaTeX in Image Descriptions:</strong> Fixed an issue where using math formulas in image descriptions (like <code>$\\\\sqrt[3]{16}$</code>) was incorrectly flagged as an error. The tool now correctly recognizes LaTeX syntax in image descriptions.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '5.9',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffc107',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Extended Auto-Navigation:</strong> Auto-navigation now works for more fields including choices, blank answers, and relationships. The PDF automatically jumps to the correct page when you click these fields.',
+                            '<strong>Guide PDF Page Validation:</strong> The tool now checks that guide page numbers are within the correct range. You\'ll get an error if the page number is outside the range, and you won\'t be able to save until it\'s fixed.'
+                        ]
+                    },
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Smart Guidebook Navigation:</strong> The guidebook can now navigate to any page in the range, not just the start page. It stays on your current page if you\'re already in range.',
+                            '<strong>Auto-Navigation Toggle:</strong> When auto-navigation is turned off, the PDF won\'t jump around when you type page numbers.',
+                            '<strong>Answer Preview:</strong> The answer preview now displays math formulas the same way as the choice preview, and updates as you type.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '5.8',
+                sections: [
+                    {
+                        key: 'fixes_improvements',
+                        title: 'Fixes & Improvements',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Fill-in-the-Blanks Formatting:</strong> Fixed an issue where spaces between blanks were incorrectly flagged as errors.',
+                            '<strong>Preview with Answers:</strong> The answer preview now displays math formulas correctly, matching the question preview.',
+                            '<strong>Answer Position Direction:</strong> The direction buttons for answer position now work consistently with the choice text buttons.',
+                            '<strong>Dark Mode Support:</strong> The What\'s New dialog now works properly in dark mode.'
+                        ]
+                    }
+                ]
+            },
+            {
+                version: '5.7',
+                sections: [
+                    {
+                        key: 'new_features',
+                        title: 'New Features',
+                        iconClass: 'fas fa-star',
+                        iconColor: '#ffc107',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>What\'s New Modal:</strong> Stay informed about the latest updates and improvements with the new "What\'s New" button in the header. Click it anytime to see what\'s changed!',
+                            '<strong>One-Click Duplicate:</strong> Quickly duplicate any content section, question, or image box by clicking the purple duplicate icon <i class="fas fa-clone" style="color: #6f42c1;"></i>. The duplicated section appears right below the original with all data intact.',
+                            '<strong>Question ID Validation:</strong> The tool now checks for duplicate question IDs and warns you if you use the same ID twice.'
+                        ]
+                    },
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Persistent Guide Answer:</strong> Your guide answer is now saved when you switch between question types.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Improved Table Detection:</strong> Fixed an issue where single pipe symbols or math notation were incorrectly flagged as table errors.'
                         ]
                     }
                 ]
@@ -6275,16 +6785,6 @@
             const fittedOnce = new WeakSet();    // Tracks elements that have ever been successfully fitted
             const pendingFit = new Set();        // Elements waiting for first measurable fit (small, iterable set)
             
-            // Resolve the autosize root container for an element
-            function resolveRootFor(el) {
-                if (!el || !el.isConnected) return null;
-                const inner = el.closest('.tab-content');
-                if (inner) return inner;
-                const main = el.closest('.main-tab-content');
-                if (main) return main;
-                return document.body;
-            }
-            
             // Check if element is measurable (visible in layout)
             function isMeasurable(el) {
                 if (!el || !el.isConnected) return false;
@@ -7267,25 +7767,6 @@
             return true;
         }
 
-        // Debounced autosize recalc after bbox canvas render; no-op if autosize toggle is OFF.
-        function triggerAutoSizeRecalc() {
-            if (typeof autoResizeEnabled === 'undefined' || !autoResizeEnabled) return;
-            if (window.__autosizeRecalcScheduled) return;
-            window.__autosizeRecalcScheduled = true;
-            requestAnimationFrame(function () {
-                requestAnimationFrame(function () {
-                    window.__autosizeRecalcScheduled = false;
-                    if (typeof autoResizeEnabled !== 'undefined' && !autoResizeEnabled) return;
-                    if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.finalizeSpawn) {
-                        var activeRoot = resolveActivePanelRoot();
-                        if (activeRoot) AutoSizeManager.finalizeSpawn(activeRoot);
-                        var fpContent = document.getElementById('final-preview-content');
-                        if (fpContent) AutoSizeManager.finalizeSpawn(fpContent);
-                    }
-                });
-            });
-        }
-
         function showTab(tabName) {
             // Get the universal scroller (single source of truth)
             const scroller = getInputFormScroller();
@@ -7501,12 +7982,6 @@
             var fp = doc.fingerprint || (doc._pdfInfo && doc._pdfInfo.fingerprint) || (doc.transport && doc.transport._params && doc.transport._params.fingerprint);
             return String(key) + ':pdf:' + (fp != null && fp !== '' ? String(fp) : 'pages-' + (doc.numPages || 0));
         }
-        function getActivePdfSig() {
-            var doc = getActiveBboxPdfDoc();
-            if (!doc) return 'nopdf';
-            var fp = doc.fingerprint || (doc._pdfInfo && doc._pdfInfo.fingerprint) || (doc.transport && doc.transport._params && doc.transport._params.fingerprint);
-            return 'pdf:' + (fp != null && fp !== '' ? String(fp) : 'pages-' + (doc.numPages || 0));
-        }
         function getCombinedPdfSig() {
             return getPdfSigForKey('text') + '|' + getPdfSigForKey('guide');
         }
@@ -7533,11 +8008,6 @@
         function resolveBboxForFinalPreviewKey(key) {
             if (!key || !window.__fpBboxMap || !window.__fpBboxMap[key]) return null;
             return window.__fpBboxMap[key];
-        }
-        // Resolve bbox record from placeholder element (uses data-fp-key)
-        function resolveBboxForFinalPreviewPlaceholder(el) {
-            const key = el && el.getAttribute && el.getAttribute('data-fp-key');
-            return resolveBboxForFinalPreviewKey(key);
         }
         // Build bbox map from form state (instructional_content[].images, practice_questions[].question_images / guide_answer_images)
         function buildFpBboxMapFromState(state) {
@@ -7849,8 +8319,6 @@
             if (first.classList && first.classList.contains('image-description-math')) return null;
             return first;
         }
-        function getFpPlaceholderInnerBox(container) { return getPlaceholderInnerBox(container); }
-
         // Hard restore one placeholder to dashed box (no key needed). Clears canvas and restores original HTML.
         function restorePlaceholderContainer(container) {
             var innerBox = getPlaceholderInnerBox(container);
@@ -7862,27 +8330,6 @@
             container.classList.remove('has-bbox-preview');
             var ro = getFpResizeObserver();
             if (ro && typeof __fpBoxResizeMap !== 'undefined' && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
-        }
-
-        // Restore placeholders in this root whose key is missing/invalid in __fpBboxMap (targeted reconciliation).
-        function reconcileMissingBboxesInRoot(rootEl, fitReason) {
-            if (!rootEl || !rootEl.querySelectorAll) return;
-            if (typeof ensureFpFormStateAndBboxMap === 'function') ensureFpFormStateAndBboxMap();
-            var placeholders = rootEl.querySelectorAll('.image-placeholder-container[data-fp-key]');
-            for (var i = 0; i < placeholders.length; i++) {
-                var container = placeholders[i];
-                var key = container.getAttribute && container.getAttribute('data-fp-key');
-                if (!key) continue;
-                var raw = window.__fpBboxMap && window.__fpBboxMap[key] ? window.__fpBboxMap[key] : null;
-                var bboxRecord = normalizeBboxRecord(raw);
-                var valid = bboxRecord != null && isValidBboxRecord(bboxRecord);
-                var pdfDoc = getPdfDocForBboxKey(key);
-                if (!pdfDoc || !valid) {
-                    if (typeof restorePlaceholderContainer === 'function') restorePlaceholderContainer(container);
-                }
-            }
-            rootEl.__renderVersion = (rootEl.__renderVersion || 0) + 1;
-            if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.scheduleFit) AutoSizeManager.scheduleFit(rootEl, fitReason || 'reconcileMissing');
         }
 
         // Shared: render bbox crop into inner box (size-aware, waits for layout). Same crop logic, scaled to box.
@@ -8492,26 +8939,6 @@
                     window.__bboxPdfReadyScheduled = false;
                 }
             }, interval);
-        }
-
-        // Debounced refresh of all bbox previews when bbox inputs or order change. Single pending flush. Retag first so keys match current order.
-        var __bboxRefreshTimeout = null;
-        function scheduleBboxRefresh() {
-            if (__bboxRefreshTimeout) clearTimeout(__bboxRefreshTimeout);
-            __bboxRefreshTimeout = setTimeout(function () {
-                __bboxRefreshTimeout = null;
-                window.__previewDirtyVersion = (window.__previewDirtyVersion || 0) + 1;
-                ensureFpFormStateAndBboxMap();
-                document.querySelectorAll('.live-preview').forEach(function (el) {
-                    retagPreviewPlaceholdersUnder(el);
-                    applyBboxesToPreviewRoot(el);
-                });
-                var fpContent = document.getElementById('final-preview-content');
-                if (fpContent) {
-                    retagPreviewPlaceholdersUnder(fpContent);
-                    applyBboxesToPreviewRoot(fpContent);
-                }
-            }, 150);
         }
 
         // One-time: attach delegated listener and MutationObserver for bbox UI changes.
@@ -15678,20 +16105,37 @@
             };
         }
 
-        // Split markdown ordered list line into syntax-critical parts and body.
-        // Ordered nesting rule: 4 spaces OR 2 tabs per level.
-        function splitOrderedListIndentAndBody(line) {
+        // Ordered marker must be either multi-digit numeric (10.) or single character (a., ب.).
+        function isValidOrderedListMarker(markerRaw) {
+            if (typeof markerRaw !== 'string' || !markerRaw) return false;
+            return /^(?:\d+|[^\s.])\.$/.test(markerRaw);
+        }
+
+        // Parse ordered list line parts with optional leading-indentation requirement.
+        function parseOrderedListLineParts(line, requireLeadingIndent = false) {
             if (typeof line !== 'string') return null;
-            const match = line.match(/^([ \t]*)([^\s.]+\.)([ \t]+|$)([\s\S]*)$/);
+            const regex = requireLeadingIndent
+                ? /^([ \t]+)(\S+\.)([ \t]+|$)([\s\S]*)$/
+                : /^([ \t]*)(\S+\.)([ \t]+|$)([\s\S]*)$/;
+            const match = line.match(regex);
             if (!match) return null;
-            const indentRaw = match[1] || '';
-            if (!isValidListIndent(indentRaw, 4, 2)) return null;
+            const markerRaw = match[2] || '';
+            if (!isValidOrderedListMarker(markerRaw)) return null;
             return {
-                indentRaw: indentRaw,
-                markerRaw: match[2] || '',
+                indentRaw: match[1] || '',
+                markerRaw: markerRaw,
                 separatorRaw: match[3] || '',
                 bodyRaw: match[4] || ''
             };
+        }
+
+        // Split markdown ordered list line into syntax-critical parts and body.
+        // Ordered nesting rule: 4 spaces OR 2 tabs per level.
+        function splitOrderedListIndentAndBody(line) {
+            const parts = parseOrderedListLineParts(line, false);
+            if (!parts) return null;
+            if (!isValidListIndent(parts.indentRaw, 4, 2)) return null;
+            return parts;
         }
 
         // Split markdown list line (bullet or ordered) using type-specific indentation rules.
@@ -15702,13 +16146,6 @@
         // Check if a line is a markdown list item (bullet or ordered) with valid indentation
         function isMarkdownListLine(line) {
             return !!splitListIndentAndBody(line);
-        }
-
-        // Check if a markdown list line has marker only (no item body)
-        function isMarkdownListMarkerOnlyLine(line) {
-            const parts = splitListIndentAndBody(line);
-            if (!parts) return false;
-            return (parts.bodyRaw || '').trim() === '';
         }
 
         // Render ordered list markers literally as written in input (e.g., 123., abc., أبت.)
@@ -15743,7 +16180,14 @@
                     : Math.floor(indentRaw.length / 4);
                 const marker = parts.markerRaw || '';
                 const bodyRaw = parts.bodyRaw || '';
-                const body = bodyRaw.length > 0 ? bodyRaw : '\u200B';
+                const bodyWithoutZeroWidth = bodyRaw.replace(/\u200B/g, '');
+                const hasMeaningfulBody = bodyWithoutZeroWidth.trim().length > 0;
+                const hasNormalizedPlaceholder = bodyRaw.includes('\u200B');
+                if (!hasMeaningfulBody && !hasNormalizedPlaceholder) {
+                    out.push(line);
+                    continue;
+                }
+                const body = hasMeaningfulBody ? bodyRaw : '\u200B';
                 out.push(`<div class="ordered-literal-item" style="padding-inline-start: ${level * 24}px;"><span class="ordered-literal-marker">${marker}</span> ${body}</div>`);
             }
 
@@ -17934,134 +18378,6 @@
             return duplicates;
         }
 
-        // Validate that tables have matching image bbox entries
-        function validateTableImageReferences(jsonData) {
-            const errors = [];
-            
-            // Check for tables in content sections
-            if (jsonData.instructional_content) {
-                jsonData.instructional_content.forEach((content, index) => {
-                    
-                    if (content.text && content.text.includes('|')) {
-                        const tableImageIndices = extractTableImageIndices(content.text);
-                        
-                        const contentImageIndices = new Set();
-                        
-                        // Get image indices from this content section's image bboxes
-                        if (content.images && content.images.length > 0) {
-                            content.images.forEach(bbox => {
-                                contentImageIndices.add(bbox.page.toString());
-                            });
-                        }
-                        
-                        
-                        // Check if table images match content section images (by array index)
-                        tableImageIndices.forEach(imgIndex => {
-                            const arrayIndex = parseInt(imgIndex);
-                            
-                            if (arrayIndex < 0 || arrayIndex >= content.images.length) {
-                                // Check if there are any image bboxes in this section
-                                if (content.images.length === 0) {
-                                    errors.push(ErrorMessages.missingTableImageContent(index, imgIndex));
-                                } else {
-                                    errors.push(ErrorMessages.outOfRangeContent(index, imgIndex, content.images.length - 1));
-                                }
-                            }
-                        });
-                    }
-                });
-            }
-            
-            // Check for tables in questions
-            if (jsonData.practice_questions) {
-                jsonData.practice_questions.forEach((question, qIndex) => {
-                    const questionText = question.question_text || '';
-                    const guideAnswer = question.guide_answer || '';
-                    const setupText = question.set_up_text || '';
-                    const questionType = question.question_type || 'free_form';
-                    const choices = question.choices || [];
-                    
-                                            // Check for duplicate indices within each image array separately
-                        
-                        // Setup text and question text share question_images array
-                        const sharedQuestionIndices = [];
-                        if (questionText.includes('|')) {
-                            sharedQuestionIndices.push(...extractTableImageIndices(questionText));
-                        }
-                        if (setupText.includes('|')) {
-                            sharedQuestionIndices.push(...extractTableImageIndices(setupText));
-                        }
-                        
-                        // NOTE: Duplicate checking removed - handled by validateImageConsistency()
-                        
-                    // For MCQ: Check choices for table image references (choices share question_images)
-                    // For free_form: Check guide answer for table image references
-                    if ((questionType === 'multiple_choice' || questionType === 'checkbox') && choices.length > 0) {
-                        // Choices share question_images with setup and question text
-                        // Collect choice table indices and combine with setup/question indices
-                        const allChoiceTableIndices = [];
-                        choices.forEach((choice, choiceIndex) => {
-                            const choiceText = choice.text || '';
-                            if (choiceText.includes('|')) {
-                                const choiceTableIndices = extractTableImageIndices(choiceText);
-                                allChoiceTableIndices.push(...choiceTableIndices);
-                            }
-                        });
-                        
-                        // Combine with setup and question text indices
-                        const combinedQuestionIndices = [...sharedQuestionIndices, ...allChoiceTableIndices];
-                        
-                        // NOTE: Duplicate checking removed - handled by validateImageConsistency()
-                        
-                        // Validate choice table indices against question_images array
-                        allChoiceTableIndices.forEach(imgIndex => {
-                            const arrayIndex = parseInt(imgIndex);
-                            if (arrayIndex < 0 || arrayIndex >= question.question_images.length) {
-                                if (question.question_images.length === 0) {
-                                    errors.push(ErrorMessages.missingImageChoice(qIndex, imgIndex));
-                                } else {
-                                    errors.push(ErrorMessages.outOfRangeQuestion(qIndex, imgIndex, question.question_images.length - 1, true));
-                                }
-                            }
-                        });
-                    } else {
-                        // Free form: Guide answer has its own guide_answer_images array
-                        if (guideAnswer.includes('|')) {
-                            const guideAnswerIndices = extractTableImageIndices(guideAnswer);
-                            
-                            // NOTE: Duplicate checking removed - handled by validateImageConsistency()
-                            
-                            // Validate guide answer table indices
-                            guideAnswerIndices.forEach(imgIndex => {
-                                const arrayIndex = parseInt(imgIndex);
-                                if (arrayIndex < 0 || arrayIndex >= question.guide_answer_images.length) {
-                                    if (question.guide_answer_images.length === 0) {
-                                        errors.push(ErrorMessages.missingTableImageAnswer(qIndex, imgIndex));
-                                    } else {
-                                        errors.push(ErrorMessages.outOfRangeAnswer(qIndex, imgIndex, question.guide_answer_images.length - 1));
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    
-                    // Validate indices against their respective arrays
-                    sharedQuestionIndices.forEach(imgIndex => {
-                        const arrayIndex = parseInt(imgIndex);
-                        if (arrayIndex < 0 || arrayIndex >= question.question_images.length) {
-                            if (question.question_images.length === 0) {
-                                errors.push(ErrorMessages.missingTableImageQuestion(qIndex, imgIndex));
-                            } else {
-                                errors.push(ErrorMessages.outOfRangeQuestion(qIndex, imgIndex, question.question_images.length - 1, false));
-                            }
-                        }
-                    });
-                });
-            }
-            
-            return errors;
-        }
-
         // Validate that image references in text have corresponding image bboxes
         function validateImageReferences(jsonData) {
             const errors = [];
@@ -19210,44 +19526,6 @@
             return sectionEl;
         }
         
-        /**
-         * Sanity check: serialize -> deserialize -> serialize should be equivalent
-         * Dev-only function for testing copy/paste correctness
-         */
-        function verifySerializeDeserializeRoundTrip(sectionEl) {
-            if (typeof console === 'undefined' || !console.assert) return;
-            
-            try {
-                const original = serializeSection(sectionEl);
-                const deserialized = deserializeSection(original, {
-                    container: document.createElement('div'),
-                    insertBefore: null,
-                    isReplacement: false,
-                    targetEl: null
-                });
-                const reSerialized = serializeSection(deserialized);
-                
-                // Compare key fields (deep equality check would be better but this is a quick sanity check)
-                const fieldsMatch = 
-                    original.type === reSerialized.type &&
-                    original.data.id === reSerialized.data.id &&
-                    original.data.question_type === reSerialized.data.question_type &&
-                    original.data.question_text === reSerialized.data.question_text;
-                
-                if (!fieldsMatch) {
-                    console.warn('Serialize/deserialize round trip mismatch:', {
-                        original,
-                        reSerialized
-                    });
-                }
-                
-                return fieldsMatch;
-            } catch (e) {
-                console.error('Serialize/deserialize round trip error:', e);
-                return false;
-            }
-        }
-
         // ========== CATEGORY 8: BBOX DATA COLLECTION CONSOLIDATION ==========
 
         /**
@@ -19560,16 +19838,6 @@
         // ========== END CATEGORY 9 REFACTORING ==========
 
         // ========== CATEGORY 9.5: TABLE VALIDATION HELPERS ==========
-        
-        /**
-         * Check if text contains a valid markdown table
-         * @param {string} text - The text to check
-         * @returns {boolean} True if text contains a valid markdown table
-         */
-        function containsValidTable(text) {
-            const result = validateTableMarkdown(text);
-            return result.valid && result.hasTables;
-        }
         
         /**
          * Remove math expressions from text to avoid detecting special characters inside them
@@ -19951,9 +20219,9 @@
                 }
             }
 
-            const orderedMatch = raw.match(/^([ \t]+)([^\s.]+\.)([ \t]+|$)([\s\S]*)$/);
-            if (orderedMatch) {
-                const indentRaw = orderedMatch[1] || '';
+            const orderedParts = parseOrderedListLineParts(raw, true);
+            if (orderedParts) {
+                const indentRaw = orderedParts.indentRaw || '';
                 if (!isValidListIndent(indentRaw, 4, 2)) {
                     const hasSpaces = indentRaw.includes(' ');
                     const hasTabs = indentRaw.includes('\t');
@@ -20003,9 +20271,12 @@
                                 outLine = `${match[1]}${match[2]} \u200B`;
                             }
                         } else if (info.type === 'numbered') {
-                            const match = String(line).match(/^(\s*)(\d+)\.\s*$/);
-                            if (match) {
-                                outLine = `${match[1]}${match[2]}. \u200B`;
+                            const parts = splitOrderedListIndentAndBody(String(line));
+                            if (parts) {
+                                const separator = (parts.separatorRaw || '').includes('\t') || (parts.separatorRaw || '').includes(' ')
+                                    ? parts.separatorRaw
+                                    : ' ';
+                                outLine = `${parts.indentRaw}${parts.markerRaw}${separator}\u200B`;
                             }
                         }
                     }
@@ -26251,8 +26522,7 @@
                 observer.observe(terminologyObserverTarget, { childList: true, subtree: true });
             }
             
-            // Build and render What's New from input data
-            initializeWhatsNewReleases();
+            // Build and render What's New from canonical release data
             renderWhatsNewModalBody(WHATS_NEW_RELEASES);
 
             // Check if we should auto-open What's New modal for new version
@@ -28027,25 +28297,6 @@
             state.userNavigatedAway = false;
         }
 
-        function toggleAutoSync(enabled) {
-            window.__mainPdfViewer.autoSyncEnabled = enabled;
-            
-            // Update UI
-            const statusEl = document.getElementById('auto-nav-status');
-            const toggleBtn = document.getElementById('auto-nav-toggle');
-            if (statusEl) {
-                statusEl.textContent = enabled ? 'Auto Nav: ON' : 'Auto Nav: OFF';
-            }
-            if (toggleBtn) {
-                toggleBtn.style.backgroundColor = enabled ? '#28a745' : '';
-                toggleBtn.style.color = enabled ? 'white' : '';
-            }
-            
-            if (enabled) {
-                navigateToContextPage();
-            }
-        }
-
         // Helper function to determine if a field is guide-related
         function isGuideRelatedField(element) {
             if (!element) return false;
@@ -28312,53 +28563,6 @@
             }, true);
         }
 
-        function attachPdfKeyboardShortcuts() {
-            document.addEventListener('keydown', (e) => {
-                // Only handle shortcuts when PDF viewer is visible
-                if (!window.__mainPdfViewer.visible) return;
-                
-                // Check if input/textarea is focused (don't interfere with typing)
-                const activeTag = document.activeElement.tagName.toLowerCase();
-                if (activeTag === 'input' || activeTag === 'textarea') {
-                    // Allow shortcuts only with modifiers
-                    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-                        return;
-                    }
-                }
-                
-                // Page navigation
-                if (e.key === 'ArrowLeft' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    navigateMainPdf('prev');
-                } else if (e.key === 'ArrowRight' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    navigateMainPdf('next');
-                }
-                
-                // Zoom
-                if (e.key === '+' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    zoomMainPdf('in');
-                } else if (e.key === '-' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    zoomMainPdf('out');
-                } else if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    zoomMainPdf('reset');
-                }
-                
-                // Toggle PDF/JSON (Alt+P or Cmd/Ctrl+P)
-                if ((e.key === 'p' || e.key === 'P') && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault();
-                    if (window.__mainPdfViewer.visible) {
-                        showJsonPreview();
-                    } else {
-                        showPdfViewer();
-                    }
-                }
-            });
-        }
-
         // This function is no longer needed - we read directly from window.__bboxStore
         // Keeping empty function for backward compatibility in case it's called elsewhere
         function syncPdfToMainViewer(source, pdfDoc) {
@@ -28379,15 +28583,10 @@
             return WHATS_NEW_RELEASES[0].version || DISPLAY_VERSION;
         }
 
-        function initializeWhatsNewReleases() {
-            // Releases are now fully hardcoded in WHATS_NEW_RELEASES.
-            // Keep this hook for compatibility with existing initialization flow.
-        }
-
         function renderWhatsNewReleaseBlock(release, isCurrent) {
             const versionBadgeHtml = isCurrent
                 ? `<span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number">${release.version || ''}</span></span><span class="whats-new-version-badge">Current Version</span>`
-                : `<span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version ${release.version || ''}</span><span class="whats-new-version-badge">Previous Version</span>`;
+                : `<span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version ${release.version || ''}</span>`;
 
             const sectionsHtml = (release.sections || []).map((section) => {
                 const wrapStyleAttr = section.wrapStyle ? ` style="${section.wrapStyle}"` : '';
@@ -28402,26 +28601,18 @@
             const modalBody = document.querySelector('#whats-new-modal .whats-new-modal-body');
             if (!modalBody) return;
 
-            const footer = modalBody.querySelector('.whats-new-modal-footer');
             const existingContainer = document.getElementById('whats-new-releases-container');
             if (existingContainer) {
                 existingContainer.remove();
             }
 
+            const footer = modalBody.querySelector('.whats-new-modal-footer');
             const container = document.createElement('div');
             container.id = 'whats-new-releases-container';
 
             container.innerHTML = (releases || []).map((release, index) =>
                 renderWhatsNewReleaseBlock(release, index === 0)
             ).join('');
-
-            const firstLegacyReleaseBlock = Array.from(modalBody.children).find((el) =>
-                el.tagName === 'DIV' && (el.getAttribute('style') || '').includes('margin-bottom: 40px;')
-            );
-            if (firstLegacyReleaseBlock) {
-                modalBody.insertBefore(container, firstLegacyReleaseBlock);
-                return;
-            }
             if (footer) {
                 modalBody.insertBefore(container, footer);
                 return;
@@ -28503,586 +28694,8 @@
             
             <!-- Content -->
             <div class="whats-new-modal-body">
-                <!-- Version (dynamically set) -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number"></span></span>
-                        <span class="whats-new-version-badge">Current Version</span>
-                    </div>
+                <!-- Releases are rendered dynamically from WHATS_NEW_RELEASES -->
 
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Nested list indentation rules + examples:</strong> Markdown preview now supports nested lists with type-specific indentation rules in the shared renderer.
-                                <div style="margin-top: 8px;">
-                                    <strong>Bullets:</strong> use <code>2 spaces</code> or <code>1 tab</code> per level.
-                                    <div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;">
-                                        <div style="flex: 1; min-width: 220px;">
-                                            <div style="font-weight: 600; margin-bottom: 4px;">Input</div>
-                                            <code style="display:block; white-space:pre-wrap;">* hi
-  * hihi
-    * hihihi</code>
-                                        </div>
-                                        <div style="flex: 1; min-width: 220px;">
-                                            <div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div>
-                                            <code style="display:block; white-space:pre-wrap;">• hi
-  ◦ hihi
-    ▪ hihihi</code>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="margin-top: 8px;">
-                                    <strong>Ordered:</strong> use <code>4 spaces</code> or <code>2 tabs</code> per level.
-                                    <div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;">
-                                        <div style="flex: 1; min-width: 220px;">
-                                            <div style="font-weight: 600; margin-bottom: 4px;">Input</div>
-                                            <code style="display:block; white-space:pre-wrap;">1. one
-    1. one-one
-        1. one-one-one</code>
-                                        </div>
-                                        <div style="flex: 1; min-width: 220px;">
-                                            <div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div>
-                                            <code style="display:block; white-space:pre-wrap;">1. one
-    1. one-one
-        1. one-one-one</code>
-                                        </div>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Trailing Spaces Indicator no longer breaks markdown tables:</strong> Fixed an issue where enabling the Trailing Spaces Indicator could break table rendering when rows had extra spaces (especially separator rows). Tables now render correctly in both live preview and final preview.</li>
-                            <li><strong>Trailing space highlights now work inside table cells:</strong> Fixed an issue where table indicators disappeared after the table-rendering fix. The tool now shows trailing/leading/consecutive space indicators inside table cell content while keeping table syntax safe.</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Version 7.5 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.5</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Auto-navigation prefers Guide PDF Page:</strong> When focusing on the Guide PDF Page field or other guide-related fields (Guide Answer, choices, blanks, relationships) in the Questions tab, the PDF viewer now navigates to the page specified in that question's Guide PDF Page field when available, instead of defaulting to the Guidebook PDF Pages (Start - End) range. Falls back to the guidebook range when the field is empty or not available.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Dark mode highlight for pen edit button:</strong> Fixed the highlight shown when clicking the edit pen in the Final Preview tab, it now uses a clear accent color instead of yellowish in dark mode.</li>
-                            <li><strong>Dark mode highlight for Quick Jump:</strong> Fixed the highlight shown when using the Quick Jump menu, it now uses a clear accent color instead of yellowish in dark mode.</li>
-                            <li><strong>Search result navigation from Final Preview:</strong> Fixed an issue where clicking a search result while on the Final Preview tab did nothing. It now correctly switches to the Input Form tab and navigates to the matching element.</li>
-                            <li><strong>Preview overflow when auto-resize is off:</strong> Fixed an issue where preview output fields would overflow and show content outside their box when the auto-resize toggle was turned off and new content was added. Preview boxes now correctly grow with content in that case.</li>
-                            <li><strong>Auto-resize on tab switch:</strong> Fixed an issue where turning auto-resize ON and then switching to another tab (Content, Questions, Lesson Preamble) left input fields not resized until edited. Now all tabs' fields are registered when the toggle is turned on, so they resize correctly when you switch to them.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 7.4 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.4</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Question Text Requirement (warning only):</strong> Some questions have no question text, so the question text field is not required anymore in the tool. This is your responsibility to check and fill in the question text if it is missing. The tool will only give you a warning if the question text is empty.</li>
-                            <li><strong>Optional guidebook-related fields:</strong> Some tasks will be missing the guidebook pages, and the guidance is to leave the related fields empty. So, the following fields will not flag an error if you leave them empty anymore, but it is your responsibility to leave them empty if the task does not have a guidebook or fill them in if the task has a guidebook. The fields are: Guidebook PDF Pages (Start - End), Guide PDF Page, Guide Answer, Correct Answer Position (Multiple Choice), Correct Answers Summary (Checkbox), and Fill-in-the-blanks answer fields.</li>
-                            <li><strong>Multiple Choice "Clear Selection":</strong> A "Clear Selection" button lets you clear the selected correct answer.</li>
-                            <li><strong>Forbidden LaTeX commands validated:</strong> The tool now flags <code>\neq</code> and <code>\nearrow</code>.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Output preview overflow with Auto-Resize:</strong> Changing font size or line height no longer leaves image/bbox preview boxes stuck at the old height; typography changes now trigger correct re-measure and resize.</li>
-                            <li><strong>Bbox preview refresh on either PDF change:</strong> Image placeholder and bbox previews now refresh when either the Textbook or Guidebook PDF is changed, not only when the textbook changes.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Note -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-info-circle" style="color: #17a2b8;"></i> We need your help
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li>We are currently looking into reported lagging issues. If you experience lag, please send <strong>videos of the issue happening</strong> in addition to your JSON files so we can investigate. For now, you can disable the auto resize feature from the top right corner of the page to minimize the lag.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 7.3 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.3</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Save and auto-save always persist:</strong> Manual save and auto-save now always write your draft to storage, even when there are validation errors or warnings. No alerts or warnings are shown during save. Validation still runs when you use "Generate JSON"—only generation is blocked by errors.</li>
-                            <li><strong>Question ID validation is disabled:</strong> Question ID validation is disabled now, you can use the same question ID multiple times.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 7.2 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.2</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Layout refresh after font changes:</strong> When you change fonts, input fields and preview boxes automatically re-measure and resize to fit their content correctly.</li>
-                            <li><strong>Browser zoom and input sizing:</strong> Input textareas now automatically re-measure and resize when browser zoom changes, eliminating clipping and wrong heights.</li>
-                            <li><strong>HTML List Tags Blocked:</strong> Raw HTML list tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) are no longer allowed. Use markdown bullets (<code>- </code> or <code>* </code>) instead. A validation error appears below the textarea if you use HTML list tags.</li>
-                            <li><strong>Image description width:</strong> The text under preview images now always uses the full width of the preview, whether an image is shown or only a placeholder.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Font settings as UI preferences:</strong> Changing font size, line height, or text direction (RTL/LTR) no longer triggers autosave, "unsaved changes," or undo/redo.</li>
-                            <li><strong>Unified typography and Final Preview:</strong> Fixed typography so input form, preview boxes, and Final Preview share the same font styling via CSS variables. Final Preview now matches the input form exactly (no more wrong sizes or divergent rendering).</li>
-                            <li><strong>Bullet list + image preview:</strong> Fixed an issue where bullet lists followed by images could display as raw HTML tags (<code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>) instead of a properly rendered list. Markdown lists now always render correctly regardless of image placement.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 7.1 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.1</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Image placeholders:</strong> Instead of image placeholders, we now use the actual boxed images in the preview.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Performance:</strong> Editing stays smooth even with a large number of content sections and questions.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Search dropdown overlay:</strong> Search results now appear below the search field as an overlay instead of being trapped inside the header.</li>
-                            <li><strong>Scroll to top:</strong> The scroll-to-top button now scrolls the correct panel (Input form or Final Preview) to the top. It does nothing when you are on the PDF or JSON view.</li>
-                            <li><strong>Undo and redo:</strong> Undo and redo now update the Final Preview correctly and trigger auto-save like other edits.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 7.0 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 7.0</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    <ul class="whats-new-modal-list">
-                        <li>A lot of improvements have been made.</li>
-                    </ul>
-                </div>
-                
-                <!-- Version 6.9 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.9</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Extra Spaces and Empty Lines Indicator:</strong> A toggle in the header helps you spot leading spaces, trailing spaces, consecutive spaces, and empty lines. When enabled, preview boxes show a warning badge and highlight where problems are. Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.</li>
-                            <li><strong>Basic Info and Lesson Preamble in Final Preview:</strong> The Final Preview tab now displays Basic Info and Lesson Preamble sections before Content and Questions. Basic Info shows textbook and PDF page numbers, guidebook range, and page type. Lesson Preamble shows lesson ID, title, standards, terminology, and lesson text with markdown and edit buttons.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Fixed LaTeX Array Alignment:</strong> Fixed an issue where LaTeX arrays were always center-aligned regardless of the alignment specifier (like <code>\begin{array}{r}</code> for right alignment or <code>\begin{array}{l}</code> for left alignment). Arrays now correctly respect their alignment settings (<code>r</code>, <code>l</code>, or <code>c</code>) in all preview outputs.</li>
-                            <li><strong>Fixed Arabic Text Direction in LaTeX:</strong> Fixed an issue where mixed Arabic and English text within LaTeX <code>\text{}</code> commands was not displaying with the correct text direction. Arabic text now flows right-to-left and English text flows left-to-right correctly, preserving the source order of elements in the LaTeX expression.</li>
-                            <li><strong>Fixed Font Size Reset on JSON Load:</strong> Fixed an issue where loading a JSON file using the Load button would reset the font size in the input form to the default value instead of preserving the user's previously selected font size setting. Now, when you load a JSON file, your saved font size preference is automatically restored and applied to all form elements.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.8 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.8</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Increased Maximum Zoom:</strong> The maximum zoom level has been increased to 8x (800%) for both the bounding box drawing modal and the PDF viewer. This allows for much more detailed work when drawing bounding boxes or examining PDF pages at high magnification.</li>
-                            <li><strong>Zoom Indicator in Bounding Box Modal:</strong> A zoom percentage display has been added to the bounding box drawing modal, matching the functionality in the main PDF viewer. You can now see the current zoom level at a glance while drawing bounding boxes.</li>
-                            <li><strong>Optimized Layout for Better Space Usage:</strong> The UI has been enhanced to make better use of available screen space. Both the left and right columns now utilize the full vertical and horizontal real estate, adapting responsively to different zoom levels and screen sizes. This makes the interface more efficient and provides more room for your work.</li>
-                            <li><strong>Expanded Font Size Options:</strong> Additional larger font sizes have been added to the font size selector. You can now choose from sizes up to 48px, giving you more flexibility to customize the text size for better readability.</li>
-                            <li><strong>Font Size Persistence:</strong> The tool now remembers and automatically applies your last selected font size when you reload or refresh the page. Your font size preference is saved and restored automatically, so you don't have to adjust it every time.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Fixed Collapsed Section Navigation:</strong> Fixed an issue where clicking an edit button in the Final Preview tab to navigate to a collapsed section would not automatically expand that section. Now, when you click an edit button, the target section will automatically uncollapse so you can see and edit the field immediately.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.7 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.7</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Final Preview Tab:</strong> A new "Final Preview" tab provides a comprehensive preview of all your content sections and questions in one place. This consolidated view shows everything exactly as it will appear in the final output, making it easy to review your work. Each preview box includes an edit button that takes you directly to the corresponding input field for quick editing.</li>
-                            <li><strong>Collapsible Sections:</strong> You can now collapse and expand content and question sections to manage your workspace more easily. Click the <i class="fas fa-chevron-down"></i> button in the section header to hide or show its content. The button rotates when collapsed to indicate its state.</li>
-                            <li><strong>Image Description Text Direction:</strong> All image descriptions in the preview now always display from left to right, regardless of the preview's text direction setting. This ensures consistent and readable image descriptions for all users.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.6 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.6</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Smart Bbox Zoom & Centering:</strong> When you press the Draw button for a bounding box that already has coordinates, the PDF viewer now automatically zooms to show the entire bounding box clearly and centers it in the middle of the screen. The zoom level is calculated to fit the bbox with optimal padding, making it easy to see and edit existing bounding boxes. This saves time when reviewing or adjusting previously drawn boxes.</li>
-                            <li><strong>Form-Level Undo/Redo Buttons:</strong> New undo and redo buttons at the top of the page let you reverse or redo actions throughout the form. These buttons affect structural changes like adding or removing sections, questions, terminology, choices, matching items, bounding boxes, and images. They can save your work if you accidentally remove a section or even if you clear the entire form using the "Clear Form" button or load a JSON file. <strong>Important:</strong> This is completely different from the undo/redo buttons in each text field (which only affect markdown formatting operations like bold, italic, lists, etc.). The form-level undo/redo buttons work independently and track all major form actions, giving you a safety net for your work.</li>
-                            <li><strong>Smart Search:</strong> Find anything instantly across all your content sections and questions. As you type, a dropdown shows matching results with a preview of the text and highlights your search term. Each result clearly shows whether it's a section title, content text, question answer, choice, or other field. Click any result to jump directly to it, or use arrow keys to navigate. The search bar shows how many results were found and keeps your search term so you can easily check multiple matches.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.5 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.5</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffd700;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Auto-Save:</strong> Your work is now automatically saved as you edit! The form saves your changes automatically after you finish editing a field, so you won't lose your progress. You'll see "Saving..." and "All saved" indicators to track the save status.</li>
-                            <li><strong>Blockquote Formatting Button:</strong> A new blockquote button in the markdown toolbar makes it easy to format quotes. Select your text and click the quote button, or click it on an empty line to start typing a quote.</li>
-                            <li><strong>Blockquote Format Validation:</strong> The form now checks that blockquotes use the correct format (one space after the ">" character). This ensures your quotes are properly formatted and prevents formatting issues when generating the final output.</li>
-                            <li><strong>Blank in LaTeX Validation:</strong> The tool now prevents you from writing blanks (<code>___1___</code>, <code>___2___</code>, etc.) inside LaTeX expressions. If you try to use a blank inside inline LaTeX (<code>$...$</code>) or block LaTeX (<code>$$\n...\n$$</code>), you'll see an error message and won't be able to save or generate the JSON until you move the blank outside the LaTeX expression.</li>
-                            <li><strong>LaTeX Always Reads Left-to-Right:</strong> Math formulas in the preview now always display from left to right, even when your text is set to right-to-left (RTL). This makes math expressions easier to read and ensures they display correctly regardless of the text direction you've chosen.</li>
-                            <li><strong>Reload Button & Reminder:</strong> A new reload button in the top bar lets you quickly refresh the page. The tool will also remind you to reload every few days to make sure you're using the latest version of the tool and getting all the newest features and improvements. This is especially important since the tool is updated regularly with new capabilities and bug fixes.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.4 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.4</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Smarter Table Validation:</strong> Table validation now correctly handles LaTeX expressions inside table cells. Pipes inside LaTeX formulas (like <code>$\cancel{||||}$</code>) are no longer counted as table delimiters, preventing false validation errors.</li>
-                            <li><strong>Improved Image Description Validation:</strong> Image description validation now correctly handles LaTeX commands. LaTeX commands like <code>\neq</code> or <code>\right(</code> that contain <code>\n</code> or <code>\r</code> are no longer flagged as errors. Block LaTeX (<code>$$\n...\n$$</code>) in image descriptions is now properly detected and blocked with a helpful error message suggesting to use inline LaTeX instead.</li>
-                            <li><strong>Fixed Direction Button Issue:</strong> Direction buttons (RTL/LTR) now work correctly even after validation errors appear. Previously, clicking the direction button after an error would not update the preview, but this has been fixed.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.3 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.3</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffc107;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Multi-Line Table Cells:</strong> You can now press Enter inside table cells to create line breaks. The preview will show your content on multiple lines within the same cell.</li>
-                            <li><strong>List Validation:</strong> The tool now reminds you to add an empty line after lists. If you forget, you'll see a helpful error message to fix it.</li>
-                            <li><strong>Blockquote Validation:</strong> The tool now reminds you to add an empty line after blockquotes. If you forget, you'll see a helpful error message to fix it.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Better Table Validation:</strong> Table validation is now smarter and won't show errors when you use line breaks inside cells.</li>
-                            <li><strong>Unified Error Display:</strong> All validation errors (tables, lists, blockquotes, LaTeX, images, quotes, and HTML tags) now appear in a consistent format and are displayed right after the input box for easier visibility.</li>
-                            <li><strong>Customizable Font Settings:</strong> You can now adjust font size and line height directly from the top bar. Your preferences are saved and apply to all text inputs and previews for both Arabic and English text.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.2 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.2</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Simplified PDF Upload:</strong> The two separate buttons "Upload Textbook PDF" and "Upload Guide PDF" in the JSON Preview tab have been combined into a single "Upload PDFs" button for a cleaner interface. You can still upload both types of PDFs from the modal.</li>
-                            <li><strong>Improved PDF Viewer Stability:</strong> The PDF viewer now stays exactly where you left it when using the Draw button or working with image fields. It won't change pages, zoom levels, or switch between books unexpectedly, making it much easier to work with multiple images without losing your place.</li>
-                            <li><strong>Better Performance:</strong> The tool now renders PDFs more efficiently, only updating the display when necessary for smoother interactions and faster response times.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.1 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.1</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffc107;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Markdown Toolbar:</strong> New formatting buttons (Bold, Italic, Bullet List, Numbered List, Inline LaTeX $, Block LaTeX $$) in all text fields let you quickly format text without typing markdown syntax. Select text and click a button, or click to insert formatting placeholders. Undo and Redo buttons let you reverse or reapply your last formatting operations.</li>
-                            <li><strong>Search/Filter:</strong> New search box in the top bar lets you quickly find content sections and questions by searching through titles, content text, question IDs, question text, and answers. Matching items are highlighted with a colored border.</li>
-                            <li><strong>Auto-Resize Toggle:</strong> New circular button (↕) in the top bar lets you control whether text boxes grow automatically as you type. Green = auto-resize on, red = off. Your preference is saved.</li>
-                            <li><strong>HTML Tag Validation:</strong> The tool now prevents using <code>&lt;br&gt;</code> tags in your content. You'll see a red error message if you try to use them, and you won't be able to save until they're removed.</li>
-                            <li><strong>Helpful Tooltips:</strong> All buttons and form fields now have tooltips that appear when you hover over them, making it easier to understand what each feature does.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Button Improvements:</strong> All buttons now have the same size for a cleaner look.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 6.0 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 6.0</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Bug Fixes & Improvements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Fixes & Improvements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>LaTeX in Image Descriptions:</strong> Fixed an issue where using math formulas in image descriptions (like <code>$\sqrt[3]{16}$</code>) was incorrectly flagged as an error. The tool now correctly recognizes LaTeX syntax in image descriptions.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 5.9 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 5.9</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffc107;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Extended Auto-Navigation:</strong> Auto-navigation now works for more fields including choices, blank answers, and relationships. The PDF automatically jumps to the correct page when you click these fields.</li>
-                            <li><strong>Guide PDF Page Validation:</strong> The tool now checks that guide page numbers are within the correct range. You'll get an error if the page number is outside the range, and you won't be able to save until it's fixed.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Smart Guidebook Navigation:</strong> The guidebook can now navigate to any page in the range, not just the start page. It stays on your current page if you're already in range.</li>
-                            <li><strong>Auto-Navigation Toggle:</strong> When auto-navigation is turned off, the PDF won't jump around when you type page numbers.</li>
-                            <li><strong>Answer Preview:</strong> The answer preview now displays math formulas the same way as the choice preview, and updates as you type.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 5.8 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 5.8</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- Bug Fixes & Improvements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Fixes & Improvements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Fill-in-the-Blanks Formatting:</strong> Fixed an issue where spaces between blanks were incorrectly flagged as errors.</li>
-                            <li><strong>Preview with Answers:</strong> The answer preview now displays math formulas correctly, matching the question preview.</li>
-                            <li><strong>Answer Position Direction:</strong> The direction buttons for answer position now work consistently with the choice text buttons.</li>
-                            <li><strong>Dark Mode Support:</strong> The What's New dialog now works properly in dark mode.</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Version 5.7 -->
-                <div style="margin-bottom: 40px;">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version 5.7</span>
-                        <span class="whats-new-version-badge">Previous Version</span>
-                    </div>
-                    
-                    <!-- New Features -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-star" style="color: #ffc107;"></i> New Features
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>What's New Modal:</strong> Stay informed about the latest updates and improvements with the new "What's New" button in the header. Click it anytime to see what's changed!</li>
-                            <li><strong>One-Click Duplicate:</strong> Quickly duplicate any content section, question, or image box by clicking the purple duplicate icon <i class="fas fa-clone" style="color: #6f42c1;"></i>. The duplicated section appears right below the original with all data intact.</li>
-                            <li><strong>Question ID Validation:</strong> The tool now checks for duplicate question IDs and warns you if you use the same ID twice.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Enhancements -->
-                    <div style="margin-bottom: 25px;">
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-arrow-up" style="color: #28a745;"></i> Enhancements
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Persistent Guide Answer:</strong> Your guide answer is now saved when you switch between question types.</li>
-                        </ul>
-                    </div>
-                    
-                    <!-- Bug Fixes -->
-                    <div>
-                        <h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-bug" style="color: #dc3545;"></i> Bug Fixes
-                        </h3>
-                        <ul class="whats-new-modal-list">
-                            <li><strong>Improved Table Detection:</strong> Fixed an issue where single pipe symbols or math notation were incorrectly flagged as table errors.</li>
-                        </ul>
-                    </div>
-                </div>
                 
                 <!-- Footer -->
                 <div class="whats-new-modal-footer">
@@ -29094,4 +28707,7 @@
 
 </body>
 </html>
+
+
+
 
