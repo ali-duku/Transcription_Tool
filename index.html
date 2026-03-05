@@ -13,23 +13,44 @@
         gtag('config', 'G-3DP5ZC653Y');
         
         // ===== VERSION CONFIGURATION =====
-        // DISPLAY_VERSION: The version shown in the UI (header and What's New modal)
-        // Update this when you want to change what version is displayed to users
-        const DISPLAY_VERSION = '7.9.1';
-        
-        // CURRENT_VERSION: Internal version number that triggers the What's New modal
-        // Update this when you release a new version to trigger:
-        //   - Auto-open of What's New modal (only if user hasn't seen this version)
+        // APP_VERSION: Single canonical version used for:
+        //   - Header/UI display
+        //   - What's New modal auto-open checks
         //   - Version reload checks
-        // This can be different from DISPLAY_VERSION (e.g., use "6.6.1" for minor updates)
-        // Example: Change '6.8' to '6.9' when releasing version 6.9
-        const CURRENT_VERSION = '7.9.1';
+        const APP_VERSION = '7.9.2';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
 
+            {
+                version: '7.9.2',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Cleaner matching preview:</strong> In Final Preview, matching question items now appear as clear left and right lists with labels (L1, R1, etc.), so they are easier to scan.',
+                            '<strong>Better Final Preview section order:</strong> Lesson Preamble now stays directly after Basic Info, so the page always reads in the expected order.',
+                            '<strong>Quick Jump now includes Final Preview:</strong> You can now jump directly to the Final Preview tab from the Quick Jump menu.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Matching relationships now show right away after load:</strong> Final Preview now shows saved matching relationships immediately after loading your file, without needing to open the Questions tab first.'
+                        ]
+                    }
+                ]
+            },
 
             {
                 version: '7.9.1',
@@ -4566,68 +4587,6 @@
         .final-preview-question .matching-item-compact .live-preview {
             margin: 0;
         }
-        .final-preview-question .matching-items {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin: 16px 0;
-        }
-        .final-preview-question .matching-side {
-            padding: 12px;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }
-        .final-preview-question .matching-side h5 {
-            margin-top: 0;
-            margin-bottom: 12px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-        .final-preview-question .matching-item {
-            padding: 8px;
-            margin: 6px 0;
-            background: white;
-            border-radius: 4px;
-            border: 1px solid #dee2e6;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            word-break: break-word;
-            max-width: 100%;
-            box-sizing: border-box;
-        }
-        .final-preview-question .matching-item .live-preview {
-            max-width: 100%;
-            overflow-wrap: break-word;
-            word-wrap: break-word;
-            word-break: break-word;
-        }
-        .final-preview-question .matching-side {
-            min-width: 0;
-            overflow: hidden;
-        }
-        .final-preview-question .matching-items {
-            overflow: hidden;
-        }
-        .final-preview-question .matching-relationships {
-            margin-top: 16px;
-            padding: 12px;
-            background: #e7f3ff;
-            border-radius: 4px;
-        }
-        .final-preview-question .matching-relationships h5 {
-            margin-top: 0;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            color: #0056b3;
-        }
-        .final-preview-question .relationship-item {
-            padding: 6px;
-            margin: 4px 0;
-            background: white;
-            border-radius: 4px;
-        }
         .final-preview-question .guide-answer {
             margin-top: 0;
             margin-bottom: 0;
@@ -4668,19 +4627,6 @@
         [data-theme="dark"] .final-preview-question .blank-answer {
             background: #3d3520;
             border-left-color: #ffc107;
-        }
-        [data-theme="dark"] .final-preview-question .matching-side {
-            background: #2d3238;
-        }
-        [data-theme="dark"] .final-preview-question .matching-item {
-            background: #1e1e1e;
-            border-color: #6c757d;
-        }
-        [data-theme="dark"] .final-preview-question .matching-relationships {
-            background: #1a3d52;
-        }
-        [data-theme="dark"] .final-preview-question .relationship-item {
-            background: #1e1e1e;
         }
         [data-theme="dark"] .final-preview-question .guide-answer {
             background: none;
@@ -6064,13 +6010,14 @@
                             <div id="topbar-clear-search"></div>
                         </div>
                         <div class="quick-jump">
-                            <select id="quickJumpSelect" onchange="quickJumpTo(this.value)" title="Quickly jump to any form section, content section, or question">
+                            <select id="quickJumpSelect" onchange="quickJumpTo(this.value)" title="Quickly jump to any tab, form section, content section, or question">
                                 <option value="">Quick Jump...</option>
                                 <optgroup label="Form Sections">
                                     <option value="basic">Basic Info</option>
                                     <option value="preamble">Lesson Preamble</option>
                                     <option value="content">Content Sections</option>
                                     <option value="questions">Questions</option>
+                                    <option value="final-preview">Final Preview</option>
                                 </optgroup>
                                 <optgroup label="Content Sections" id="contentSectionsGroup">
                                     <!-- Dynamically populated -->
@@ -9278,7 +9225,6 @@
                 if (lessonStandards.length > 0) {
                     const standardsTextareas = Array.from(lessonStandardsContainer.querySelectorAll('.array-item textarea'));
                     const standardsBodyHTML = renderPreviewArrayList({
-                        title: 'Lesson Standards',
                         items: standardsTextareas,
                         getEditTargetForIndex: (index) => {
                             return `navigateToInput(document.getElementById('lesson_standards').querySelectorAll('.array-item textarea')[${index}])`;
@@ -9292,7 +9238,6 @@
                 }
                 if (terminologyItems.length > 0) {
                     const terminologyBodyHTML = renderPreviewArrayList({
-                        title: 'Terminology',
                         items: terminologyItems.map((item) => item.textarea),
                         getEditTargetForIndex: (index) => {
                             const originalIndex = terminologyItems[index]?.index ?? index;
@@ -9336,16 +9281,68 @@
             }
             return html;
         }
+
+        const FINAL_PREVIEW_GROUP_ORDER = ['Basic Info', 'Lesson Preamble', 'Content Sections', 'Questions'];
+
+        function getFinalPreviewGroupTitle(groupEl) {
+            if (!groupEl || !groupEl.classList || !groupEl.classList.contains('final-preview-section')) return '';
+            const directHeading = Array.from(groupEl.children || []).find(child => child && child.tagName === 'H3');
+            return directHeading ? (directHeading.textContent || '').trim() : '';
+        }
+
+        function getTopLevelFinalPreviewGroups(fpContent) {
+            if (!fpContent) return [];
+            return Array.from(fpContent.children).filter(child => !!getFinalPreviewGroupTitle(child));
+        }
+
+        function getFinalPreviewGroupRank(groupTitle) {
+            const idx = FINAL_PREVIEW_GROUP_ORDER.indexOf(groupTitle);
+            return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+        }
+
+        function findFinalPreviewGroupByTitle(fpContent, groupTitle) {
+            return getTopLevelFinalPreviewGroups(fpContent).find(group => getFinalPreviewGroupTitle(group) === groupTitle) || null;
+        }
+
+        function insertFinalPreviewGroupInCanonicalOrder(fpContent, groupTitle, groupNode) {
+            if (!fpContent || !groupNode) return;
+            const targetRank = getFinalPreviewGroupRank(groupTitle);
+            const topGroups = getTopLevelFinalPreviewGroups(fpContent).filter(group => group !== groupNode);
+            let anchor = null;
+            for (const group of topGroups) {
+                const rank = getFinalPreviewGroupRank(getFinalPreviewGroupTitle(group));
+                if (rank > targetRank) {
+                    anchor = group;
+                    break;
+                }
+            }
+            if (anchor && anchor.parentNode === fpContent) {
+                fpContent.insertBefore(groupNode, anchor);
+            } else {
+                fpContent.appendChild(groupNode);
+            }
+        }
+
+        function normalizeFinalPreviewSectionOrder(fpContent) {
+            if (!fpContent) return;
+            const sortedGroups = getTopLevelFinalPreviewGroups(fpContent)
+                .map((group, index) => ({
+                    group,
+                    index,
+                    rank: getFinalPreviewGroupRank(getFinalPreviewGroupTitle(group))
+                }))
+                .sort((a, b) => (a.rank - b.rank) || (a.index - b.index));
+            sortedGroups.forEach(({ group }) => fpContent.appendChild(group));
+        }
         
         function rebuildFinalPreviewBasicInfoArea() {
             const fpContent = document.getElementById('final-preview-content');
             if (!fpContent) return;
-            const existingTitle = Array.from(fpContent.querySelectorAll('.final-preview-section > h3'))
-                .find(h => (h.textContent || '').trim() === 'Basic Info');
-            const existingGroup = existingTitle ? existingTitle.parentElement : null;
+            const existingGroup = findFinalPreviewGroupByTitle(fpContent, 'Basic Info');
             const html = buildBasicInfoPreviewHTML();
             if (!html) {
                 if (existingGroup && existingGroup.parentNode) existingGroup.parentNode.removeChild(existingGroup);
+                normalizeFinalPreviewSectionOrder(fpContent);
                 return;
             }
             const temp = document.createElement('div');
@@ -9355,20 +9352,20 @@
             if (existingGroup && existingGroup.parentNode) {
                 existingGroup.parentNode.replaceChild(newGroup, existingGroup);
             } else {
-                fpContent.insertBefore(newGroup, fpContent.firstChild);
+                insertFinalPreviewGroupInCanonicalOrder(fpContent, 'Basic Info', newGroup);
             }
+            normalizeFinalPreviewSectionOrder(fpContent);
             schedulePostLayoutBboxRefresh(fpContent);
         }
         
         function rebuildFinalPreviewLessonPreambleArea() {
             const fpContent = document.getElementById('final-preview-content');
             if (!fpContent) return;
-            const existingTitle = Array.from(fpContent.querySelectorAll('.final-preview-section > h3'))
-                .find(h => (h.textContent || '').trim() === 'Lesson Preamble');
-            const existingGroup = existingTitle ? existingTitle.parentElement : null;
+            const existingGroup = findFinalPreviewGroupByTitle(fpContent, 'Lesson Preamble');
             const html = buildLessonPreamblePreviewHTML();
             if (!html) {
                 if (existingGroup && existingGroup.parentNode) existingGroup.parentNode.removeChild(existingGroup);
+                normalizeFinalPreviewSectionOrder(fpContent);
                 return;
             }
             const temp = document.createElement('div');
@@ -9378,15 +9375,9 @@
             if (existingGroup && existingGroup.parentNode) {
                 existingGroup.parentNode.replaceChild(newGroup, existingGroup);
             } else {
-                const contentTitle = Array.from(fpContent.querySelectorAll('.final-preview-section > h3'))
-                    .find(h => (h.textContent || '').trim() === 'Content Sections');
-                const contentGroup = contentTitle ? contentTitle.parentElement : null;
-                if (contentGroup && contentGroup.parentNode) {
-                    contentGroup.parentNode.insertBefore(newGroup, contentGroup);
-                } else {
-                    fpContent.appendChild(newGroup);
-                }
+                insertFinalPreviewGroupInCanonicalOrder(fpContent, 'Lesson Preamble', newGroup);
             }
+            normalizeFinalPreviewSectionOrder(fpContent);
             schedulePostLayoutBboxRefresh(fpContent);
         }
         
@@ -9394,11 +9385,10 @@
             const fpContent = document.getElementById('final-preview-content');
             if (!fpContent) return;
             const sections = document.querySelectorAll('#content_sections_container > .array-item');
-            const existingTitle = Array.from(fpContent.querySelectorAll('.final-preview-section > h3'))
-                .find(h => (h.textContent || '').trim() === 'Content Sections');
-            const existingGroup = existingTitle ? existingTitle.parentElement : null;
+            const existingGroup = findFinalPreviewGroupByTitle(fpContent, 'Content Sections');
             if (!sections || sections.length === 0) {
                 if (existingGroup && existingGroup.parentNode) existingGroup.parentNode.removeChild(existingGroup);
+                normalizeFinalPreviewSectionOrder(fpContent);
                 return;
             }
             let html = '<div class="final-preview-section"><h3>Content Sections</h3>';
@@ -9413,19 +9403,13 @@
             if (existingGroup && existingGroup.parentNode) {
                 existingGroup.parentNode.replaceChild(newGroup, existingGroup);
             } else {
-                const questionsTitle = Array.from(fpContent.querySelectorAll('.final-preview-section > h3'))
-                    .find(h => (h.textContent || '').trim() === 'Questions');
-                const questionsGroup = questionsTitle ? questionsTitle.parentElement : null;
-                if (questionsGroup && questionsGroup.parentNode) {
-                    questionsGroup.parentNode.insertBefore(newGroup, questionsGroup);
-                } else {
-                    fpContent.appendChild(newGroup);
-                }
+                insertFinalPreviewGroupInCanonicalOrder(fpContent, 'Content Sections', newGroup);
             }
             newGroup.querySelectorAll('.final-preview-section[data-content-section-index]').forEach((block) => {
                 const idx = parseInt(block.getAttribute('data-content-section-index'), 10);
                 if (!isNaN(idx)) retagFinalPreviewContentSectionBlock(block, idx);
             });
+            normalizeFinalPreviewSectionOrder(fpContent);
             schedulePostLayoutBboxRefresh(fpContent);
         }
 
@@ -9433,11 +9417,10 @@
             const fpContent = document.getElementById('final-preview-content');
             if (!fpContent) return;
             const questions = document.querySelectorAll('#questions_container > .array-item');
-            const existingTitle = Array.from(fpContent.querySelectorAll('.final-preview-section > h3'))
-                .find(h => (h.textContent || '').trim() === 'Questions');
-            const existingGroup = existingTitle ? existingTitle.parentElement : null;
+            const existingGroup = findFinalPreviewGroupByTitle(fpContent, 'Questions');
             if (!questions || questions.length === 0) {
                 if (existingGroup && existingGroup.parentNode) existingGroup.parentNode.removeChild(existingGroup);
+                normalizeFinalPreviewSectionOrder(fpContent);
                 return;
             }
             let html = '<div class="final-preview-section"><h3>Questions</h3>';
@@ -9452,12 +9435,13 @@
             if (existingGroup && existingGroup.parentNode) {
                 existingGroup.parentNode.replaceChild(newGroup, existingGroup);
             } else {
-                fpContent.appendChild(newGroup);
+                insertFinalPreviewGroupInCanonicalOrder(fpContent, 'Questions', newGroup);
             }
             const blocks = fpContent.querySelectorAll('.final-preview-question');
             blocks.forEach((block, idx) => {
                 retagFinalPreviewQuestionBlock(block, idx);
             });
+            normalizeFinalPreviewSectionOrder(fpContent);
             schedulePostLayoutBboxRefresh(fpContent);
         }
         
@@ -9552,6 +9536,7 @@
             }
             
             previewContainer.innerHTML = html;
+            normalizeFinalPreviewSectionOrder(previewContainer);
             // Content changed; bump renderVersion so scheduleFit runs after bbox apply (Final Preview height)
             previewContainer.__renderVersion = (previewContainer.__renderVersion || 0) + 1;
             previewContainer.__lastGeneratedDirtyVersion = window.__previewDirtyVersion;
@@ -9702,48 +9687,72 @@
         /**
          * Render an array of items as a preview list (reusable for standards, terminology, etc.)
          * @param {Object} config - Configuration object
-         * @param {string} config.title - Group title (e.g., "Lesson Standards", "Terminology")
          * @param {Array<HTMLElement>} config.items - Array of textarea elements to render
          * @param {Function} config.getEditTargetForIndex - Function(index) that returns editTarget string for navigateToInput
+         * @param {boolean} [config.includeEmptyRows=false] - When true, keeps empty rows with placeholder text
+         * @param {string} [config.emptyItemPlaceholder='(empty)'] - Placeholder text for empty rows
+         * @param {Function} [config.getPrefixLabelForIndex] - Function(index) that returns row prefix (e.g., L1/R2)
          * @returns {string} HTML string for the preview box body
          */
         function renderPreviewArrayList(config) {
-            const { title, items, getEditTargetForIndex } = config;
+            const {
+                items,
+                getEditTargetForIndex,
+                includeEmptyRows = false,
+                emptyItemPlaceholder = '(empty)',
+                getPrefixLabelForIndex = null
+            } = config || {};
             
             if (!items || items.length === 0) {
                 return '<div style="color: #6c757d; font-style: italic; padding: 8px;">(No items)</div>';
             }
             
             let html = `<div class="preview-array-list">`;
+            let renderedCount = 0;
             
             items.forEach((textarea, domIndex) => {
                 if (!textarea) return;
                 
                 const value = textarea.value || '';
-                if (!value.trim()) return; // Skip empty items
+                const isEmpty = !value.trim();
+                if (isEmpty && !includeEmptyRows) return; // Skip empty items unless requested
+                renderedCount += 1;
                 
-                // Generate preview HTML for this item
-                const tempPreview = document.createElement('div');
-                tempPreview.className = 'live-preview';
-                tempPreview.setAttribute('dir', 'rtl');
-                tempPreview.style.textAlign = 'right';
-                renderLivePreviewToElement(textarea, tempPreview);
-                const previewHTML = tempPreview.innerHTML;
+                // Generate preview HTML for this item or fallback placeholder
+                let rowBodyHTML = '';
+                if (isEmpty) {
+                    rowBodyHTML = `<span style="color: var(--text-secondary); font-style: italic;">${escapeHtml(emptyItemPlaceholder)}</span>`;
+                } else {
+                    const tempPreview = document.createElement('div');
+                    tempPreview.className = 'live-preview';
+                    tempPreview.setAttribute('dir', 'rtl');
+                    tempPreview.style.textAlign = 'right';
+                    renderLivePreviewToElement(textarea, tempPreview);
+                    rowBodyHTML = tempPreview.innerHTML;
+                }
                 
                 // Get edit target for this DOM index (not filtered index)
                 const editTarget = getEditTargetForIndex ? getEditTargetForIndex(domIndex) : '';
                 const editPenHTML = editTarget 
                     ? `<div class="preview-choice-actions" onclick="${editTarget}" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`
                     : '';
+                const prefixLabel = getPrefixLabelForIndex ? (getPrefixLabelForIndex(domIndex) || '') : '';
+                const prefixHTML = prefixLabel
+                    ? `<span style="font-weight: 600; color: var(--accent); margin-right: 6px;">${escapeHtml(prefixLabel)}</span>`
+                    : '';
                 
                 // Render as a list row (similar to choice rows but without marker)
                 html += `<div class="preview-choice-row preview-array-item">`;
                 html += `<div class="preview-choice-main">`;
-                html += `<div class="live-preview" dir="rtl" style="text-align: right;">${previewHTML}</div>`;
+                html += `<div class="live-preview" dir="rtl" style="text-align: right;">${prefixHTML}${rowBodyHTML}</div>`;
                 html += `</div>`;
                 html += editPenHTML;
                 html += `</div>`;
             });
+            
+            if (renderedCount === 0) {
+                return '<div style="color: #6c757d; font-style: italic; padding: 8px;">(No items)</div>';
+            }
             
             html += `</div>`;
             return html;
@@ -10129,16 +10138,15 @@
             return html;
         }
 
-        // Helper: Render a single matching item as a preview box with rendered output
-        // Reused for left items, right items, and relationship table cells
-        function renderMatchingItemPreviewBox(questionIndex, side, itemIndex, itemText, textarea, options = {}) {
-            const { compact = false, showTitle = true } = options;
-            const label = side === 'left' ? `L${itemIndex + 1}` : `R${itemIndex + 1}`;
-            const title = showTitle ? (side === 'left' ? `Left Item ${label}` : `Right Item ${label}`) : label;
-            // List selector prefix (matching-left-list- or matching-right-list-)
+        // Build navigate target for a matching item by side/index
+        function getMatchingItemEditTarget(questionIndex, side, itemIndex) {
             const listSelectorPrefix = side === 'left' ? 'matching-left-list-' : 'matching-right-list-';
-            
-            // Generate rendered preview of the item content
+            return `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('[id^=\\'${listSelectorPrefix}\\'] .matching-item:nth-child(${itemIndex + 1}) textarea'))`;
+        }
+
+        // Compact matching item preview used in relationships table cells
+        function renderMatchingCompactItemPreviewBox(questionIndex, side, itemIndex, itemText, textarea) {
+            const label = side === 'left' ? `L${itemIndex + 1}` : `R${itemIndex + 1}`;
             let bodyHTML;
             if (textarea && itemText) {
                 const previewEl = document.createElement('div');
@@ -10150,20 +10158,15 @@
             } else {
                 bodyHTML = '<div style="color: var(--text-secondary); font-style: italic;">(empty)</div>';
             }
-            
-            // Build editTarget: use escaped single quotes (\\') for attribute selectors
-            // because the onclick attribute uses double quotes
-            const editTarget = `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('[id^=\\'${listSelectorPrefix}\\'] .matching-item:nth-child(${itemIndex + 1}) textarea'))`;
-            
             return buildPreviewBox({
-                title: title,
-                editTarget: editTarget,
+                title: label,
+                editTarget: getMatchingItemEditTarget(questionIndex, side, itemIndex),
                 bodyHTML: bodyHTML,
-                bodyClass: compact ? 'matching-item-compact' : 'setup-text'
+                bodyClass: 'matching-item-compact'
             });
         }
 
-        // Render matching preview - each item as its own preview box + relationships table with preview boxes
+        // Render matching preview - side lists + relationships table
         function renderMatchingPreview(questionEl) {
             const matchingContainer = questionEl.querySelector('#matching-container');
             if (!matchingContainer) return '';
@@ -10196,20 +10199,36 @@
                 });
             }
             
-            // Step 2: Extract relationships (UIDs from selects, map to indices)
+            // Step 2: Extract relationships (dataset UIDs with select fallback, map to indices)
             // Returns array of { leftIdx, rightIdx } pairs for many-to-many support
             const relationships = [];
             matchingContainer.querySelectorAll('.relationship-item').forEach(relEl => {
                 const leftSelect = relEl.querySelector('.relationship-left');
                 const rightSelect = relEl.querySelector('.relationship-right');
                 if (!leftSelect || !rightSelect) return;
-                
-                const leftUid = leftSelect.value;
-                const rightUid = rightSelect.value;
-                if (!leftUid || !rightUid) return;
-                
-                const leftIdx = leftUidToIdx.get(leftUid);
-                const rightIdx = rightUidToIdx.get(rightUid);
+
+                // Canonical source is relationship dataset UIDs.
+                // Fallback to select values for legacy/non-hydrated states.
+                const leftRef = (relEl.dataset.leftUid || leftSelect.value || '').trim();
+                const rightRef = (relEl.dataset.rightUid || rightSelect.value || '').trim();
+                if (!leftRef || !rightRef) return;
+
+                let leftIdx = leftUidToIdx.get(leftRef);
+                let rightIdx = rightUidToIdx.get(rightRef);
+
+                // Fallback for pre-sync numeric select values (1-based indices)
+                if (leftIdx === undefined && /^\d+$/.test(leftRef)) {
+                    const numericLeftIdx = parseInt(leftRef, 10) - 1;
+                    if (numericLeftIdx >= 0 && numericLeftIdx < leftItems.length) {
+                        leftIdx = numericLeftIdx;
+                    }
+                }
+                if (rightIdx === undefined && /^\d+$/.test(rightRef)) {
+                    const numericRightIdx = parseInt(rightRef, 10) - 1;
+                    if (numericRightIdx >= 0 && numericRightIdx < rightItems.length) {
+                        rightIdx = numericRightIdx;
+                    }
+                }
                 
                 if (leftIdx !== undefined) {
                     relationships.push({
@@ -10222,24 +10241,36 @@
             
             let html = '';
             
-            // Step 3: Render each LEFT item as its own preview box
+            // Step 3: Render LEFT items as a list preview box (including empty rows)
             if (leftItems.length > 0) {
-                html += '<div style="margin-bottom: 16px;">';
-                html += '<h5 style="font-size: 0.9rem; margin: 0 0 8px 0; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Left Items</h5>';
-                leftItems.forEach((item, i) => {
-                    html += renderMatchingItemPreviewBox(questionIndex, 'left', i, item.text, item.textarea);
+                const leftBodyHTML = renderPreviewArrayList({
+                    items: leftItems.map(item => item.textarea),
+                    includeEmptyRows: true,
+                    emptyItemPlaceholder: '(empty)',
+                    getPrefixLabelForIndex: (index) => `L${index + 1}`,
+                    getEditTargetForIndex: (index) => getMatchingItemEditTarget(questionIndex, 'left', index)
                 });
-                html += '</div>';
+                html += buildPreviewBox({
+                    title: 'Left Items',
+                    editTarget: null,
+                    bodyHTML: leftBodyHTML
+                });
             }
             
-            // Step 4: Render each RIGHT item as its own preview box
+            // Step 4: Render RIGHT items as a list preview box (including empty rows)
             if (rightItems.length > 0) {
-                html += '<div style="margin-bottom: 16px;">';
-                html += '<h5 style="font-size: 0.9rem; margin: 0 0 8px 0; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Right Items</h5>';
-                rightItems.forEach((item, i) => {
-                    html += renderMatchingItemPreviewBox(questionIndex, 'right', i, item.text, item.textarea);
+                const rightBodyHTML = renderPreviewArrayList({
+                    items: rightItems.map(item => item.textarea),
+                    includeEmptyRows: true,
+                    emptyItemPlaceholder: '(empty)',
+                    getPrefixLabelForIndex: (index) => `R${index + 1}`,
+                    getEditTargetForIndex: (index) => getMatchingItemEditTarget(questionIndex, 'right', index)
                 });
-                html += '</div>';
+                html += buildPreviewBox({
+                    title: 'Right Items',
+                    editTarget: null,
+                    bodyHTML: rightBodyHTML
+                });
             }
             
             // Step 5: Render Relationships table with preview boxes in each cell
@@ -10261,7 +10292,7 @@
                     // Left cell - embedded preview box (compact mode with just label as title)
                     if (leftItem) {
                         relationshipsBodyHTML += `<td style="padding: 4px; border-bottom: 1px solid var(--border-color);">`;
-                        relationshipsBodyHTML += renderMatchingItemPreviewBox(questionIndex, 'left', rel.leftIdx, leftItem.text, leftItem.textarea, { compact: true, showTitle: false });
+                        relationshipsBodyHTML += renderMatchingCompactItemPreviewBox(questionIndex, 'left', rel.leftIdx, leftItem.text, leftItem.textarea);
                         relationshipsBodyHTML += `</td>`;
                     } else {
                         relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: #dc3545; font-style: italic;">(missing item)</td>';
@@ -10275,7 +10306,7 @@
                         const rightItem = rightItems[rel.rightIdx];
                         if (rightItem) {
                             relationshipsBodyHTML += `<td style="padding: 4px; border-bottom: 1px solid var(--border-color);">`;
-                            relationshipsBodyHTML += renderMatchingItemPreviewBox(questionIndex, 'right', rel.rightIdx, rightItem.text, rightItem.textarea, { compact: true, showTitle: false });
+                            relationshipsBodyHTML += renderMatchingCompactItemPreviewBox(questionIndex, 'right', rel.rightIdx, rightItem.text, rightItem.textarea);
                             relationshipsBodyHTML += `</td>`;
                         } else {
                             relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: #dc3545; font-style: italic;">(missing item)</td>';
@@ -10349,7 +10380,9 @@
             if (!value) return;
             
             // Check if it's a main tab
-            if (['basic', 'preamble', 'content', 'questions'].includes(value)) {
+            if (value === 'final-preview') {
+                showMainTab('final-preview');
+            } else if (['basic', 'preamble', 'content', 'questions'].includes(value)) {
                 // Switch to input form tab first
                 showMainTab('input-form');
                 setTimeout(() => {
@@ -26528,11 +26561,11 @@
             // Check if we should auto-open What's New modal for new version
             checkAndOpenWhatsNew();
             
-            // Update version displays (use DISPLAY_VERSION for UI, CURRENT_VERSION for internal tracking)
+            // Update version displays from the canonical APP_VERSION
             const versionNumberEl = document.getElementById('version-number');
             const whatsNewVersionEl = document.getElementById('whats-new-version-number');
             if (versionNumberEl) {
-                versionNumberEl.textContent = DISPLAY_VERSION;
+                versionNumberEl.textContent = APP_VERSION;
             }
             if (whatsNewVersionEl) {
                 whatsNewVersionEl.textContent = getCurrentWhatsNewVersionInput();
@@ -26567,14 +26600,14 @@
         }
         
         // Check if user needs to reload for latest version
-        // Note: CURRENT_VERSION and VERSION_SEEN_KEY are defined at the top of the script (line ~10)
+        // Note: APP_VERSION and VERSION_SEEN_KEY are defined at the top of the script
         function checkVersionReload() {
             try {
                 const PAGE_LOAD_TIME_KEY = 'transcription_tool_page_load_time';
                 const RELOAD_PROMPT_INTERVAL = 3 * 24 * 60 * 60 * 1000; // 3 days
                 const PROMPT_SHOWN_KEY = 'transcription_tool_reload_prompt_shown';
                 const CURRENT_VERSION_KEY = 'transcription_tool_current_version';
-                // CURRENT_VERSION is defined above - use that
+                // APP_VERSION is defined above - use that
                 const PAGE_LOAD_ID_KEY = 'transcription_tool_page_load_id';
                 
                 const now = new Date().getTime();
@@ -26584,14 +26617,14 @@
                 const storedPageLoadId = sessionStorage.getItem(PAGE_LOAD_ID_KEY);
                 
                 // Check if this is a new version (page was updated)
-                const isNewVersion = storedVersion !== CURRENT_VERSION;
+                const isNewVersion = storedVersion !== APP_VERSION;
                 
                 // Check if this is a fresh page load (new session or reload)
                 const isFreshLoad = !storedPageLoadId;
                 
                 // If it's a new version, reset the page load time
                 if (isNewVersion) {
-                    localStorage.setItem(CURRENT_VERSION_KEY, CURRENT_VERSION);
+                    localStorage.setItem(CURRENT_VERSION_KEY, APP_VERSION);
                     localStorage.setItem(PAGE_LOAD_TIME_KEY, now.toString());
                     sessionStorage.removeItem(PROMPT_SHOWN_KEY);
                     sessionStorage.setItem(PAGE_LOAD_ID_KEY, currentPageLoadId);
@@ -28574,13 +28607,13 @@
         // Only if auto-resize is enabled
         // Initial autosize is done once after attachAutoResizeInputHandler() in DOMContentLoaded (no timers)
         // ===== WHAT'S NEW MODAL =====
-        // Note: CURRENT_VERSION and VERSION_SEEN_KEY are defined above (see line ~16527)
+        // Note: APP_VERSION and VERSION_SEEN_KEY are defined above
         
         function getCurrentWhatsNewVersionInput() {
             if (!Array.isArray(WHATS_NEW_RELEASES) || WHATS_NEW_RELEASES.length === 0) {
-                return DISPLAY_VERSION;
+                return APP_VERSION;
             }
-            return WHATS_NEW_RELEASES[0].version || DISPLAY_VERSION;
+            return WHATS_NEW_RELEASES[0].version || APP_VERSION;
         }
 
         function renderWhatsNewReleaseBlock(release, isCurrent) {
@@ -28626,7 +28659,7 @@
                 modal.style.display = 'flex';
                 // Mark this version as seen
                 try {
-                    localStorage.setItem(VERSION_SEEN_KEY, CURRENT_VERSION);
+                    localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
                 } catch (e) {
                     console.error('Failed to save version seen:', e);
                 }
@@ -28645,7 +28678,7 @@
             try {
                 const lastSeenVersion = localStorage.getItem(VERSION_SEEN_KEY);
                 // If no version has been seen, or if current version is different, show the modal
-                if (!lastSeenVersion || lastSeenVersion !== CURRENT_VERSION) {
+                if (!lastSeenVersion || lastSeenVersion !== APP_VERSION) {
                     // Wait a bit for the page to fully load before showing
                     setTimeout(() => {
                         const modal = document.getElementById('whats-new-modal');
@@ -28653,7 +28686,7 @@
                             modal.style.display = 'flex';
                             // Mark this version as seen immediately when auto-opening
                             try {
-                                localStorage.setItem(VERSION_SEEN_KEY, CURRENT_VERSION);
+                                localStorage.setItem(VERSION_SEEN_KEY, APP_VERSION);
                             } catch (e) {
                                 console.error('Failed to save version seen:', e);
                             }
