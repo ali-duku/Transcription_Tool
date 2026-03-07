@@ -17,12 +17,28 @@
         //   - Header/UI display
         //   - What's New modal auto-open checks
         //   - Version reload checks
-        const APP_VERSION = '7.9.2';
+        const APP_VERSION = '7.9.3';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
+
+            {
+                version: '7.9.3',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Double quotes are now easier to use:</strong> You can now write text with an odd number of double quotes without output issues.'
+                        ]
+                    }
+                ]
+            },
 
             {
                 version: '7.9.2',
@@ -20786,7 +20802,7 @@
                                       container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      hasQuoteValidationErrors(container) ||
                                       container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
@@ -20948,7 +20964,7 @@
                                       container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      hasQuoteValidationErrors(container) ||
                                       container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
@@ -20957,66 +20973,75 @@
             }
         }
         
+        function hasQuoteValidationErrors(container) {
+            if (!container) return false;
+            const quoteDiv = container.querySelector('.quote-validation-errors');
+            return !!(quoteDiv &&
+                      quoteDiv.style.display !== 'none' &&
+                      quoteDiv.getAttribute('data-has-errors') === 'true');
+        }
+
         /**
-         * Show quote and dollar sign validation errors for a textarea
+         * Show dollar sign validation errors for a textarea.
+         * Quote warnings are only shown during explicit actions (generate/manual save).
          * @param {HTMLTextAreaElement} textarea - The textarea element
          */
         function showQuoteValidationErrors(textarea) {
             if (!textarea) return;
             
             const text = textarea.value;
-            const quoteErrors = validateQuotes(text);
             const dollarErrors = validateDollarSigns(text);
+            const hasDollarErrors = dollarErrors.length > 0;
             
-            // Find or create error container - insert right after textarea
+            // Find or create quote/dollar container - insert right after textarea
             const container = textarea.closest('.text-field-container') || textarea.parentElement;
             if (!container) return;
             
-            let errorDiv = container.querySelector('.quote-validation-errors');
+            let validationDiv = container.querySelector('.quote-validation-errors');
+            const hasAnyMessages = hasDollarErrors;
             
-            const allErrors = [...quoteErrors, ...dollarErrors];
-            
-            if (allErrors.length > 0) {
-                // Show errors
-                if (!errorDiv) {
-                    errorDiv = document.createElement('div');
-                    errorDiv.className = 'quote-validation-errors';
-                    errorDiv.style.cssText = 'margin-top: 8px;';
+            if (hasAnyMessages) {
+                if (!validationDiv) {
+                    validationDiv = document.createElement('div');
+                    validationDiv.className = 'quote-validation-errors';
+                    validationDiv.style.cssText = 'margin-top: 8px;';
                     // Insert right after the textarea
-                    textarea.parentNode.insertBefore(errorDiv, textarea.nextSibling);
+                    textarea.parentNode.insertBefore(validationDiv, textarea.nextSibling);
                 }
                 
-                errorDiv.style.display = 'block';
-                errorDiv.innerHTML = `
+                validationDiv.style.display = 'block';
+                validationDiv.setAttribute('data-has-errors', hasDollarErrors ? 'true' : 'false');
+                validationDiv.innerHTML = `
                     <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
-                        <strong>⚠️ Quote & Dollar Sign Errors:</strong>
-                        ${allErrors.map(error => {
-                            if (error.type === 'unmatched_dollar_signs') {
-                                return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px; color: #856404;">
-                                        <div style="margin-bottom: 6px;">⚠️ <strong>Dollar Sign Warning:</strong> ${error.message}</div>
-                                        <div>💡 <strong>Note:</strong> This is a warning only and won't block saving or generation.</div>
-                                    </div>
-                                `;
-                            } else {
-                                const fixMessage = 'Each quote must have a matching pair - remove the extra or add the missing one';
-                                return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
-                                        <div style="margin-bottom: 6px;">🔴 <strong>Quote Error:</strong> ${error.message}</div>
-                                        <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMessage}</div>
-                                        <div>⚠️ <strong>Important:</strong> This will break JSON generation and cause data loss!</div>
-                                    </div>
-                                `;
-                            }
-                        }).join('')}
+                        <strong>Dollar Sign Errors:</strong>
+                        ${dollarErrors.map(error => `
+                            <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px; color: #cc0000;">
+                                <div style="margin-bottom: 6px;"><strong>Dollar Sign Error:</strong> ${error.message}</div>
+                                <div style="margin-bottom: 6px;"><strong>How to Fix:</strong> Each $ should have a matching pair for LaTeX math.</div>
+                                <div><strong>Important:</strong> This will block JSON generation.</div>
+                            </div>
+                        `).join('')}
                     </div>
                 `;
-                textarea.classList.add('validation-error');
+
+                const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
+                                      container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
+                if (hasDollarErrors || hasOtherErrors) {
+                    textarea.classList.add('validation-error');
+                } else {
+                    textarea.classList.remove('validation-error');
+                }
             } else {
-                // Clear errors
-                if (errorDiv) {
-                    errorDiv.style.display = 'none';
-                    errorDiv.innerHTML = '';
+                // Clear quote/dollar validation
+                if (validationDiv) {
+                    validationDiv.style.display = 'none';
+                    validationDiv.innerHTML = '';
+                    validationDiv.setAttribute('data-has-errors', 'false');
                 }
                 const hasOtherErrors = container.querySelector('.table-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.list-validation-errors')?.style.display !== 'none' ||
@@ -21095,7 +21120,7 @@
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      hasQuoteValidationErrors(container) ||
                                       container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
                     textarea.classList.remove('validation-error');
@@ -21149,7 +21174,7 @@
                                       container.querySelector('.blockquote-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.latex-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.image-validation-errors')?.style.display !== 'none' ||
-                                      container.querySelector('.quote-validation-errors')?.style.display !== 'none' ||
+                                      hasQuoteValidationErrors(container) ||
                                       container.querySelector('.br-validation-errors')?.style.display !== 'none' ||
                                       container.querySelector('.html-list-validation-errors')?.style.display !== 'none';
                 if (!hasOtherErrors) {
@@ -22665,7 +22690,7 @@
             return errors;
         }
 
-        // Validate unmatched quotes that would break JSON
+        // Validate unmatched quote counts (warning-only signal)
         function validateQuotes(content) {
             const errors = [];
             if (!content || content.trim().length === 0) {
@@ -22862,7 +22887,7 @@
                 if (quoteErrors.length > 0) {
                     const location = getTextareaLocation(textarea);
                     quoteErrors.forEach(error => {
-                        validationErrors.push(`Quote Error in ${location}: ${error.message}`);
+                        validationWarnings.push(`Quote Warning in ${location}: ${error.message}`);
                     });
                 }
                 
@@ -22870,7 +22895,7 @@
                 if (dollarErrors.length > 0) {
                     const location = getTextareaLocation(textarea);
                     dollarErrors.forEach(error => {
-                        validationWarnings.push(`Dollar Sign Warning in ${location}: ${error.message}`);
+                        validationErrors.push(`Dollar Sign Error in ${location}: ${error.message}`);
                     });
                 }
                 
@@ -23394,47 +23419,49 @@
             let result = '';
             let i = 0;
             let inString = false;
-            let stringStart = -1;
             let stringContent = '';
             
             while (i < jsonString.length) {
                 const char = jsonString[i];
-                const nextChar = jsonString[i + 1];
                 
                 if (char === '"' && !inString) {
                     // Start of a string
                     inString = true;
-                    stringStart = i;
                     stringContent = '';
                     i++;
                     continue;
                 }
-                
-                if (char === '"' && inString) {
-                    // End of a string
-                    inString = false;
-                    
-                    // Check if this string is a key (followed by colon) or a value
-                    let isKey = false;
-                    let j = i + 1;
-                    while (j < jsonString.length && (jsonString[j] === ' ' || jsonString[j] === '\n' || jsonString[j] === '\t')) {
-                        j++;
-                    }
-                    if (jsonString[j] === ':') {
-                        isKey = true;
-                    }
-                    
-                    if (isKey) {
-                        result += '<span class="json-key">"' + escapeHtml(stringContent) + '"</span>';
-                    } else {
-                        result += '<span class="json-string">"' + escapeHtml(stringContent) + '"</span>';
-                    }
-                    
-                    i++;
-                    continue;
-                }
-                
+
                 if (inString) {
+                    if (char === '\\' && i + 1 < jsonString.length) {
+                        // Preserve escaped characters inside strings (e.g., \", \\ , \n).
+                        stringContent += char + jsonString[i + 1];
+                        i += 2;
+                        continue;
+                    }
+                    if (char === '"') {
+                        // End of a string (only unescaped quotes reach this branch).
+                        inString = false;
+                        
+                        // Check if this string is a key (followed by colon) or a value
+                        let isKey = false;
+                        let j = i + 1;
+                        while (j < jsonString.length && (jsonString[j] === ' ' || jsonString[j] === '\n' || jsonString[j] === '\t')) {
+                            j++;
+                        }
+                        if (jsonString[j] === ':') {
+                            isKey = true;
+                        }
+                        
+                        if (isKey) {
+                            result += '<span class="json-key">"' + escapeHtml(stringContent) + '"</span>';
+                        } else {
+                            result += '<span class="json-string">"' + escapeHtml(stringContent) + '"</span>';
+                        }
+                        
+                        i++;
+                        continue;
+                    }
                     stringContent += char;
                     i++;
                     continue;
@@ -25368,7 +25395,7 @@
                     const quoteErrors = validateQuotes(content);
                     if (quoteErrors.length > 0) {
                         quoteErrors.forEach(error => {
-                            validationErrors.push(`Quote Error in ${getTextareaLocation(textarea)}: ${error.message}`);
+                            validationWarnings.push(`Quote Warning in ${getTextareaLocation(textarea)}: ${error.message}`);
                         });
                     }
                     
@@ -25397,7 +25424,7 @@
                     const dollarErrors = validateDollarSigns(content);
                     if (dollarErrors.length > 0) {
                         dollarErrors.forEach(error => {
-                            validationWarnings.push(`Dollar Sign Warning in ${getTextareaLocation(textarea)}: ${error.message}`);
+                            validationErrors.push(`Dollar Sign Error in ${getTextareaLocation(textarea)}: ${error.message}`);
                         });
                     }
                     
@@ -25687,8 +25714,6 @@
                 });
 
                 // Validation errors are collected but do not block or alert during save
-
-                // Warnings are collected but not shown during save
 
                 // Add timestamp for tracking
                 jsonData._save_timestamp = new Date().toISOString();
