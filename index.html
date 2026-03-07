@@ -14357,128 +14357,8 @@
                     md = hrProcessed.join('\n');
                 }
                 
-                // Merge multi-line table rows before markdown processing
-                // This allows cells to contain newlines while still being valid markdown tables
-                const hasPotentialTableSyntax = md.indexOf('|') !== -1 && md.indexOf('\n') !== -1;
-                if (hasPotentialTableSyntax) {
-                    const mdLinesForTableMerge = md.split('\n');
-                    const mergedTableLines = [];
-                    let currentTableRow = null;
-                    let inTable = false; // Track if we're currently inside a table
-                    
-                    for (let i = 0; i < mdLinesForTableMerge.length; i++) {
-                        const line = mdLinesForTableMerge[i];
-                        const trimmed = line.trim();
-                        
-                        // Check if this line is part of a blockquote
-                        const isBlockquoteLine = /^\s*>/.test(line);
-                        // Strip blockquote prefix for table processing
-                        const lineForTableCheck = isBlockquoteLine ? stripBlockquotePrefix(trimmed) : trimmed;
-                        
-                        // Remove math expressions for detection
-                        let lineWithoutMath = removeMathExpressions(lineForTableCheck);
-                        
-                        // Check if line is a table row (using stripped content for blockquote tables)
-                        const startsWithPipe = lineWithoutMath.startsWith('|');
-                        const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
-                        const endsWithPipe = lineWithoutMath.endsWith('|');
-                        const isSeparator = /^[\s|:-]+$/.test(lineWithoutMath) && lineWithoutMath.includes('-');
-                        
-                        // Check if original line (before removing math and blockquote) starts with pipe
-                        // This is used for continuation detection - a line starting with LaTeX should still be a continuation
-                        const originalStartsWithPipe = lineForTableCheck.startsWith('|');
-                        
-                        // If we have an incomplete row and this line doesn't start with pipe in original,
-                        // it's a continuation even if it has pipes after removing math
-                        // Can only be a continuation if currentTableRow exists and doesn't end with |
-                        // Also check if both current and previous lines are blockquote lines (same blockquote context)
-                        const currentRowIsBlockquote = currentTableRow !== null && /^\s*>/.test(currentTableRow);
-                        const isContinuation = currentTableRow !== null && 
-                            !originalStartsWithPipe && 
-                            currentTableRow.trim() !== '' && 
-                            !currentTableRow.trim().endsWith('|') &&
-                            (isBlockquoteLine === currentRowIsBlockquote); // Must be in same context (both blockquote or both not)
-                        
-                        // Empty lines always end tables (check original line, not stripped)
-                        const isEmptyLine = lineForTableCheck.length === 0;
-                        
-                        // Determine if this line is part of a table
-                        // If it's a continuation, treat it as part of the table
-                        // Empty lines are NEVER table lines
-                        const isTableLine = !isEmptyLine && ((hasPipes || (startsWithPipe && inTable)) && !isContinuation);
-                        
-                        if ((isTableLine || isSeparator || isContinuation) && !isEmptyLine) {
-                            // We're in a table
-                            inTable = true;
-                            
-                            if (isSeparator) {
-                                // Separator row - finish any incomplete row first
-                                if (currentTableRow !== null) {
-                                    mergedTableLines.push(currentTableRow);
-                                    currentTableRow = null;
-                                }
-                                mergedTableLines.push(line);
-                            } else if (isContinuation) {
-                                // Continuation of incomplete row (doesn't start with pipe, even if it has pipes)
-                                currentTableRow = currentTableRow + '\n' + line;
-                            } else if (startsWithPipe) {
-                                // Table row starting with pipe
-                                if (endsWithPipe) {
-                                    // Complete row
-                                    if (currentTableRow !== null) {
-                                        // Finish previous incomplete row
-                                        mergedTableLines.push(currentTableRow);
-                                        currentTableRow = null;
-                                    }
-                                    mergedTableLines.push(line);
-                                } else {
-                                    // Incomplete row - start or continue
-                                    if (currentTableRow === null) {
-                                        currentTableRow = line;
-                                    } else {
-                                        // Continue previous row
-                                        currentTableRow = currentTableRow + '\n' + line;
-                                    }
-                                }
-                            } else {
-                                // Shouldn't happen, but handle it
-                                mergedTableLines.push(line);
-                            }
-                        } else {
-                            // Not a table line - always end table mode
-                            if (currentTableRow !== null) {
-                                // Finish incomplete row
-                                mergedTableLines.push(currentTableRow);
-                                currentTableRow = null;
-                            }
-                            // Always exit table mode when we encounter non-table content
-                            inTable = false;
-                            mergedTableLines.push(line);
-                        }
-                    }
-                    
-                    // Finish any remaining incomplete row
-                    if (currentTableRow !== null) {
-                        mergedTableLines.push(currentTableRow);
-                    }
-                    
-                    // Convert newlines within merged table rows to <br> tags
-                    // This preserves line breaks within cells for proper rendering
-                    // We need to be careful: only convert newlines that are within cells, not between rows
-                    for (let i = 0; i < mergedTableLines.length; i++) {
-                        let line = mergedTableLines[i];
-                        // Check if this line contains newlines (from merging multi-line cells)
-                        if (line.includes('\n')) {
-                            // This is a merged table row with newlines - convert them to <br>
-                            // The newlines are within the row content (cell content), so convert them
-                            // This will create: | Cell 1<br>continued | Cell 2 |
-                            line = line.replace(/\n/g, '<br>');
-                            mergedTableLines[i] = line;
-                        }
-                    }
-                    
-                    md = mergedTableLines.join('\n');
-                }
+                // Multi-line table row merging is intentionally disabled.
+                // Each markdown table row must be fully written on a single line.
                 
                 // Normalize list spacing and empty list items to avoid list truncation
                 md = normalizeEmptyListItemsForPreview(md);
@@ -19933,14 +19813,10 @@
             const errors = [];
             let hasTables = false;
             let inTable = false;
-            let currentTableStart = -1;
-            let currentTableEnd = -1;
             let currentTable = [];
             let separatorFound = false;
-            let separatorLineNum = -1;
             let expectedColumnCount = null;
-            let lastTableRowContent = null; // Track the last table row content for multi-line cells
-            let lastTableRowLineNum = -1; // Track the line number of the last table row
+            let currentTableHasRowFormatError = false;
             
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
@@ -19958,38 +19834,9 @@
                 // Require at least 2 pipes for a table (which creates 3 cells)
                 const hasPipes = lineWithoutMath.includes('|') && lineWithoutMath.split('|').length >= 3;
                 
-                // Check if line starts with a pipe (even if it doesn't have enough pipes for a full row)
-                // This handles multi-line cells where a row might start with | but continue on next line
-                // Use lineForTableCheck (with blockquote prefix stripped) for this check
-                const startsWithPipe = lineWithoutMath.trim().startsWith('|');
-                
-                // Check if original line (before removing math and blockquote) starts with pipe
-                // This is used for continuation detection - a line starting with LaTeX should still be a continuation
-                const originalStartsWithPipe = lineForTableCheck.trim().startsWith('|');
-                
                 // Empty lines always end tables (check original line, not stripped)
                 const isEmptyLine = lineForTableCheck.length === 0;
-                
-                // Check if this could be a continuation of the previous table row
-                // A continuation is a line that doesn't start with | in the original text but we're in a table
-                // and the previous line was a table row that didn't end with a pipe (or had incomplete cells)
-                // IMPORTANT: Can only be a continuation if lastTableRowContent exists and doesn't end with |
-                // Also check if both current and previous lines are blockquote lines (same blockquote context)
-                const lastLineWasBlockquote = lastTableRowLineNum > 0 && 
-                    lastTableRowLineNum <= lines.length && 
-                    lines[lastTableRowLineNum - 1] && 
-                    /^\s*>/.test(lines[lastTableRowLineNum - 1]);
-                const isContinuation = !isEmptyLine && inTable && !originalStartsWithPipe && lastTableRowContent !== null && 
-                    lastTableRowContent.trim() !== '' && 
-                    !lastTableRowContent.trim().endsWith('|') &&
-                    (isBlockquoteLine === lastLineWasBlockquote); // Must be in same context (both blockquote or both not)
-                
-                // A line is part of a table if:
-                // 1. It has enough pipes (hasPipes), OR
-                // 2. It starts with a pipe and we're already in a table (handles partial rows), OR
-                // 3. It's a continuation of a previous table row
-                // Empty lines are NEVER table rows
-                const isTableRow = !isEmptyLine && (hasPipes || (startsWithPipe && inTable) || isContinuation);
+                const isTableRow = !isEmptyLine && hasPipes;
                 
                 if (isTableRow) {
                     hasTables = true;
@@ -19997,42 +19844,30 @@
                     if (!inTable) {
                         // Starting a new table
                         inTable = true;
-                        currentTableStart = i + 1;
                         currentTable = [];
                         separatorFound = false;
-                        separatorLineNum = -1;
                         expectedColumnCount = null;
-                        lastTableRowContent = null;
-                        lastTableRowLineNum = -1;
+                        currentTableHasRowFormatError = false;
                     }
                     
-                    // If this is a continuation line, merge it with the previous row
-                    if (isContinuation && lastTableRowContent !== null) {
-                        // Merge the continuation with the last row, preserving the newline
-                        // Use newline to preserve line breaks in cells for proper rendering
-                        // Use lineForTableCheck (blockquote prefix already stripped) for consistency
-                        const mergedRow = lastTableRowContent + '\n' + lineForTableCheck;
-                        // Update the last entry in currentTable
-                        if (currentTable.length > 0) {
-                            currentTable[currentTable.length - 1].content = mergedRow;
-                        }
-                        lastTableRowContent = mergedRow;
-                        currentTableEnd = i;
-                    } else if (!isContinuation) {
-                        // New table row (not a continuation)
-                        // Store the line without blockquote prefix for table processing
-                        currentTable.push({ lineNum: i + 1, content: lineForTableCheck });
-                        currentTableEnd = i;
-                        lastTableRowContent = lineForTableCheck;
-                        lastTableRowLineNum = i + 1;
-                    }
+                    // Store the row without blockquote prefix for table processing
+                    currentTable.push({ lineNum: i + 1, content: lineForTableCheck });
                     
-                    // Count columns (number of pipes) - use merged content if available
-                    // contentToCheck should already have blockquote prefix stripped
-                    const contentToCheck = lastTableRowContent || lineForTableCheck;
+                    // Count columns (number of pipes)
+                    const contentToCheck = lineForTableCheck;
                     // Remove math expressions before counting pipes to ignore pipes inside LaTeX
                     const contentWithoutMath = removeMathExpressions(contentToCheck);
                     const pipeCount = (contentWithoutMath.match(/\|/g) || []).length;
+                    const rowStartsWithPipe = contentToCheck.trim().startsWith('|');
+                    const rowEndsWithPipe = contentToCheck.trim().endsWith('|');
+                    
+                    if (!rowStartsWithPipe || !rowEndsWithPipe) {
+                        currentTableHasRowFormatError = true;
+                        errors.push({
+                            message: `Table rows must start and end with "|" on the same line. Multi-line table cells are not supported.`,
+                            content: contentToCheck
+                        });
+                    }
                     
                     // Check if this is a separator row (only for lines that look like separators)
                     // contentToCheck already has blockquote prefix stripped, so separator detection works correctly
@@ -20046,7 +19881,6 @@
                             });
                         }
                         separatorFound = true;
-                        separatorLineNum = i + 1;
                         
                         // Separator must have same pipe count as expected columns
                         if (expectedColumnCount !== null && pipeCount !== expectedColumnCount) {
@@ -20060,63 +19894,39 @@
                         if (expectedColumnCount === null) {
                             expectedColumnCount = pipeCount;
                         }
-                        // Reset last row tracking after separator
-                        lastTableRowContent = null;
-                        lastTableRowLineNum = -1;
                     } else {
                         // Regular row - check column count consistency
-                        // CRITICAL: Only validate if we have a complete row (ends with |)
-                        // Never validate incomplete rows that might continue on the next line
-                        const rowEndsWithPipe = contentToCheck.trim().endsWith('|');
-                        const rowStartsWithPipe = contentToCheck.trim().startsWith('|');
-                        const isIncompleteRow = rowStartsWithPipe && !rowEndsWithPipe;
-                        
-                        // Only validate complete rows - never validate incomplete rows
-                        if (rowEndsWithPipe && !isIncompleteRow) {
-                            // Only validate complete rows
                         if (expectedColumnCount === null) {
                             expectedColumnCount = pipeCount;
                         } else if (pipeCount !== expectedColumnCount) {
-                                errors.push({
-                                    message: `Inconsistent column count. Expected ${expectedColumnCount} pipes but found ${pipeCount}. All rows in a table must have the same number of columns.`,
-                                    content: contentToCheck
-                                });
+                            errors.push({
+                                message: `Inconsistent column count. Expected ${expectedColumnCount} pipes but found ${pipeCount}. All rows in a table must have the same number of columns.`,
+                                content: contentToCheck
+                            });
                         }
-                            // Row is complete, reset tracking for next row
-                            lastTableRowContent = null;
-                            lastTableRowLineNum = -1;
-                        } else if (isIncompleteRow) {
-                            // This is an incomplete row that will continue on the next line
-                            // Do NOT validate it - wait until it's complete
-                            // Keep lastTableRowContent so next line can merge with it
-                        }
-                        // If row doesn't end with pipe, it might continue on next line
-                        // Keep lastTableRowContent so next line can merge with it
-                        // DO NOT validate incomplete rows - they will be validated when complete
                     }
                     
                 } else if (inTable) {
-                    // End of table (non-pipe line after table lines, and not a continuation)
-                    // Note: Continuations are handled in the main branch above
+                    // End of table (non-table line after table lines)
                     if (currentTable.length > 0) {
                         // Validate the completed table
                         if (!separatorFound) {
-                        const tableContent = currentTable.map(row => row.content).join('\n');
-                        errors.push({
-                            message: `Table is missing a separator row. Add a row like |---|---| after the header.`,
-                            content: tableContent
-                        });
+                            const tableContent = currentTable.map(row => row.content).join('\n');
+                            errors.push({
+                                message: `Table is missing a separator row. Add a row like |---|---| after the header.`,
+                                content: tableContent
+                            });
                         }
                         if (currentTable.length < 2) {
-                        const tableContent = currentTable.map(row => row.content).join('\n');
-                        errors.push({
-                            message: `Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`,
-                            content: tableContent
-                        });
+                            const tableContent = currentTable.map(row => row.content).join('\n');
+                            errors.push({
+                                message: `Table has only ${currentTable.length} row(s). A valid table needs at least 2 rows (header + separator, or separator + data).`,
+                                content: tableContent
+                            });
                         }
                         
                         // Check if line after table is empty (when there's more content)
-                        if (line.length > 0) {
+                        if (line.length > 0 && !currentTableHasRowFormatError) {
                             // Get the last few table rows and the problematic content
                             const tableContent = currentTable.slice(-3).map(row => row.content).join('\n');
                             const problematicContent = line.length > 50 ? line.substring(0, 50) + '...' : line;
@@ -20130,10 +19940,8 @@
                     inTable = false;
                     currentTable = [];
                     separatorFound = false;
-                    separatorLineNum = -1;
                     expectedColumnCount = null;
-                    lastTableRowContent = null;
-                    lastTableRowLineNum = -1;
+                    currentTableHasRowFormatError = false;
                 }
             }
             
