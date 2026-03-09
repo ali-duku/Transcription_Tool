@@ -19,6 +19,8 @@
         //   - Version reload checks
         const APP_VERSION = '8.0';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
+        // Question schema migration phase switch (scaffold only in this release).
+        const QUESTION_SCHEMA_MIGRATION_PHASE = 'global_scaffold';
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
@@ -34,7 +36,7 @@
                         iconColor: '#17a2b8',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
-                            '<strong>Question format update:</strong> We removed these question fields: <code>Guide PDF Page</code>, <code>Related Question</code>, and <code>Answer Images</code>. This was a schema update, and these fields are now removed from both the form and generated JSON output.',
+                            '<strong>Question format update:</strong> We removed the <code>Related Question</code> field as part of the schema update, so generated question JSON is now cleaner and more consistent.',
                             '<strong>Question text key update with backward support:</strong> New files now use clearer question text field names, and older files with old names still load correctly because they are updated automatically when you load them.',
                             '<strong>Title Page and Book Metadata update:</strong> You can now choose <code>Title Page</code>, fill details in the new Book Metadata tab (also available in Quick Jump and Final Preview), and these fields are required only for title pages.'
                         ]
@@ -46,7 +48,8 @@
                         iconColor: '#dc3545',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
-                            '<strong>Clear Form now refreshes Final Preview correctly:</strong> Clearing the form while you are on Final Preview now removes old values and empty boxes right away, so Book Metadata and Basic Info no longer show stale output.'
+                            '<strong>Clear Form now refreshes Final Preview correctly:</strong> Clearing the form while you are on Final Preview now removes old values and empty boxes right away, so Book Metadata and Basic Info no longer show stale output.',
+                            '<strong>Guide fields restored:</strong> <code>Guide PDF Page</code> and <code>Answer Images</code> are available again and now work correctly across editing, validation, preview, loading, and generated JSON.'
                         ]
                     }
                 ]
@@ -2415,8 +2418,10 @@
             
             // Header fields
             const questionIdInput = findFieldByLabel(questionEl, 'Question ID', 'input');
+            const guidePdfPageInput = findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
             
             state.id = questionIdInput ? questionIdInput.value : '';
+            state.guide_pdf_page = guidePdfPageInput ? guidePdfPageInput.value : '';
             
             // CRITICAL: Use dataset as source of truth, not select value
             // Ensure dataset is set if missing
@@ -2537,7 +2542,9 @@
             
             // BBox data
             const questionImagesGroup = findFormGroupByLabel(questionEl, 'Question Images');
+            const answerImagesGroup = findFormGroupByLabel(questionEl, 'Answer Images');
             state.question_images = questionImagesGroup ? serializeBboxGroup(questionImagesGroup) : [];
+            state.guide_answer_images = answerImagesGroup ? serializeBboxGroup(answerImagesGroup) : [];
             
             return state;
         }
@@ -2582,8 +2589,10 @@
             
             // Set header fields
             const questionIdInput = findFieldByLabel(newQuestion, 'Question ID', 'input');
+            const guidePdfPageInput = findFieldByLabel(newQuestion, 'Guide PDF Page', 'input');
             
             if (questionIdInput) questionIdInput.value = state.id || '';
+            if (guidePdfPageInput) guidePdfPageInput.value = state.guide_pdf_page || '';
             
             // CRITICAL: Set select value to match dataset, then call toggleQuestionType
             const questionTypeSelect = newQuestion.querySelector('select.question-type-select, select[onchange*="toggleQuestionType"]');
@@ -2776,6 +2785,12 @@
                 const questionImagesGroup = findFormGroupByLabel(newQuestion, 'Question Images');
                 if (questionImagesGroup) {
                     fillBboxGroup(questionImagesGroup, state.question_images);
+                }
+            }
+            if (state.guide_answer_images && state.guide_answer_images.length > 0) {
+                const answerImagesGroup = findFormGroupByLabel(newQuestion, 'Answer Images');
+                if (answerImagesGroup) {
+                    fillBboxGroup(answerImagesGroup, state.guide_answer_images);
                 }
             }
             
@@ -6565,6 +6580,9 @@
             
             missingImageQuestion: (qIndex, imgNum) => 
                 `${ErrorMessages.question(qIndex, false)} - Problem: You used image #${imgNum} in your question, but you haven't added any image boxes in "Question Images" yet.\n   ➡️ Fix: Scroll to "Question Images" section and add the image box.`,
+
+            missingImageAnswer: (qIndex, imgNum) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: You used image #${imgNum} in your answer, but you haven't added any image boxes in "Answer Images" yet.\n   ➡️ Fix: Scroll to "Answer Images" section and add the image box.`,
             
             missingImageChoice: (qIndex, imgNum) => 
                 `${ErrorMessages.question(qIndex, true)} - Problem: You used image #${imgNum} in choice text, but you haven't added any image boxes in "Question Images" yet.\n   ➡️ Fix: Scroll to "Question Images" section and add the image box.`,
@@ -6574,6 +6592,9 @@
             
             missingTableImageQuestion: (qIndex, imgNum) => 
                 `${ErrorMessages.question(qIndex, false)} - Problem: Your table uses image #${imgNum}, but you haven't added any image boxes in "Question Images" yet.\n   ➡️ Fix: Scroll to "Question Images" section and add the image box.`,
+
+            missingTableImageAnswer: (qIndex, imgNum) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Your answer table uses image #${imgNum}, but you haven't added any image boxes in "Answer Images" yet.\n   ➡️ Fix: Scroll to "Answer Images" section and add the image box.`,
             
             // Unused images
             unusedImageContent: (sIndex, imgNum) => 
@@ -6583,6 +6604,9 @@
                 isMCQ
                     ? `${ErrorMessages.question(qIndex, true)} - Problem: You have an image box (#${imgNum}) in "Question Images" that's not being used in your question or choices.\n   ➡️ Fix: Either delete this image box or add the image to your question or one of your choices.`
                     : `${ErrorMessages.question(qIndex, false)} - Problem: You have an image box (#${imgNum}) in "Question Images" that's not being used in your question text.\n   ➡️ Fix: Either delete this image box or add the image to your question using the "Insert Image" button.`,
+
+            unusedImageAnswer: (qIndex, imgNum) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: You have an image box (#${imgNum}) in "Answer Images" that's not being used in your answer.\n   ➡️ Fix: Either delete this image box or add the image to your answer using the "Insert Image" button.`,
             
             // Duplicate indices
             duplicateImagesContent: (sIndex, numbers) => 
@@ -6592,6 +6616,9 @@
                 isMCQ
                     ? `${ErrorMessages.question(qIndex, true)} - Problem: You used the same image numbers more than once in your question or choices: ${numbers.map(n => '#' + n).join(', ')}\n   ➡️ Fix: Each image should have a unique number across your question and all choices. Use: 0, 1, 2, 3...`
                     : `${ErrorMessages.question(qIndex, false)} - Problem: You used the same image numbers more than once in your question: ${numbers.map(n => '#' + n).join(', ')}\n   ➡️ Fix: Each image in your question should have a unique number (starting from 0). The images should go: 0, 1, 2, 3...`,
+
+            duplicateImagesAnswer: (qIndex, numbers) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: You used the same image numbers more than once in your answer: ${numbers.map(n => '#' + n).join(', ')}\n   ➡️ Fix: Each image in your answer should have a unique number (starting from 0). Use: 0, 1, 2, 3...`,
             
             // Count mismatch
             countMismatchContent: (sIndex, textCount, boxCount) => 
@@ -6601,6 +6628,9 @@
                 isMCQ
                     ? `${ErrorMessages.question(qIndex, true)} - Problem: Your question and choices use ${textCount} image${textCount !== 1 ? 's' : ''} total, but you have ${boxCount} image box${boxCount !== 1 ? 'es' : ''} in "Question Images".\n   ➡️ Fix: Make sure the number of image boxes matches the total number of images across your question and all choices (${textCount}).`
                     : `${ErrorMessages.question(qIndex, false)} - Problem: Your question uses ${textCount} image${textCount !== 1 ? 's' : ''}, but you have ${boxCount} image box${boxCount !== 1 ? 'es' : ''} in "Question Images".\n   ➡️ Fix: Make sure the number of image boxes matches the number of images you used (${textCount}).`,
+
+            countMismatchAnswer: (qIndex, textCount, boxCount) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Your answer uses ${textCount} image${textCount !== 1 ? 's' : ''}, but you have ${boxCount} image box${boxCount !== 1 ? 'es' : ''} in "Answer Images".\n   ➡️ Fix: Make sure the number of image boxes matches the number of images you used in your answer (${textCount}).`,
             
             // Must start from 0
             mustStartFromZeroContent: (sIndex, startNum) => 
@@ -6608,6 +6638,9 @@
             
             mustStartFromZeroQuestion: (qIndex, startNum) => 
                 `${ErrorMessages.question(qIndex, false)} - Problem: Your question images should start from number 0, but you started from #${startNum}.\n   ➡️ Fix: Change your images to start from 0: use ![description](0) for the first image.`,
+
+            mustStartFromZeroAnswer: (qIndex, startNum) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Your answer images should start from number 0, but you started from #${startNum}.\n   ➡️ Fix: Change your images to start from 0: use ![description](0) for the first image in your answer.`,
             
             // Gaps in sequence
             gapInSequenceContent: (sIndex, before, after) => 
@@ -6615,6 +6648,9 @@
             
             gapInSequenceQuestion: (qIndex, before, after) => 
                 `${ErrorMessages.question(qIndex, false)} - Problem: Your question image numbers skip from #${before} to #${after}. You're missing #${before + 1}.\n   ➡️ Fix: Use image numbers in order without skipping: 0, 1, 2, 3, 4...`,
+
+            gapInSequenceAnswer: (qIndex, before, after) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Your answer image numbers skip from #${before} to #${after}. You're missing #${before + 1}.\n   ➡️ Fix: Use image numbers in order without skipping: 0, 1, 2, 3, 4...`,
             
             // Wrong order
             wrongOrderContent: (sIndex, foundOrder) => 
@@ -6624,6 +6660,9 @@
                 isMCQ
                     ? `${ErrorMessages.question(qIndex, true)} - Problem: Your images appear in wrong order across question and choices. They should go 0, 1, 2, 3... but you have: ${foundOrder.join(', ')}\n   ➡️ Fix: Images should appear in order: first in setup text, then question text, then choice A, then choice B, etc.`
                     : `${ErrorMessages.question(qIndex, false)} - Problem: Your images appear in wrong order. They should go 0, 1, 2, 3... but you have: ${foundOrder.join(', ')}\n   ➡️ Fix: Images should appear in order as you read the question from top to bottom.`,
+
+            wrongOrderAnswer: (qIndex, foundOrder) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Your answer images appear in wrong order. They should go 0, 1, 2, 3... but you have: ${foundOrder.join(', ')}\n   ➡️ Fix: Rearrange the images in your answer so they appear in order from top to bottom.`,
             
             // Out of range
             outOfRangeContent: (sIndex, imgNum, maxNum) => 
@@ -6633,6 +6672,9 @@
                 isChoice
                     ? `${ErrorMessages.question(qIndex, true)} - Problem: Your choice text tries to use image #${imgNum}, but you only have images #0 to #${maxNum} in "Question Images".\n   ➡️ Fix: Either add more image boxes or change the choice to use an existing image number (0 to ${maxNum}).`
                     : `${ErrorMessages.question(qIndex, false)} - Problem: Your table tries to use image #${imgNum}, but you only have images #0 to #${maxNum} in "Question Images".\n   ➡️ Fix: Either add more image boxes or change the table to use an existing image number (0 to ${maxNum}).`,
+
+            outOfRangeAnswer: (qIndex, imgNum, maxNum) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Your answer table tries to use image #${imgNum}, but you only have images #0 to #${maxNum} in "Answer Images".\n   ➡️ Fix: Either add more image boxes or change the table to use an existing image number (0 to ${maxNum}).`,
             
             // Required fields
             requiredContent: (sIndex) => 
@@ -6646,6 +6688,15 @@
             
             requiredAnswer: (qIndex) => 
                 `${ErrorMessages.question(qIndex, false)} - Problem: Answer is missing.\n   ➡️ Fix: Type the answer in the "Guide Answer" field.`,
+
+            requiredGuidePage: (qIndex) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Guide PDF page number is missing.\n   ➡️ Fix: Enter the page number from the teacher guide where this answer appears (for example: 78).`,
+
+            invalidGuidePage: (qIndex) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Guide PDF page must be a whole number (like 1, 2, 3... not 1.5 or text).\n   ➡️ Fix: Enter a valid page number like 78.`,
+
+            guidePageOutOfRange: (qIndex, guidePage, startPage, endPage) => 
+                `${ErrorMessages.question(qIndex, false)} - Problem: Guide PDF page (${guidePage}) is outside the guidebook range (${startPage}-${endPage}).\n   ➡️ Fix: Enter a page number between ${startPage} and ${endPage} (inclusive).`,
             
             requiredChoices: (qIndex) => 
                 `${ErrorMessages.question(qIndex, true)} - Problem: You haven't added any answer choices yet.\n   ➡️ Fix: Click "+ Add Choice" to add answer options (A, B, C, D...).`,
@@ -7996,7 +8047,7 @@
             if (!key || !window.__fpBboxMap || !window.__fpBboxMap[key]) return null;
             return window.__fpBboxMap[key];
         }
-        // Build bbox map from form state (instructional_content[].images, practice_questions[].question_images)
+        // Build bbox map from form state (instructional_content[].images, practice_questions[].question_images / guide_answer_images)
         function buildFpBboxMapFromState(state) {
             const map = {};
             if (!state) return map;
@@ -8022,10 +8073,15 @@
                     const rec = toRecord(img);
                     if (rec) map['question-' + i + '-' + j] = rec;
                 });
+                const aImgs = Array.isArray(q.guide_answer_images) ? q.guide_answer_images : [];
+                aImgs.forEach(function (img, j) {
+                    const rec = toRecord(img);
+                    if (rec) map['answer-' + i + '-' + j] = rec;
+                });
             });
             return map;
         }
-        // Infer bbox key prefix from textarea position (content / question). Used when creating placeholders.
+        // Infer bbox key prefix from textarea position (content / question / answer). Used when creating placeholders.
         function getBboxKeyPrefixForTextarea(textarea) {
             if (!textarea || !textarea.closest) return null;
             const contentSection = textarea.closest('#content_sections_container .array-item');
@@ -8039,7 +8095,13 @@
                 const questions = document.querySelectorAll('#questions_container > .array-item');
                 const qIdx = Array.prototype.indexOf.call(questions, questionEl);
                 if (qIdx < 0) return null;
-                return 'question-' + qIdx;
+                const formGroup = textarea.closest('.form-group');
+                let isAnswer = false;
+                if (formGroup) {
+                    const label = formGroup.querySelector('label');
+                    if (label && /guide\s*answer|answer\s*images/i.test(label.textContent)) isAnswer = true;
+                }
+                return (isAnswer ? 'answer' : 'question') + '-' + qIdx;
             }
             return null;
         }
@@ -8083,7 +8145,7 @@
             }
             if (!textarea) return null;
             var prefix = typeof getBboxKeyPrefixForTextarea === 'function' ? getBboxKeyPrefixForTextarea(textarea) : null;
-            if (!prefix) return null;
+            if (!prefix || prefix.indexOf('answer-') === 0) return null;
             if (prefix.indexOf('question-') !== 0) return null;
             var questionContainer = typeof getQuestionContainer === 'function' ? getQuestionContainer(textarea) : null;
             if (!questionContainer) return null;
@@ -8106,9 +8168,10 @@
             return null;
         }
 
-        // Resolve which PDF to use for bbox rendering by fp-key.
+        // Resolve which PDF to use for bbox rendering by fp-key: answer- -> guidebook, else -> textbook.
         function getPdfDocForBboxKey(fpKey) {
             if (!fpKey || typeof fpKey !== 'string') return (window.__bboxStore && window.__bboxStore.docs && window.__bboxStore.docs.text) ? window.__bboxStore.docs.text.pdfDoc : null;
+            if (fpKey.indexOf('answer-') === 0) return (window.__bboxStore && window.__bboxStore.docs && window.__bboxStore.docs.guide) ? window.__bboxStore.docs.guide.pdfDoc : null;
             return (window.__bboxStore && window.__bboxStore.docs && window.__bboxStore.docs.text) ? window.__bboxStore.docs.text.pdfDoc : null;
         }
         // Produce crop canvas at native crop size (same crop logic: scale 1.5, padding 8, red rect). pdfDoc must be the correct doc for this bbox (text vs guide by scope).
@@ -8463,7 +8526,7 @@
 
         const FORCE_PLACEHOLDER_IMAGES = false; // TEMP: set true to disable bbox previews everywhere
 
-        // Derive bbox key prefix for a bbox container (content-<i> or question-<i>). Used to find the right preview roots.
+        // Derive bbox key prefix for a bbox container (content-<i>, question-<i>, or answer-<i>). Used to find the right preview roots.
         function getBboxKeyPrefixForBboxContainer(bboxContainerEl) {
             if (!bboxContainerEl || !bboxContainerEl.classList || !bboxContainerEl.classList.contains('bbox-container')) return null;
             var contentSection = bboxContainerEl.closest('#content_sections_container');
@@ -8482,7 +8545,13 @@
                 var questions = questionsContainer.querySelectorAll('#questions_container > .array-item');
                 var qIdx = Array.prototype.indexOf.call(questions, questionEl);
                 if (qIdx < 0) return null;
-                return 'question-' + qIdx;
+                var formGroup = bboxContainerEl.closest('.form-group');
+                var isAnswer = false;
+                if (formGroup) {
+                    var label = formGroup.querySelector('label');
+                    if (label && /guide\s*answer|answer\s*images/i.test(label.textContent)) isAnswer = true;
+                }
+                return (isAnswer ? 'answer-' : 'question-') + qIdx;
             }
             return null;
         }
@@ -9908,6 +9977,13 @@
             html += `<span class="question-type-badge">${questionTypeLabels[questionType] || 'Question'}</span>`;
             
             const questionIndex = Array.from(document.querySelectorAll('#questions_container > .array-item')).indexOf(questionEl);
+            const guidePdfPageInput = findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
+            const guidePdfPage = guidePdfPageInput ? guidePdfPageInput.value || '' : '';
+            html += buildPreviewBox({
+                title: 'Guide PDF Page',
+                editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('input[placeholder*=\\'e.g., 78\\']'))`,
+                bodyHTML: `<div style="padding: 8px; dir: ltr; text-align: left;">${guidePdfPage || '<span style="color: var(--text-secondary); font-style: italic;">(not set)</span>'}</div>`
+            });
             // Setup text - show if not empty (check both value and trimmed value)
             if (setupTextarea && setupText && setupText.trim()) {
                 const setupPreview = document.createElement('div');
@@ -11428,6 +11504,10 @@
                 el.querySelector('label')?.textContent.includes('Question Text'));
             const questionImagesContainer = Array.from(questionEl.querySelectorAll('.form-group')).find(el => 
                 el.querySelector('label')?.textContent.includes('Question Images'));
+            const answerImagesContainer = Array.from(questionEl.querySelectorAll('.form-group')).find(el => 
+                el.querySelector('label')?.textContent.includes('Answer Images'));
+            const guidePdfPageContainer = Array.from(questionEl.querySelectorAll('.form-group')).find(el => 
+                el.querySelector('label')?.textContent.includes('Guide PDF Page'));
             
             // Get special containers
             const blanksContainer = questionEl.querySelector('#blanks-container');
@@ -11435,7 +11515,7 @@
             
             // Hide/show fields based on question type (use currentType, not questionType)
             if (currentType === 'fill_in_the_blanks') {
-                // fill_in_the_blanks: Show question text, blanks, and images
+                // fill_in_the_blanks: Show question text, blanks, images, and guide page
                 if (setupContainer) setupContainer.style.display = 'block';
                 if (questionTextContainer) questionTextContainer.style.display = 'block';
                 if (guideAnswerContainer) guideAnswerContainer.style.display = 'none';
@@ -11443,6 +11523,8 @@
                 if (blanksContainer) blanksContainer.style.display = 'block';
                 if (matchingContainer) matchingContainer.style.display = 'none';
                 if (questionImagesContainer) questionImagesContainer.style.display = 'block';
+                if (answerImagesContainer) answerImagesContainer.style.display = 'block';
+                if (guidePdfPageContainer) guidePdfPageContainer.style.display = 'block';
                 
                 // Add listener to question text to update blanks UI
                 const questionTextarea = questionEl.querySelector('textarea[placeholder*="Enter question text"]');
@@ -11455,7 +11537,7 @@
                     updateBlankAnswersUI(questionEl);
                 }
             } else if (currentType === 'matching') {
-                // matching: Show question text, matching section, and images
+                // matching: Show question text, matching section, images, and guide page
                 if (setupContainer) setupContainer.style.display = 'block';
                 if (questionTextContainer) questionTextContainer.style.display = 'block';
                 if (guideAnswerContainer) guideAnswerContainer.style.display = 'none';
@@ -11463,6 +11545,8 @@
                 if (blanksContainer) blanksContainer.style.display = 'none';
                 if (matchingContainer) matchingContainer.style.display = 'block';
                 if (questionImagesContainer) questionImagesContainer.style.display = 'block';
+                if (answerImagesContainer) answerImagesContainer.style.display = 'block';
+                if (guidePdfPageContainer) guidePdfPageContainer.style.display = 'block';
                 
                 // Initialize with at least one item on each side if empty
                 const leftList = questionEl.querySelector('[id^="matching-left-list-"]');
@@ -11480,6 +11564,8 @@
                 if (setupContainer) setupContainer.style.display = 'block';
                 if (questionTextContainer) questionTextContainer.style.display = 'block';
                 if (questionImagesContainer) questionImagesContainer.style.display = 'block';
+                if (answerImagesContainer) answerImagesContainer.style.display = 'block';
+                if (guidePdfPageContainer) guidePdfPageContainer.style.display = 'block';
                 // Hide special containers
                 if (blanksContainer) blanksContainer.style.display = 'none';
                 if (matchingContainer) matchingContainer.style.display = 'none';
@@ -13093,6 +13179,10 @@
             appendBBoxItem(button, 'addQuestionImageBefore', 'addQuestionImageAfter');
         }
 
+        function addAnswerImage(button) {
+            appendBBoxItem(button, 'addAnswerImageBefore', 'addAnswerImageAfter');
+        }
+
         // Functions to add sections before/after current section
         function addContentSectionBefore(button) {
             const currentSection = button.closest('.array-item');
@@ -13545,7 +13635,7 @@
         }
 
         // Helper: Generate question header fields HTML
-        // Returns HTML string for: question_id, question_type
+        // Returns HTML string for: question_id, question_type, guide_pdf_page
         function getQuestionHeaderFieldsHTML() {
             return `
                 <div class="form-group required-field required">
@@ -13564,6 +13654,11 @@
                         <option value="annotate">Annotate</option>
                         <option value="create_table">Create Table</option>
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Guide PDF Page</label>
+                    <input type="number" placeholder="e.g., 78" min="1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Page number in the guidebook PDF where the answer appears (must be within the guidebook page range)">
                 </div>
             `;
         }
@@ -13882,6 +13977,37 @@
                     </div>
                     ${getActionButtonHTML({ label: 'Add Image', onClick: 'addQuestionImage(this)', iconClass: 'fa-plus', title: 'Add a new image bounding box for question images' })}
                 </div>
+
+                <div class="form-group">
+                    <label>Answer Images</label>
+                    <div class="bbox-container">
+                        <div class="array-item" data-item-type="image">
+                            <div class="bbox-inputs">
+                                <input type="number" placeholder="Page" class="bbox-page" min="1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="PDF page number where this image appears">
+                                <input type="number" placeholder="X0" class="bbox-x0" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Right X coordinate (top-right corner)">
+                                <input type="number" placeholder="Y0" class="bbox-y0" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Top Y coordinate (top-right corner)">
+                                <input type="number" placeholder="X1" class="bbox-x1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Left X coordinate (bottom-left corner)">
+                                <input type="number" placeholder="Y1" class="bbox-y1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Bottom Y coordinate (bottom-left corner)">
+                            </div>
+                            <div class="row-actions">
+                                <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
+                                <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
+                                <button class="add-bbox-btn" onclick="addAnswerImageBefore(this)" title="Add Image Before">
+                                    <i class="fas fa-plus"></i> Before
+                                </button>
+                                <button class="add-bbox-btn" onclick="addAnswerImageAfter(this)" title="Add Image After">
+                                    <i class="fas fa-plus"></i> After
+                                </button>
+                                <button class="add-btn" onclick="openBboxDrawer(this)" title="Open PDF viewer to draw bounding box"><i class="fas fa-pen-square"></i> Draw</button>
+                                <button class="add-btn" onclick="pasteBboxJson(this)" title="Paste bounding box coordinates from clipboard"><i class="fas fa-paste"></i> Paste</button>
+                                <button class="add-btn" onclick="copyBboxJson(this)" title="Copy bounding box coordinates to clipboard"><i class="fas fa-copy"></i> Copy</button>
+                                <button class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate Image"><i class="fas fa-clone"></i></button>
+                                <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
+                            </div>
+                        </div>
+                    </div>
+                    ${getActionButtonHTML({ label: 'Add Image', onClick: 'addAnswerImage(this)', iconClass: 'fa-plus', title: 'Add a new image bounding box for answer images' })}
+                </div>
                 </div>
             `;
         }
@@ -13960,6 +14086,14 @@
 
         function addQuestionImageAfter(button) {
             insertBBoxItemAfter(button, 'addQuestionImageBefore', 'addQuestionImageAfter');
+        }
+
+        function addAnswerImageBefore(button) {
+            insertBBoxItemBefore(button, 'addAnswerImageBefore', 'addAnswerImageAfter');
+        }
+
+        function addAnswerImageAfter(button) {
+            insertBBoxItemAfter(button, 'addAnswerImageBefore', 'addAnswerImageAfter');
         }
 
 
@@ -16678,6 +16812,9 @@
                 if (labelText.includes('Question Images')) {
                     beforeFunc = 'addQuestionImageBefore';
                     afterFunc = 'addQuestionImageAfter';
+                } else if (labelText.includes('Answer Images')) {
+                    beforeFunc = 'addAnswerImageBefore';
+                    afterFunc = 'addAnswerImageAfter';
                 } else if (labelText.includes('Section Images')) {
                     beforeFunc = 'addContentImageBefore';
                     afterFunc = 'addContentImageAfter';
@@ -18044,6 +18181,11 @@
                     afterFunc = 'addQuestionImageAfter';
                     beforeTitle = 'Add Image Before';
                     afterTitle = 'Add Image After';
+                } else if (labelText.includes('Answer Images')) {
+                    beforeFunc = 'addAnswerImageBefore';
+                    afterFunc = 'addAnswerImageAfter';
+                    beforeTitle = 'Add Image Before';
+                    afterTitle = 'Add Image After';
                 } else if (labelText.includes('Section Images')) {
                     beforeFunc = 'addContentImageBefore';
                     afterFunc = 'addContentImageAfter';
@@ -18311,13 +18453,23 @@
             if (jsonData.practice_questions) {
                 jsonData.practice_questions.forEach((question, qIndex) => {
                     const questionImages = question.question_images || [];
-                    const { uniqueQuestionIndices } = getQuestionTextIndices(question);
+                    const guideAnswerImages = question.guide_answer_images || [];
+                    const { uniqueQuestionIndices, uniqueGuideIndices } = getQuestionTextIndices(question);
                     
                     uniqueQuestionIndices.forEach(imgIndex => {
                         const arrayIndex = parseInt(imgIndex);
                         if (arrayIndex < 0 || arrayIndex >= questionImages.length) {
                             if (questionImages.length === 0) {
                                 errors.push(ErrorMessages.missingImageQuestion(qIndex, imgIndex));
+                            }
+                        }
+                    });
+
+                    uniqueGuideIndices.forEach(imgIndex => {
+                        const arrayIndex = parseInt(imgIndex);
+                        if (arrayIndex < 0 || arrayIndex >= guideAnswerImages.length) {
+                            if (guideAnswerImages.length === 0) {
+                                errors.push(ErrorMessages.missingImageAnswer(qIndex, imgIndex));
                             }
                         }
                     });
@@ -18373,9 +18525,10 @@
             if (jsonData.practice_questions) {
                 jsonData.practice_questions.forEach((question, qIndex) => {
                     const questionImages = question.question_images || [];
+                    const guideAnswerImages = question.guide_answer_images || [];
                     const questionType = question.question_type || 'free_form';
                     
-                    const { uniqueQuestionIndices } = getQuestionTextIndices(question);
+                    const { uniqueQuestionIndices, uniqueGuideIndices } = getQuestionTextIndices(question);
                     
                     // Check question images against setup text, question text, and choices (for MCQ)
                     // Setup text, question text, and choices share the same question_images array
@@ -18385,6 +18538,15 @@
                         for (let i = 0; i < questionImages.length; i++) {
                             if (!referencedIndices.has(i)) {
                                 errors.push(ErrorMessages.unusedImageQuestion(qIndex, i, (questionType === 'multiple_choice' || questionType === 'checkbox')));
+                            }
+                        }
+                    }
+
+                    if (guideAnswerImages.length > 0) {
+                        const referencedIndices = new Set(uniqueGuideIndices);
+                        for (let i = 0; i < guideAnswerImages.length; i++) {
+                            if (!referencedIndices.has(i)) {
+                                errors.push(ErrorMessages.unusedImageAnswer(qIndex, i));
                             }
                         }
                     }
@@ -18424,8 +18586,9 @@
             if (jsonData.practice_questions) {
                 jsonData.practice_questions.forEach((question, qIndex) => {
                     const questionImages = question.question_images || [];
+                    const guideAnswerImages = question.guide_answer_images || [];
                     const questionType = question.question_type || 'free_form';
-                    const { allQuestionIndices } = getQuestionTextIndices(question);
+                    const { allQuestionIndices, allGuideIndices, uniqueGuideIndices } = getQuestionTextIndices(question);
                     
                     // Check for duplicates and mismatched counts based on question type
                     if (questionType === 'multiple_choice' || questionType === 'checkbox') {
@@ -18452,6 +18615,14 @@
                         if (uniqueQuestionIndices.length !== questionImages.length) {
                             errors.push(ErrorMessages.countMismatchQuestion(qIndex, uniqueQuestionIndices.length, questionImages.length, false));
                         }
+                    }
+
+                    const duplicateGuideAnswerIndices = findDuplicates(allGuideIndices);
+                    if (duplicateGuideAnswerIndices.length > 0) {
+                        errors.push(ErrorMessages.duplicateImagesAnswer(qIndex, duplicateGuideAnswerIndices));
+                    }
+                    if (allGuideIndices.length !== guideAnswerImages.length) {
+                        errors.push(ErrorMessages.countMismatchAnswer(qIndex, allGuideIndices.length, guideAnswerImages.length));
                     }
                 });
             }
@@ -18500,8 +18671,9 @@
             if (jsonData.practice_questions) {
                 jsonData.practice_questions.forEach((question, qIndex) => {
                     const questionImages = question.question_images || [];
+                    const guideAnswerImages = question.guide_answer_images || [];
                     const questionType = question.question_type || 'free_form';
-                    const { allQuestionIndices, uniqueQuestionIndices } = getQuestionTextIndices(question);
+                    const { allQuestionIndices, uniqueQuestionIndices, allGuideIndices, uniqueGuideIndices } = getQuestionTextIndices(question);
                     
                     // For MCQ: setup -> question -> choice1 -> choice2 -> ...
                     // For other types: setup -> question -> type-specific fields
@@ -18529,32 +18701,31 @@
                             }
                         }
                     }
+
+                    if (allGuideIndices.length > 0 && guideAnswerImages.length > 0) {
+                        const sortedGuideAnswerIndices = [...uniqueGuideIndices].sort((a, b) => a - b);
+                        if (uniqueGuideIndices.length > 0) {
+                            if (sortedGuideAnswerIndices[0] !== 0) {
+                                errors.push(ErrorMessages.mustStartFromZeroAnswer(qIndex, sortedGuideAnswerIndices[0]));
+                            }
+                            for (let i = 1; i < sortedGuideAnswerIndices.length; i++) {
+                                if (sortedGuideAnswerIndices[i] !== sortedGuideAnswerIndices[i - 1] + 1) {
+                                    errors.push(ErrorMessages.gapInSequenceAnswer(qIndex, sortedGuideAnswerIndices[i - 1], sortedGuideAnswerIndices[i]));
+                                }
+                            }
+                            const orderedGuideAnswerIndices = allGuideIndices.map(idx => parseInt(idx));
+                            const expectedGuideAnswerOrder = Array.from({ length: uniqueGuideIndices.length }, (_, i) => i);
+                            if (JSON.stringify(orderedGuideAnswerIndices) !== JSON.stringify(expectedGuideAnswerOrder)) {
+                                errors.push(ErrorMessages.wrongOrderAnswer(qIndex, orderedGuideAnswerIndices));
+                            }
+                        }
+                    }
                 });
             }
             
             return errors;
         }
 
-        // Toggle to enforce/disable guide-answer image markdown validation.
-        // Set to true to bring this validation back.
-        const ENABLE_GUIDE_ANSWER_IMAGE_MARKDOWN_VALIDATION = false;
-
-        // Guide answers are text-only when this validation is enabled.
-        function validateGuideAnswerMarkdown(jsonData) {
-            const errors = [];
-            if (!ENABLE_GUIDE_ANSWER_IMAGE_MARKDOWN_VALIDATION) return errors;
-            if (!jsonData || !Array.isArray(jsonData.practice_questions)) return errors;
-
-            jsonData.practice_questions.forEach((question, qIndex) => {
-                const guideAnswer = question && typeof question.guide_answer === 'string' ? question.guide_answer : '';
-                const imageRefs = extractAllImageIndices(guideAnswer);
-                if (imageRefs.length > 0) {
-                    errors.push(`${ErrorMessages.question(qIndex, false)} - Problem: Guide answer image markdown is not supported.\n   -> Fix: Remove image markdown from Guide Answer and keep text only.`);
-                }
-            });
-
-            return errors;
-        }
         // Extract image indices from table markdown
         function extractTableImageIndices(text) {
             const imageIndices = [];
@@ -18817,7 +18988,7 @@
          * @param {HTMLElement} questionEl - The question container element
          * @returns {Object} Complete question data object
          */
-        function collectQuestionData(questionEl) {
+        function collectQuestionDataLegacy(questionEl) {
             const questionId = getFieldValue(questionEl, 'Question ID');
             const questionType = getQuestionType(questionEl);
             
@@ -18850,6 +19021,14 @@
             
             // Collect question images (bbox data)
             const questionImages = collectBboxData(questionEl, 'question_images', false);
+            const guideAnswerImages = collectBboxData(questionEl, 'answer_images', false);
+
+            const guidePdfPageRaw = getFieldValue(questionEl, 'Guide PDF Page') || '';
+            let guidePdfPage = null;
+            if (guidePdfPageRaw !== '') {
+                const parsedGuidePdfPage = parseInt(guidePdfPageRaw, 10);
+                guidePdfPage = Number.isNaN(parsedGuidePdfPage) ? null : parsedGuidePdfPage;
+            }
             
             // Build the question object
             const questionData = {
@@ -18887,8 +19066,136 @@
             }
             
             questionData.question_images = questionImages;
+            questionData.guide_pdf_page = guidePdfPage;
+            questionData.guide_answer_images = guideAnswerImages;
             
             return questionData;
+        }
+
+        const QuestionSchemaAdapter = (() => {
+            function isPlainObject(value) {
+                return !!(value && typeof value === 'object' && !Array.isArray(value));
+            }
+
+            function normalizeQuestionKeyAliases(rawQuestion) {
+                const source = isPlainObject(rawQuestion) ? rawQuestion : {};
+                const normalized = { ...source };
+
+                if ((normalized.question === undefined || normalized.question === null) && normalized.question_text !== undefined) {
+                    normalized.question = normalized.question_text;
+                }
+                if ((normalized.setup_text === undefined || normalized.setup_text === null) && normalized.set_up_text !== undefined) {
+                    normalized.setup_text = normalized.set_up_text;
+                }
+
+                delete normalized.question_text;
+                delete normalized.set_up_text;
+                return normalized;
+            }
+
+            function normalizeGuideAnswerToArray(guideAnswer) {
+                if (Array.isArray(guideAnswer)) {
+                    return guideAnswer.map(item => (item == null ? '' : String(item))).filter(item => item !== '');
+                }
+                if (guideAnswer === undefined || guideAnswer === null) {
+                    return [];
+                }
+                const text = String(guideAnswer).trim();
+                return text ? [text] : [];
+            }
+
+            function guideAnswerArrayToLegacyString(guideAnswer, questionType = 'free_form') {
+                const normalized = normalizeGuideAnswerToArray(guideAnswer);
+                if (normalized.length === 0) return '';
+                if (questionType === 'matching') return normalized.join('\n');
+                return normalized[0];
+            }
+
+            function buildCanonicalDraft(questionLike) {
+                const source = normalizeQuestionKeyAliases(questionLike);
+                const guidePdfPageValue = source.guide_pdf_page;
+                const normalizedGuidePdfPage = guidePdfPageValue === '' || guidePdfPageValue == null
+                    ? null
+                    : (Number.isNaN(parseInt(guidePdfPageValue, 10)) ? null : parseInt(guidePdfPageValue, 10));
+                return {
+                    id: source.id == null ? '' : String(source.id),
+                    question_type: source.question_type || 'free_form',
+                    question: source.question == null ? '' : String(source.question),
+                    setup_text: (source.setup_text === undefined || source.setup_text === null || source.setup_text === '') ? null : String(source.setup_text),
+                    guide_pdf_page: normalizedGuidePdfPage,
+                    question_images: Array.isArray(source.question_images) ? source.question_images : null,
+                    guide_answer_images: Array.isArray(source.guide_answer_images) ? source.guide_answer_images : null,
+                    guide_answer: normalizeGuideAnswerToArray(source.guide_answer),
+                    options: Array.isArray(source.options) ? source.options.map(opt => (opt == null ? '' : String(opt))) : null
+                };
+            }
+
+            function toLegacyExport(input) {
+                if (!isPlainObject(input)) return {};
+
+                if (isPlainObject(input.legacyExport) && isPlainObject(input.canonical)) {
+                    return { ...input.legacyExport };
+                }
+
+                const canonical = buildCanonicalDraft(input);
+                return {
+                    id: canonical.id,
+                    question_type: canonical.question_type,
+                    question: canonical.question,
+                    setup_text: canonical.setup_text,
+                    guide_pdf_page: canonical.guide_pdf_page,
+                    guide_answer: guideAnswerArrayToLegacyString(canonical.guide_answer, canonical.question_type),
+                    question_images: Array.isArray(canonical.question_images) ? canonical.question_images : [],
+                    guide_answer_images: Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : []
+                };
+            }
+
+            function normalizeIncoming(rawQuestion) {
+                const source = normalizeQuestionKeyAliases(rawQuestion);
+                const canonical = buildCanonicalDraft(source);
+                const legacyExport = { ...source };
+
+                legacyExport.id = canonical.id;
+                legacyExport.question_type = canonical.question_type;
+                legacyExport.question = canonical.question;
+                legacyExport.setup_text = canonical.setup_text;
+                legacyExport.guide_pdf_page = canonical.guide_pdf_page;
+                legacyExport.question_images = Array.isArray(source.question_images) ? source.question_images : [];
+                legacyExport.guide_answer_images = Array.isArray(source.guide_answer_images) ? source.guide_answer_images : [];
+                legacyExport.guide_answer = guideAnswerArrayToLegacyString(source.guide_answer, canonical.question_type);
+
+                return { canonical, legacyExport };
+            }
+
+            function fromUI(questionEl) {
+                const legacyFromUI = collectQuestionDataLegacy(questionEl);
+                const normalized = normalizeIncoming(legacyFromUI);
+                const legacyExport = {
+                    ...legacyFromUI,
+                    question: normalized.canonical.question,
+                    setup_text: normalized.canonical.setup_text
+                };
+                return { canonical: normalized.canonical, legacyExport };
+            }
+
+            return {
+                fromUI,
+                normalizeIncoming,
+                toLegacyExport,
+                normalizeGuideAnswerToArray,
+                normalizeQuestionKeyAliases
+            };
+        })();
+
+        function collectQuestionData(questionEl) {
+            const adapted = QuestionSchemaAdapter.fromUI(questionEl);
+
+            // Scaffold phase: keep export shape unchanged while all callers use adapter flow.
+            if (QUESTION_SCHEMA_MIGRATION_PHASE === 'global_scaffold') {
+                return QuestionSchemaAdapter.toLegacyExport(adapted);
+            }
+
+            return QuestionSchemaAdapter.toLegacyExport(adapted);
         }
 
         function getEffectiveCheckboxValuesForValidation(values, choicesCount) {
@@ -18937,9 +19244,10 @@
             const isQuestion = !!sectionEl.closest('#questions_container');
             
             if (isQuestion) {
+                const adapted = QuestionSchemaAdapter.fromUI(sectionEl);
                 return {
                     type: 'question',
-                    data: collectQuestionData(sectionEl)
+                    data: QuestionSchemaAdapter.toLegacyExport(adapted)
                 };
             } else {
                 return {
@@ -19002,7 +19310,8 @@
             const { container, insertBefore, isReplacement, targetEl } = targetContext;
             
             if (payload.type === 'question') {
-                return deserializeQuestion(payload.data, { container, insertBefore, isReplacement, targetEl }, options);
+                const normalizedQuestion = QuestionSchemaAdapter.normalizeIncoming(payload.data);
+                return deserializeQuestion(normalizedQuestion.legacyExport, { container, insertBefore, isReplacement, targetEl }, options);
             } else if (payload.type === 'content') {
                 return deserializeContentSection(payload.data, { container, insertBefore, isReplacement, targetEl }, options);
             } else {
@@ -19018,6 +19327,7 @@
             const { container, insertBefore, isReplacement, targetEl } = context;
             const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
             const deferFinalize = options.deferFinalize === true || inBulkFastPath;
+            data = QuestionSchemaAdapter.normalizeIncoming(data).legacyExport;
             
             let questionEl;
             if (isReplacement && targetEl) {
@@ -19062,6 +19372,7 @@
             
             setFieldValue(questionEl, 'Set-up Text', data.setup_text || '', 'textarea');
             setFieldValue(questionEl, 'Question Text', data.question || '', 'textarea');
+            setFieldValue(questionEl, 'Guide PDF Page', data.guide_pdf_page || '');
             
             // Handle type-specific data
             if (questionType === 'fill_in_the_blanks') {
@@ -19077,8 +19388,12 @@
             
             // Fill bbox data (images)
             const questionImagesGroup = findFormGroupByLabel(questionEl, 'Question Images');
+            const answerImagesGroup = findFormGroupByLabel(questionEl, 'Answer Images');
             if (questionImagesGroup) {
                 fillBboxGroup(questionImagesGroup, data.question_images || []);
+            }
+            if (answerImagesGroup) {
+                fillBboxGroup(answerImagesGroup, data.guide_answer_images || []);
             }
             
             if (!deferFinalize) {
@@ -19339,7 +19654,7 @@
          * Unified function to collect bbox data from any container
          * Consolidates collectContentBboxData and collectQuestionBboxData
          * @param {HTMLElement} container - The container element (content or question)
-         * @param {string} type - Type of bbox: 'images' or 'question_images'
+         * @param {string} type - Type of bbox: 'images', 'question_images', or 'answer_images'
          * @param {boolean} allowDefaultPage - Whether to use default page for content images
          * @returns {Array} Array of bbox objects with page and position
          */
@@ -19351,6 +19666,8 @@
                 bboxContainer = container.querySelectorAll('.bbox-container')[0];
             } else if (type === 'question_images') {
                 bboxContainer = container.querySelectorAll('.bbox-container')[0];
+            } else if (type === 'answer_images') {
+                bboxContainer = container.querySelectorAll('.bbox-container')[1];
             }
             
             if (!bboxContainer) return [];
@@ -19398,7 +19715,7 @@
                         return null; // Will be filtered out
                     }
                 } else {
-                    // Question images: all fields required including page
+                    // Question/Answer images: all fields required including page
                     if (!page || !x0 || !y0 || !x1 || !y1) {
                         return null; // Will be filtered out
                     }
@@ -19519,8 +19836,15 @@
                     const isGuideAnswer = textarea.closest('textarea[placeholder*="guide answer"]');
                     
                     if (isGuideAnswer) {
-                        // Guide answer image markdown is disabled; keep index calculation scoped to this field only.
-                        const uniqueIndices = getUniqueIndices(extractAllImageIndices(textarea.value));
+                        // Guide answer uses guide_answer_images array - check only other guide answer fields
+                        const otherGuideAnswers = questionContainer.querySelectorAll('textarea[placeholder*="guide answer"]');
+                        let allGuideAnswerIndices = extractAllImageIndices(textarea.value);
+                        otherGuideAnswers.forEach(field => {
+                            if (field !== textarea) {
+                                allGuideAnswerIndices.push(...extractAllImageIndices(field.value));
+                            }
+                        });
+                        const uniqueIndices = getUniqueIndices(allGuideAnswerIndices);
                         nextIndex = uniqueIndices.length === 0 ? 0 : Math.max(...uniqueIndices) + 1;
                     } else {
                         // Setup text and question text share question_images array - check both
@@ -21930,11 +22254,12 @@
         /**
          * Extract text indices for question section (handles MCQ, checkbox, matching, and free-form)
          * @param {Object} question - Question object
-         * @returns {Object} Object with question indices and unique question indices
+         * @returns {Object} Object with question indices, guide indices, and their unique versions
          */
         function getQuestionTextIndices(question) {
             const questionText = question.question || '';
             const setupText = question.setup_text || '';
+            const guideAnswer = question.guide_answer || '';
             const questionType = question.question_type || 'free_form';
             const choices = question.choices || [];
             const leftItems = question.left || [];
@@ -21963,10 +22288,14 @@
             }
             
             const uniqueQuestionIndices = getUniqueIndices(allQuestionIndices);
+            const allGuideIndices = extractAllImageIndices(guideAnswer);
+            const uniqueGuideIndices = getUniqueIndices(allGuideIndices);
             
             return {
                 allQuestionIndices,
-                uniqueQuestionIndices
+                uniqueQuestionIndices,
+                allGuideIndices,
+                uniqueGuideIndices
             };
         }
 
@@ -22528,6 +22857,47 @@
             };
         }
 
+        function collectGuidePageValidationErrorsForQuestion(params) {
+            const {
+                questionEl,
+                questionData,
+                questionIndex,
+                hasGuidebookRange,
+                guidebookStart,
+                guidebookEnd
+            } = params || {};
+
+            const errors = [];
+            const guidePdfInput = findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
+            const rawGuidePdf = guidePdfInput ? (guidePdfInput.value || '').trim() : '';
+            const hasGuidePdf = rawGuidePdf !== '';
+
+            if (hasGuidebookRange && !hasGuidePdf) {
+                errors.push(ErrorMessages.requiredGuidePage(questionIndex));
+            }
+            if (!hasGuidebookRange && hasGuidePdf) {
+                errors.push(`Question ${questionIndex + 1} - Problem: Guide PDF Page must be empty when Guidebook PDF Pages (Start - End) are empty.\n   ➡️ Fix: Leave Guide PDF Page empty for this question, or fill both Guidebook start and end pages.`);
+            }
+
+            if (hasGuidePdf && (questionData?.guide_pdf_page == null || Number.isNaN(questionData.guide_pdf_page))) {
+                errors.push(ErrorMessages.invalidGuidePage(questionIndex));
+            } else if (typeof questionData?.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
+                if (!Number.isInteger(questionData.guide_pdf_page) || questionData.guide_pdf_page <= 0) {
+                    errors.push(ErrorMessages.invalidGuidePage(questionIndex));
+                } else {
+                    const gbStart = parseInt(guidebookStart, 10);
+                    const gbEnd = parseInt(guidebookEnd, 10);
+                    if (!Number.isNaN(gbStart) && !Number.isNaN(gbEnd) && gbStart > 0 && gbEnd > 0) {
+                        if (questionData.guide_pdf_page < gbStart || questionData.guide_pdf_page > gbEnd) {
+                            errors.push(ErrorMessages.guidePageOutOfRange(questionIndex, questionData.guide_pdf_page, gbStart, gbEnd));
+                        }
+                    }
+                }
+            }
+
+            return errors;
+        }
+
         function getBookMetadataPreviewEntries(metadata) {
             if (!metadata || typeof metadata !== 'object') return [];
             const entries = [];
@@ -22809,12 +23179,25 @@
             const questionElements = document.querySelectorAll('#questions_container > .array-item');
             questionElements.forEach((questionEl, index) => {
                 try {
-                    const questionData = collectQuestionData(questionEl);
+                    const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
+                    const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
                     const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
                     
                     // Enforce required fields for each question
                     if (!questionData.id) {
                         validationErrors.push(ErrorMessages.requiredQuestionID(index));
+                    }
+
+                    const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
+                        questionEl,
+                        questionData,
+                        questionIndex: index,
+                        hasGuidebookRange,
+                        guidebookStart,
+                        guidebookEnd
+                    });
+                    if (guidePageErrors.length > 0) {
+                        validationErrors.push(...guidePageErrors);
                     }
                     
                     // Validate annotate and create_table types
@@ -22972,11 +23355,6 @@
                 validationErrors.push(...imageOrderingErrors);
             }
 
-            const guideAnswerMarkdownErrors = validateGuideAnswerMarkdown(jsonData);
-            if (guideAnswerMarkdownErrors.length > 0) {
-                validationErrors.push(...guideAnswerMarkdownErrors);
-            }
-            
             // Final validation check - errors block, warnings just inform
             if (validationErrors.length > 0) {
                 alert("Validation errors found:\n" + validationErrors.join("\n"));
@@ -23060,7 +23438,8 @@
             const questionElements = document.querySelectorAll('#questions_container > .array-item');
             questionElements.forEach((questionEl) => {
                 try {
-                    const questionData = collectQuestionData(questionEl);
+                    const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
+                    const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
                     jsonData.practice_questions.push(questionData);
                 } catch (error) {
                     // Skip questions that fail to collect
@@ -23327,6 +23706,11 @@
                 afterFunc = 'addQuestionImageAfter';
                 beforeTitle = 'Add Image Before';
                 afterTitle = 'Add Image After';
+            } else if (labelText.includes('Answer Images')) {
+                beforeFunc = 'addAnswerImageBefore';
+                afterFunc = 'addAnswerImageAfter';
+                beforeTitle = 'Add Image Before';
+                afterTitle = 'Add Image After';
             } else if (labelText.includes('Section Images')) {
                 beforeFunc = 'addContentImageBefore';
                 afterFunc = 'addContentImageAfter';
@@ -23497,6 +23881,8 @@
             isBulkOperation = true;
             
             questions.forEach(q => {
+                const normalizedQuestion = QuestionSchemaAdapter.normalizeIncoming(q);
+                q = normalizedQuestion.legacyExport;
                 addQuestion();
                 const qEl = container.lastElementChild;
                 
@@ -23738,13 +24124,24 @@
                     // Free form - fill guide answer
                     setGuideAnswerValue(qEl, q.guide_answer, questionType);
                 }
-                
+
+                const guidePdfPageInput = findFieldByLabel(qEl, 'Guide PDF Page');
+                const guidePdfPage = (q.guide_pdf_page ?? null);
+                if (guidePdfPageInput) {
+                    guidePdfPageInput.value = (guidePdfPage == null || Number.isNaN(guidePdfPage)) ? '' : guidePdfPage;
+                }
+
                 const questionImages = normalizeBboxArray(q.question_images, defaultPage);
+                const answerImages = normalizeBboxArray(q.guide_answer_images, guidePdfPage || defaultPage);
 
                 // Find image groups by label
                 const questionImagesGroup = findFormGroupByLabel(qEl, 'Question Images');
+                const answerImagesGroup = findFormGroupByLabel(qEl, 'Answer Images');
                 if (questionImagesGroup) {
                     fillBboxGroup(questionImagesGroup, questionImages);
+                }
+                if (answerImagesGroup) {
+                    fillBboxGroup(answerImagesGroup, answerImages);
                 }
                 
                 // Attach previews and bbox validation after populating
@@ -23775,24 +24172,10 @@
             if (!data || typeof data !== 'object') return data;
             const questions = Array.isArray(data.practice_questions) ? data.practice_questions : [];
 
-            questions.forEach((q) => {
+            questions.forEach((q, index) => {
                 if (!q || typeof q !== 'object') return;
-
-                // If both old and new keys exist, keep new keys.
-                if ((q.question === undefined || q.question === null) && q.question_text !== undefined) {
-                    q.question = q.question_text;
-                }
-                if ((q.setup_text === undefined || q.setup_text === null) && q.set_up_text !== undefined) {
-                    q.setup_text = q.set_up_text;
-                }
-
-                // Remove legacy keys after migration so runtime remains canonical.
-                if (Object.prototype.hasOwnProperty.call(q, 'question_text')) {
-                    delete q.question_text;
-                }
-                if (Object.prototype.hasOwnProperty.call(q, 'set_up_text')) {
-                    delete q.set_up_text;
-                }
+                const normalized = QuestionSchemaAdapter.normalizeIncoming(q);
+                questions[index] = normalized.legacyExport;
             });
 
             return data;
@@ -25116,6 +25499,10 @@
                 const pageType = document.getElementById('page_type').value;
                 const bookMetadata = getBookMetadataFormState();
                 const bookMetadataValidation = validateBookMetadataForGenerate(pageType, bookMetadata);
+                const hasGuidebookStart = guidebookStart.trim() !== '';
+                const hasGuidebookEnd = guidebookEnd.trim() !== '';
+                const hasGuidebookRange = hasGuidebookStart && hasGuidebookEnd;
+                const hasPartialGuidebookRange = hasGuidebookStart !== hasGuidebookEnd;
                 
                 // Validate block LaTeX in all content sections and questions before saving (exclude output fields)
                 const validationErrors = [];
@@ -25225,6 +25612,9 @@
                 if (guidebookStart && guidebookEnd && parseInt(guidebookStart) > parseInt(guidebookEnd)) {
                     validationErrors.push('Guidebook start page cannot be greater than end page');
                 }
+                if (hasPartialGuidebookRange) {
+                    validationErrors.push('Guidebook PDF Pages (Start - End) must be both filled or both empty.');
+                }
                 if (!pageType || pageType.trim().length === 0) validationErrors.push('Page type is required');
                 if (bookMetadataValidation.errors.length > 0) validationErrors.push(...bookMetadataValidation.errors);
 
@@ -25279,11 +25669,24 @@
                 const questionElements = document.querySelectorAll('#questions_container > .array-item');
                 questionElements.forEach((questionEl, index) => {
                     try {
-                        const questionData = collectQuestionData(questionEl);
+                        const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
+                        const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
                         const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
                         
                         // Validate required fields
                         if (!questionData.id) validationErrors.push(ErrorMessages.requiredQuestionID(index));
+
+                        const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
+                            questionEl,
+                            questionData,
+                            questionIndex: index,
+                            hasGuidebookRange,
+                            guidebookStart,
+                            guidebookEnd
+                        });
+                        if (guidePageErrors.length > 0) {
+                            validationErrors.push(...guidePageErrors);
+                        }
                         
                         // Validate annotate and create_table types
                         if (questionData.question_type === 'annotate' || questionData.question_type === 'create_table') {
@@ -25415,11 +25818,6 @@
                         console.warn(`Question ${index + 1}: ${error.message}`);
                     }
                 });
-
-                const guideAnswerMarkdownErrors = validateGuideAnswerMarkdown(jsonData);
-                if (guideAnswerMarkdownErrors.length > 0) {
-                    validationErrors.push(...guideAnswerMarkdownErrors);
-                }
 
                 // Validation errors are collected but do not block or alert during save
 
@@ -27722,7 +28120,7 @@
                 page: null,
                 source: 'textbook',
                 questionPage: null,  // For questions: textbook page
-                answerPage: null     // For questions: guidebook range page
+                answerPage: null     // For questions: guide page
             };
             
             // Detect active tab (use sub-tab when focused element is in input form, else first .tab.active may be main tab)
@@ -27758,9 +28156,9 @@
                     else if (section.closest('#questions_container')) {
                         context.activeQuestion = getQuestionIndex(section);
                         
-                        // Extract question page and current guidebook range page
+                        // Extract question page and guide page context
                         context.questionPage = extractPageFromQuestion(section, 'question');
-                        context.answerPage = getGuidebookPageInRange();
+                        context.answerPage = extractPageFromQuestion(section, 'answer');
                         
                         // Determine if we're editing question or answer fields
                         const fieldType = detectQuestionFieldType(focused, section);
@@ -27824,13 +28222,31 @@
                         }
                     }
                 }
+            } else if (type === 'answer') {
+                const answerBboxLabel = Array.from(questionEl.querySelectorAll('label')).find(
+                    label => label.textContent.includes('Answer Images')
+                );
+                if (answerBboxLabel) {
+                    const container = answerBboxLabel.closest('.form-group')?.querySelector('.bbox-container');
+                    if (container) {
+                        const firstBbox = container.querySelector('.array-item .bbox-page');
+                        if (firstBbox && firstBbox.value) {
+                            return parseInt(firstBbox.value, 10);
+                        }
+                    }
+                }
+
+                const guidePdfPageInput = findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
+                if (guidePdfPageInput && guidePdfPageInput.value) {
+                    return parseInt(guidePdfPageInput.value, 10);
+                }
             }
             
             return null;
         }
 
         function detectQuestionFieldType(focused, questionEl) {
-            const answerLabels = ['Guide Answer'];
+            const answerLabels = ['Guide Answer', 'Answer Images', 'Guide PDF Page'];
             const parentLabel = focused.closest('.form-group')?.querySelector('label');
             
             if (parentLabel) {
@@ -27884,7 +28300,7 @@
                     const firstQuestion = document.querySelector('#questions_container > .array-item');
                     if (firstQuestion) {
                         const questionPage = extractPageFromQuestion(firstQuestion, 'question');
-                        const answerPage = getGuidebookPageInRange();
+                        const answerPage = extractPageFromQuestion(firstQuestion, 'answer');
                         if (questionPage || answerPage) {
                             result.textbookPage = questionPage;
                             result.guidePage = answerPage;
@@ -28020,14 +28436,36 @@
                         if (label) {
                             const labelText = label.textContent;
                             isGuideField = labelText.includes('Guide') || 
-                                         labelText.includes('Answer Bounding');
+                                         labelText.includes('Answer Bounding') ||
+                                         labelText.includes('Answer Images');
                         }
                     }
                 }
                 
                 if (isGuideField) {
                     targetSource = 'guide';
-                    targetPage = getGuidebookPageInRange();
+
+                    const formGroup = focused.closest('.form-group');
+                    const isGuidePdfPageField = formGroup && formGroup.querySelector('label')?.textContent?.includes('Guide PDF Page');
+
+                    if (isGuidePdfPageField) {
+                        if (focused.value) {
+                            targetPage = parseInt(focused.value, 10);
+                        }
+                    } else {
+                        const questionEl = focused.closest('.array-item');
+                        const guidePdfPageInput = questionEl && findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
+                        if (guidePdfPageInput && guidePdfPageInput.value) {
+                            targetPage = parseInt(guidePdfPageInput.value, 10);
+                        }
+                        if (!targetPage) {
+                            targetPage = getGuidebookPageInRange();
+                        }
+                    }
+
+                    if (!targetPage) {
+                        targetPage = getGuidebookPageInRange();
+                    }
                 } else {
                     // Not in a guide field - only switch to textbook if we're not already on guide
                     // This prevents unwanted switching when user is using guide PDF and clicks elsewhere
@@ -28152,6 +28590,8 @@
                     const labelText = label.textContent || '';
                     // Guide-related labels
                     if (labelText.includes('Guide Answer') ||
+                        labelText.includes('Guide PDF Page') ||
+                        labelText.includes('Answer Images') ||
                         labelText.includes('Choice Text') ||
                         labelText.includes('Choice ID') ||
                         labelText.includes('Blank Answers') ||
@@ -28176,7 +28616,7 @@
             
             // Check if element has placeholder or attributes that indicate guide fields
             const placeholder = element.placeholder || '';
-            if (placeholder.includes('Guidebook')) return true;
+            if (placeholder.includes('Guidebook') || placeholder.includes('e.g., 78')) return true;
             
             return false;
         }
@@ -28325,6 +28765,22 @@
                                 }, 800); // Longer delay for typing
                             }
                         }
+                    }
+                }
+            });
+
+            // Listen to guide PDF page changes in questions
+            document.addEventListener('change', (e) => {
+                const target = e.target;
+                if (!target || target.tagName !== 'INPUT') return;
+                const label = target.closest('.form-group')?.querySelector('label');
+                const isGuidePdfInput = label && label.textContent.includes('Guide PDF Page');
+
+                if (isGuidePdfInput &&
+                    window.__mainPdfViewer.visible &&
+                    window.__mainPdfViewer.autoSyncEnabled) {
+                    if (window.__mainPdfViewer.autoSyncEnabled) {
+                        navigateToContextPage();
                     }
                 }
             });
