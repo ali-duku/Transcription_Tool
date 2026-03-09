@@ -11,40 +11,38 @@ Goal:
 - Migrate all question types to the new `PracticeQuestion` contract.
 - Keep loading backward-compatible with old saved JSON.
 
+Implementation deferred note:
+- This document revision is planning-only.
+- Runtime changes in `index.html` are intentionally deferred until this plan text is approved.
+
 ---
 
-## 1) Global Changes Required Before Touching Any Question Type
+## 1) Global Changes Required Before Touching Any Question Type (Status: Implemented)
 
-1. Introduce one canonical question output shape (single source of truth) used by:
+Item 1 is already applied in `index.html` and should remain as-is for the next phase:
+
+1. Canonical adapter scaffold exists and is wired:
+- `QuestionSchemaAdapter.fromUI(...)`
+- `QuestionSchemaAdapter.normalizeIncoming(...)`
+- `QuestionSchemaAdapter.toLegacyExport(...)`
+
+2. Global migration guard exists:
+- `QUESTION_SCHEMA_MIGRATION_PHASE = "global_scaffold"`
+
+3. Centralized key normalization is implemented:
+- `question_text -> question`
+- `set_up_text -> setup_text`
+- `guide_answer` string/array normalization in adapter helpers
+
+4. Required entry points already route through adapter:
 - `generateJSON()`
 - `saveProgress()`
 - `collectFormDataWithoutValidation()`
-- copy/paste serialization helpers
+- copy/paste serialize/deserialize
+- load/normalize/populate paths
 
-Canonical output shape (new schema):
-- `id: string`
-- `question_type: enum`
-- `question: string`
-- `setup_text: string | null`
-- `question_images: PagedBbox[] | null`
-- `guide_answer: string[]` (always array, required)
-- `options: string[] | null`
-- `difficulty: "easy" | "medium" | "hard" | null` (no UI yet, so default behavior below)
-
-2. Add a single shared transformer layer:
-- `toNewSchemaQuestionFromUI(questionEl)` for generation
-- `toUIQuestionFromAnySchema(rawQuestion)` for loading
-
-3. Keep the UI model untouched internally (choices rows, matching UI, blanks UI), but do not emit old fields in final JSON:
-- remove from output: `choices`, `value`, `values`, `left`, `right`, `relationship`
-- keep these as temporary UI-only structures during editing if needed
-
-4. Keep existing key migration (`question_text -> question`, `set_up_text -> setup_text`) and extend compatibility for new/old question payload styles.
-
-5. `difficulty` handling:
-- No UI field now.
-- Do not require user input.
-- Emit `difficulty: null` only if a strict explicit-null style is required; otherwise omit field (schema allows omission).
+5. No additional Item 1 code changes are needed right now.
+- Continue using scaffold bridge behavior until type-by-type migration is switched on.
 
 ---
 
@@ -61,11 +59,35 @@ New model:
 - `guide_answer` is now `string[]` for all types
 - `options` is the common type-dependent carrier
 - Canonical text keys: `question`, `setup_text`
-- No per-question `guide_pdf_page`, `guide_answer_images`, `related_question`
+- Keep per-question optional fields: `guide_pdf_page`, `guide_answer_images`
+- Remove per-question `related_question`
 
 ---
 
 ## 3) Exact Per-Question-Type Migration Plan
+
+### Common Rule For All Question Types
+
+Generate:
+- Preserve `guide_pdf_page` as `integer | null`.
+- `guide_answer` is always built from the canonical per-type source.
+- `guide_answer_images` policy by type:
+- Keep `guide_answer_images` (`PagedBbox[] | null`) only for manual-answer types: `free_form`, `annotate`, `create_table`.
+- For `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`, always export `guide_answer_images: null` (unsupported in tool flow).
+
+Load (backward compatible):
+- Accept missing `guide_pdf_page` and treat as empty/null.
+- Accept missing `guide_answer_images` and treat as null/empty by adapter policy.
+- For `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`:
+- Ignore legacy manual `guide_answer` string during load (strict mode).
+- Derive canonical answer data from structural fields or from new flat fields.
+
+Remove from output:
+- Keep removing legacy per-type structures (`choices`, `value`, `values`, `left`, `right`, `relationship`) after migration flip.
+- Keep `guide_pdf_page` for all types.
+- Keep `guide_answer_images` optional at schema level, but intentionally force it to `null` for `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`.
+
+---
 
 ### A) `free_form`
 
@@ -87,19 +109,26 @@ Remove from output:
 Generate:
 - Build `options` from visible choice texts in order: `["A text", "B text", ...]`
 - Convert selected correct answer index/UID to correct option text
-- `guide_answer = [correctOptionText]` (or `[]` if none selected; keep validation error behavior)
+- `guide_answer = [correctOptionText]` (or `[]` if none selected; keep current empty behavior)
+- No manual `Guide Answer` UI.
+- No `Answer Images` UI.
+- No Choice ID UI.
+- `guide_answer_images = null`.
 
 Load (backward compatible):
 - New payload:
   - `options` populates choice texts
-  - `guide_answer[0]` identifies correct choice by exact text match (first match if duplicates)
+  - `guide_answer[0]` restores the correct choice by exact text match (first match if duplicates)
 - Old payload:
   - `choices[].text` populates choices
   - `value`/`correct_answer_index` sets the correct choice
-  - old string `guide_answer` can be used as fallback correct-text match if index missing
+  - `choices[].id` is ignored completely
+  - old string `guide_answer` is ignored (strict mode)
+- If both old and new fields exist, prefer new (`options` + `guide_answer[]`).
 
 Remove from output:
 - `choices`, `value`
+- never emit choice IDs
 
 ---
 
@@ -109,6 +138,10 @@ Generate:
 - `options` from visible choice texts in order
 - `guide_answer` = list of selected choice texts in display order
 - If none selected, `guide_answer = []`
+- No manual `Guide Answer` UI.
+- No `Answer Images` UI.
+- No Choice ID UI.
+- `guide_answer_images = null`.
 
 Load (backward compatible):
 - New payload:
@@ -116,10 +149,13 @@ Load (backward compatible):
   - mark checked choices by text membership in `guide_answer`
 - Old payload:
   - `choices[].text` + `values[]` (or `choices[].checked`) restore checked state
-  - old string `guide_answer` may be treated as optional notes fallback only
+  - `choices[].id` is ignored completely
+  - old string `guide_answer` is ignored (strict mode)
+- If both old and new fields exist, prefer new (`options` + `guide_answer[]`).
 
 Remove from output:
 - `choices`, `values`
+- never emit choice IDs
 
 ---
 
@@ -129,13 +165,17 @@ Generate:
 - `options = null`
 - `guide_answer` must be the blanks answers list in order (`___1___`, `___2___`, ...)
 - Keep current blank-count/order validations
+- No manual `Guide Answer` UI.
+- No `Answer Images` UI.
+- `guide_answer_images = null`.
 
 Load (backward compatible):
 - New payload:
   - `guide_answer[]` fills blank answers in order
 - Old payload:
   - `values[]` fills blank answers
-  - old string `guide_answer` can populate notes UI only (if kept), but must not replace blanks answer array output
+  - old string `guide_answer` is ignored (strict mode)
+- If both old and new fields exist, prefer new (`options` + `guide_answer[]`).
 
 Remove from output:
 - `values`
@@ -168,6 +208,9 @@ Generate:
   - `["L1:R2", "L2:R1"]`
   - Use resolved item texts from indices/UID links
   - Skip invalid links via existing validation pathway
+- No manual `Guide Answer` UI.
+- No `Answer Images` UI.
+- `guide_answer_images = null`.
 
 Load (backward compatible):
 - New payload:
@@ -175,7 +218,8 @@ Load (backward compatible):
   - parse `guide_answer` pairs `left:right` to restore relationships by text match
 - Old payload:
   - use `left[]`, `right[]`, `relationship[][]` directly
-  - old string `guide_answer` can remain optional notes fallback only
+  - old string `guide_answer` is ignored (strict mode)
+- If both old and new fields exist, prefer new (`options` + `guide_answer[]`).
 
 Remove from output:
 - `left`, `right`, `relationship`
@@ -186,7 +230,7 @@ Remove from output:
 
 Generate:
 - `options = null`
-- `guide_answer = [tableMarkdown]` (or `[""]` if empty, based on current validation policy)
+- `guide_answer = [tableMarkdown]` (or `[]` if empty)
 
 Load (backward compatible):
 - New payload: first `guide_answer` item fills guide-answer/table input
@@ -206,15 +250,26 @@ Use one normalization function at load entry (before populate):
 - `set_up_text -> setup_text` if `setup_text` missing
 
 2. Answer normalization:
-- If `guide_answer` is string (old): convert to type-appropriate array form
+- For `free_form`, `annotate`, `create_table`:
+- If `guide_answer` is old string, convert to type-appropriate array form.
+- For `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`:
+- Ignore old manual `guide_answer` string (strict mode).
+- Rebuild canonical `guide_answer[]` from structural fields first (`choices/value/values/left/right/relationship`) or from new flat shape (`options + guide_answer[]`).
 
-3. Type payload normalization:
+3. Optional field normalization:
+- Normalize `guide_pdf_page` to `integer | null`.
+- Normalize `guide_answer_images` to array/null according to adapter policy.
+- Force `guide_answer_images = null` for `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`.
+
+4. Type payload normalization:
 - If old fields exist (`choices/value/values/left/right/relationship`) and new `options/guide_answer[]` are missing, derive new canonical form in memory
 - If both old and new exist, prefer new
+- For `multiple_choice` and `checkbox`, ignore legacy `choices[].id` if present.
 
-4. Do not re-emit legacy fields on save/generate.
+5. Do not re-emit legacy fields on save/generate.
+- Exception: `guide_pdf_page` is kept for all types, and `guide_answer_images` is kept only where supported by this tool flow.
 
-5. Keep old payload acceptance silent (no blocking) unless data is structurally invalid.
+6. Keep old payload acceptance silent (no blocking) unless data is structurally invalid.
 
 ---
 
@@ -224,6 +279,8 @@ Use one normalization function at load entry (before populate):
 - `guide_answer[]`
 - `options`
 - `question`, `setup_text`
+- `guide_pdf_page`
+- `guide_answer_images`
 
 2. Keep current UI warnings/errors behavior as much as possible, but point checks to new canonical data.
 
@@ -233,10 +290,16 @@ Use one normalization function at load entry (before populate):
 
 4. Multiple choice / checkbox validations:
 - Validate options not empty
-- Validate guide_answer content against options
+- Validate derived `guide_answer` content against options
+- Remove choice-ID consistency checks from migration target behavior (choice IDs no longer exist).
 
 5. Fill-in-the-blanks:
-- Validate blank tokens against `guide_answer` length/order
+- Validate blank tokens against derived `guide_answer` length/order
+
+6. Preserve existing guide-page validations for all types.
+- Preserve guide-answer-image validations only for `free_form`, `annotate`, `create_table`.
+- Remove manual guide-answer and answer-image validation paths for `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`.
+- guidebook range vs per-question `guide_pdf_page`
 
 ---
 
@@ -258,6 +321,18 @@ Use one normalization function at load entry (before populate):
 
 Every exported question must follow new schema only:
 - Must include: `id`, `question_type`, `question`, `guide_answer`
-- Optional: `setup_text`, `question_images`, `options`, `difficulty`
-- Must not include: `choices`, `value`, `values`, `left`, `right`, `relationship`, `guide_pdf_page`, `guide_answer_images`, `related_question`
+- Optional: `setup_text`, `question_images`, `guide_pdf_page`, `guide_answer_images`, `options`, `difficulty`
+- For `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`:
+- `guide_answer` is derived automatically from type-specific UI structures.
+- `guide_answer_images` is intentionally always `null` in this tool flow.
+- For `multiple_choice` and `checkbox`, choice IDs are never exported.
+- Must not include: `choices`, `value`, `values`, `left`, `right`, `relationship`, `related_question`
 
+---
+
+## 8) Patch Notes Update Requirement (Version 8.0, Changes)
+
+Add non-technical entries to `Changes` in the `8.0` patch notes:
+- "For Multiple Choice, Checkbox, Fill in the Blanks, and Matching, we removed the extra Guide Answer and Answer Images inputs. Answers are now built automatically from your existing selections/entries, so these question types are simpler and more consistent, and you do not need to add extra answer text manually."
+- "Choice letter/ID fields for answer options were removed. Older choice IDs are now ignored during loading and are not transcribed or exported anymore."
+- "When inserting tables, no extra table description is required anymore."

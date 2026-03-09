@@ -38,7 +38,10 @@
                         items: [
                             '<strong>Question format update:</strong> We removed the <code>Related Question</code> field as part of the schema update, so generated question JSON is now cleaner and more consistent.',
                             '<strong>Question text key update with backward support:</strong> New files now use clearer question text field names, and older files with old names still load correctly because they are updated automatically when you load them.',
-                            '<strong>Title Page and Book Metadata update:</strong> You can now choose <code>Title Page</code>, fill details in the new Book Metadata tab (also available in Quick Jump and Final Preview), and these fields are required only for title pages.'
+                            '<strong>Simpler answer choices:</strong> Choice letter/ID fields were removed and IDs are no longer transcribed or exported.',
+                            '<strong>Simpler answer flow for selected question types:</strong> For Multiple Choice, Checkbox, Fill in the Blanks, and Matching, we removed extra Guide Answer and Answer Images inputs. Answers are now built automatically from your existing selections/entries, so you do not need to add extra answer text manually.',
+                            '<strong>Title Page and Book Metadata update:</strong> You can now choose <code>Title Page</code>, fill details in the new Book Metadata tab (also available in Quick Jump and Final Preview), and these fields are required only for title pages.',
+                            '<strong>Cleaner Insert Table templates:</strong> Inserted tables now start directly with table rows (no image line), no table description is required anymore, placeholders are clearer (like <code>Header_1</code> and <code>Row_1_Cell_1</code>), and tables are center-aligned by default.'
                         ]
                     },
                     {
@@ -49,7 +52,7 @@
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Clear Form now refreshes Final Preview correctly:</strong> Clearing the form while you are on Final Preview now removes old values and empty boxes right away, so Book Metadata and Basic Info no longer show stale output.',
-                            '<strong>Guide fields restored:</strong> <code>Guide PDF Page</code> and <code>Answer Images</code> are available again and now work correctly across editing, validation, preview, loading, and generated JSON.'
+                            '<strong>Smoother jump-to-edit navigation:</strong> Quick Jump and Final Preview edit buttons now wait for the destination tab to finish loading before scrolling, so the page lands in the right place without jumpy movement (with auto-resize on or off).'
                         ]
                     }
                 ]
@@ -2374,11 +2377,13 @@
             }
         }
 
+        function isChoiceQuestionType(questionType) {
+            return questionType === 'multiple_choice' || questionType === 'checkbox';
+        }
+
         // Guide answer field resolver (single source of truth by question type)
         function getGuideAnswerSelectorForType(questionType) {
-            if (questionType === 'multiple_choice' || questionType === 'checkbox') {
-                return '#choices-container .guide-answer-notes';
-            }
+            if (isChoiceQuestionType(questionType)) return null;
             if (questionType === 'fill_in_the_blanks') {
                 return '#blanks-container .guide-answer-notes';
             }
@@ -2392,6 +2397,7 @@
             if (!questionEl) return null;
             const type = questionType || getQuestionType(questionEl);
             const selector = getGuideAnswerSelectorForType(type);
+            if (!selector) return null;
             return questionEl.querySelector(selector);
         }
 
@@ -2507,11 +2513,9 @@
                     if (uid) choiceUidToIndex.set(uid, index + 1);
                 });
                 state.choices = choices.map(item => {
-                    const choiceIdInput = item.querySelector('.choice-id');
                     const choiceTextArea = item.querySelector('.choice-text');
                     const choiceCorrectInput = item.querySelector('.choice-correct');
                     return {
-                        id: choiceIdInput ? choiceIdInput.value : '',
                         text: choiceTextArea ? choiceTextArea.value : '',
                         checked: choiceCorrectInput ? choiceCorrectInput.checked : false
                     };
@@ -2527,12 +2531,10 @@
                     // Derive checked state from UIDs (canonical source of truth)
                     const correctUids = getCorrectChoiceUids(questionEl);
                     state.choices = choices.map((item, index) => {
-                        const choiceIdInput = item.querySelector('.choice-id');
                         const choiceTextArea = item.querySelector('.choice-text');
                         const choiceUid = item.dataset.choiceUid;
                         const isChecked = choiceUid ? correctUids.has(choiceUid) : false;
                         return {
-                            id: choiceIdInput ? choiceIdInput.value : '',
                             text: choiceTextArea ? choiceTextArea.value : '',
                             checked: isChecked
                         };
@@ -2544,7 +2546,9 @@
             const questionImagesGroup = findFormGroupByLabel(questionEl, 'Question Images');
             const answerImagesGroup = findFormGroupByLabel(questionEl, 'Answer Images');
             state.question_images = questionImagesGroup ? serializeBboxGroup(questionImagesGroup) : [];
-            state.guide_answer_images = answerImagesGroup ? serializeBboxGroup(answerImagesGroup) : [];
+            state.guide_answer_images = (!isChoiceQuestionType(state.question_type) && answerImagesGroup)
+                ? serializeBboxGroup(answerImagesGroup)
+                : [];
             
             return state;
         }
@@ -2732,13 +2736,8 @@
                         addChoice(choicesList.parentElement.querySelector('.add-btn'), 'end', questionType);
                         const lastChoice = choicesList.lastElementChild;
                         if (lastChoice) {
-                            const choiceIdInput = lastChoice.querySelector('.choice-id');
                             const choiceTextArea = lastChoice.querySelector('.choice-text');
                             const choiceCorrectInput = lastChoice.querySelector('.choice-correct');
-                            if (choiceIdInput) {
-                                choiceIdInput.value = choice.id || '';
-                                updateChoiceHeader(choiceIdInput);
-                            }
                             if (choiceTextArea) {
                                 choiceTextArea.value = choice.text || '';
                             }
@@ -2787,7 +2786,7 @@
                     fillBboxGroup(questionImagesGroup, state.question_images);
                 }
             }
-            if (state.guide_answer_images && state.guide_answer_images.length > 0) {
+            if (!isChoiceQuestionType(questionType) && state.guide_answer_images && state.guide_answer_images.length > 0) {
                 const answerImagesGroup = findFormGroupByLabel(newQuestion, 'Answer Images');
                 if (answerImagesGroup) {
                     fillBboxGroup(answerImagesGroup, state.guide_answer_images);
@@ -4590,11 +4589,6 @@
         .final-preview-question .choice-item.correct:not(.preview-choice-row) {
             background: #d4edda;
             border-left-color: #28a745;
-        }
-        .final-preview-question .choice-item .choice-id {
-            font-weight: 600;
-            color: var(--accent);
-            margin-right: 8px;
         }
         .final-preview-question .blanks-container {
             margin: 0;
@@ -6697,7 +6691,7 @@
 
             guidePageOutOfRange: (qIndex, guidePage, startPage, endPage) => 
                 `${ErrorMessages.question(qIndex, false)} - Problem: Guide PDF page (${guidePage}) is outside the guidebook range (${startPage}-${endPage}).\n   ➡️ Fix: Enter a page number between ${startPage} and ${endPage} (inclusive).`,
-            
+
             requiredChoices: (qIndex) => 
                 `${ErrorMessages.question(qIndex, true)} - Problem: You haven't added any answer choices yet.\n   ➡️ Fix: Click "+ Add Choice" to add answer options (A, B, C, D...).`,
             
@@ -6710,8 +6704,8 @@
             requiredCheckedChoice: (qIndex) => 
                 `📍 Question ${qIndex + 1} (Checkbox) - Problem: At least one choice must be marked as correct.\n   ➡️ Fix: Check at least one "✓ Correct Answer" checkbox to indicate which choice(s) are correct.`,
 
-            inconsistentChoiceIDs: (qIndex, questionType) =>
-                `${ErrorMessages.question(qIndex, questionType === 'checkbox')} - Problem: Choice IDs are inconsistent. Either all choices should have IDs or none should.\n   ➡️ Fix: Fill in all choice IDs (A, B, C...) or leave them all empty.`,
+            duplicateChoiceTexts: (qIndex, questionType, duplicateTexts) =>
+                `${ErrorMessages.question(qIndex, questionType === 'checkbox')} - Problem: Duplicate choice text found (${duplicateTexts.join(', ')}).\n   ➡️ Fix: Make every choice text unique so the answer mapping is unambiguous.`,
 
             // Fill in the blanks errors
             noBlanksFound: (qIndex) =>
@@ -7223,6 +7217,18 @@
         function getFinalPreviewScrollContainer() {
             return document.getElementById('final-preview-content');
         }
+
+        function restoreFinalPreviewScrollImmediately(previewScroller, targetScroll) {
+            if (!previewScroller) return;
+            const maxScroll = Math.max(0, previewScroller.scrollHeight - previewScroller.clientHeight);
+            const clampedTarget = Math.min(Math.max(0, targetScroll), maxScroll);
+            if (Math.abs(previewScroller.scrollTop - clampedTarget) <= 1) return;
+
+            const previousBehavior = previewScroller.style.scrollBehavior;
+            previewScroller.style.scrollBehavior = 'auto';
+            previewScroller.scrollTop = clampedTarget;
+            previewScroller.style.scrollBehavior = previousBehavior;
+        }
         
         // ========================================
         // UNIVERSAL SCROLL HELPERS FOR QUICK JUMP
@@ -7284,9 +7290,10 @@
          * @param {HTMLElement} element - The element to scroll to
          * @param {HTMLElement|null} container - The scroll container (if null, will be auto-detected)
          * @param {number|null} offset - The sticky offset (if null, will be auto-calculated)
+         * @param {ScrollBehavior} behavior - Scroll behavior ('smooth' or 'auto')
          * @returns {boolean} True if scroll was successful, false if element/container not found
          */
-        function scrollElementToTop(element, container = null, offset = null) {
+        function scrollElementToTop(element, container = null, offset = null, behavior = 'smooth') {
             if (!element) {
                 return false; // Guard: element not found, do nothing
             }
@@ -7320,10 +7327,177 @@
             // Perform smooth scroll
             container.scrollTo({
                 top: finalScrollTop,
-                behavior: 'smooth'
+                behavior: behavior || 'smooth'
             });
             
             return true;
+        }
+
+        function cancelInputScrollSettleSession(options = {}) {
+            const { restoreAnchor = true, clearSuppression = true } = options;
+            if (window.__inputScrollSettleRaf) {
+                cancelAnimationFrame(window.__inputScrollSettleRaf);
+                window.__inputScrollSettleRaf = null;
+            }
+            if (window.__inputScrollSettleRestoreTimer) {
+                clearTimeout(window.__inputScrollSettleRestoreTimer);
+                window.__inputScrollSettleRestoreTimer = null;
+            }
+            if (restoreAnchor && window.__inputScrollAnchorLock) {
+                const scroller = getInputFormScroller();
+                if (scroller) {
+                    scroller.style.overflowAnchor = window.__inputScrollAnchorPrevStyle || '';
+                }
+                window.__inputScrollAnchorLock = false;
+            }
+            if (restoreAnchor && clearSuppression) {
+                window.__inputNavSuppressScrollRestoreUntil = 0;
+            }
+        }
+
+        function beginInputNavigationScrollIntent(durationMs = 1800) {
+            const ms = Number.isFinite(durationMs) ? durationMs : 1800;
+            window.__inputNavigationGen = (window.__inputNavigationGen || 0) + 1;
+            window.__inputNavSuppressScrollRestoreUntil = Date.now() + Math.max(400, ms);
+            return window.__inputNavigationGen;
+        }
+
+        function isInputScrollRestoreSuppressed() {
+            const until = window.__inputNavSuppressScrollRestoreUntil || 0;
+            return Date.now() < until || !!window.__inputScrollAnchorLock;
+        }
+
+        // Shared scroll stabilizer for first-open tab hydration/layout timing.
+        // Performs an initial scroll and corrective passes after layout settles.
+        function scrollToInputElementWithSettle(element, targetTab = null, initialBehavior = 'smooth') {
+            if (!element || !element.isConnected) return;
+            const scroller = getInputFormScroller();
+            if (!scroller) return;
+            const settleGen = (window.__inputScrollSettleGen || 0) + 1;
+            window.__inputScrollSettleGen = settleGen;
+            cancelInputScrollSettleSession({ restoreAnchor: true, clearSuppression: false });
+            if (!window.__inputScrollAnchorLock) {
+                window.__inputScrollAnchorPrevStyle = scroller.style.overflowAnchor;
+            }
+            window.__inputScrollAnchorLock = true;
+            scroller.style.overflowAnchor = 'none';
+            const shouldUseSmoothInitial = (initialBehavior === 'smooth') && !autoResizeEnabled;
+            const offset = getStickyOffsetForContext();
+
+            const performScrollPass = (behavior = 'auto') => {
+                if ((window.__inputScrollSettleGen || 0) !== settleGen) return;
+                if (!element || !element.isConnected) return;
+                scrollElementToTop(element, scroller, offset, behavior);
+            };
+
+            performScrollPass(shouldUseSmoothInitial ? 'smooth' : 'auto');
+            window.__inputScrollSettleRaf = requestAnimationFrame(function () {
+                window.__inputScrollSettleRaf = requestAnimationFrame(function () {
+                    performScrollPass('auto');
+                });
+            });
+
+            window.__inputScrollSettleRestoreTimer = setTimeout(function() {
+                if ((window.__inputScrollSettleGen || 0) !== settleGen) return;
+                cancelInputScrollSettleSession({ restoreAnchor: true });
+            }, autoResizeEnabled ? 280 : 200);
+        }
+
+        function focusElementWithoutScroll(element) {
+            if (!element || !element.focus) return;
+            try {
+                element.focus({ preventScroll: true });
+            } catch (_err) {
+                element.focus();
+            }
+        }
+
+        function highlightNavigationTarget(element, durationMs = 2000) {
+            if (!element) return;
+            const isDark = document.body.getAttribute('data-theme') === 'dark';
+            const originalBg = element.style.backgroundColor;
+            const originalTransition = element.style.transition;
+            element.style.backgroundColor = isDark ? 'rgba(102, 126, 234, 0.4)' : '#fff3cd';
+            element.style.transition = 'background-color 0.3s ease';
+            setTimeout(function() {
+                element.style.backgroundColor = originalBg;
+                setTimeout(function() {
+                    element.style.transition = originalTransition;
+                }, 300);
+            }, durationMs);
+        }
+
+        function runAfterInputTabSwitch(callback) {
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    if (typeof callback === 'function') callback();
+                });
+            });
+        }
+
+        function waitForInputTabFullyLoaded(targetTab, navGen, callback) {
+            const scroller = getInputFormScroller();
+            const targetRoot = targetTab ? document.getElementById(targetTab) : null;
+            if (!scroller || !targetRoot) {
+                if (typeof callback === 'function') callback();
+                return;
+            }
+
+            const maxWaitMs = autoResizeEnabled ? 2200 : 1200;
+            const minWaitMs = autoResizeEnabled ? 120 : 60;
+            const stableFramesNeeded = autoResizeEnabled ? 10 : 6;
+            const startTs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+            let stableFrames = 0;
+            let snapshot = {
+                scrollerHeight: scroller.scrollHeight,
+                rootHeight: targetRoot.scrollHeight,
+                rootRectHeight: targetRoot.getBoundingClientRect().height,
+                layoutVersion: window.__layoutMetricsVersion || 0
+            };
+
+            function step(nowTs) {
+                if ((window.__inputNavigationGen || 0) !== navGen) return;
+                if (!scroller.isConnected || !targetRoot.isConnected) {
+                    if (typeof callback === 'function') callback();
+                    return;
+                }
+
+                if (typeof AutoSizeManager !== 'undefined' && AutoSizeManager.fitPending) {
+                    AutoSizeManager.fitPending(targetRoot);
+                }
+
+                const current = {
+                    scrollerHeight: scroller.scrollHeight,
+                    rootHeight: targetRoot.scrollHeight,
+                    rootRectHeight: targetRoot.getBoundingClientRect().height,
+                    layoutVersion: window.__layoutMetricsVersion || 0
+                };
+
+                const hasChange =
+                    Math.abs(current.scrollerHeight - snapshot.scrollerHeight) > 1 ||
+                    Math.abs(current.rootHeight - snapshot.rootHeight) > 1 ||
+                    Math.abs(current.rootRectHeight - snapshot.rootRectHeight) > 0.5 ||
+                    current.layoutVersion !== snapshot.layoutVersion;
+
+                if (hasChange) {
+                    stableFrames = 0;
+                } else {
+                    stableFrames += 1;
+                }
+
+                snapshot = current;
+                const now = (typeof nowTs === 'number') ? nowTs : ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+                const elapsed = now - startTs;
+
+                if ((elapsed >= minWaitMs && stableFrames >= stableFramesNeeded) || elapsed >= maxWaitMs) {
+                    if (typeof callback === 'function') callback();
+                    return;
+                }
+
+                requestAnimationFrame(step);
+            }
+
+            requestAnimationFrame(step);
         }
         
         // Get active main tab key ('input' or 'preview')
@@ -7385,28 +7559,31 @@
         
         // Restore scroll positions AFTER switching tabs (uses NEW active tab/sub-tab)
         function restoreActiveScrollPositions() {
+            const mainKey = getActiveMainTabKey();
+            if (!mainKey) return;
+
+            if (mainKey === 'preview') {
+                const previewScroller = getFinalPreviewScrollContainer();
+                if (previewScroller) {
+                    restoreFinalPreviewScrollImmediately(previewScroller, scrollState.main.preview);
+                }
+                return;
+            }
+
             requestAnimationFrame(() => {
-                const mainKey = getActiveMainTabKey();
-                if (!mainKey) return;
-                
-                if (mainKey === 'input') {
-                    // Restore sub-tab scroll position using the universal scroller
-                    const subKey = getActiveSubTabKey();
-                    if (subKey) {
-                        restoreSubTabScrollPosition(subKey);
-                    }
-                    // Also restore the universal scroller position (for main tab switching)
-                    const scroller = getInputFormScroller();
-                    if (scroller) {
-                        const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-                        scroller.scrollTop = Math.min(Math.max(0, scrollState.main.input), maxScroll);
-                    }
-                } else if (mainKey === 'preview') {
-                    const previewScroller = getFinalPreviewScrollContainer();
-                    if (previewScroller) {
-                        const maxScroll = Math.max(0, previewScroller.scrollHeight - previewScroller.clientHeight);
-                        previewScroller.scrollTop = Math.min(Math.max(0, scrollState.main.preview), maxScroll);
-                    }
+                const activeMainKey = getActiveMainTabKey();
+                if (activeMainKey !== 'input') return;
+                if (isInputScrollRestoreSuppressed()) return;
+                // Restore sub-tab scroll position using the universal scroller
+                const subKey = getActiveSubTabKey();
+                if (subKey) {
+                    restoreSubTabScrollPosition(subKey);
+                }
+                // Also restore the universal scroller position (for main tab switching)
+                const scroller = getInputFormScroller();
+                if (scroller) {
+                    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+                    scroller.scrollTop = Math.min(Math.max(0, scrollState.main.input), maxScroll);
                 }
             });
         }
@@ -7457,6 +7634,7 @@
         // Restore scroll position for a specific sub-tab
         function restoreSubTabScrollPosition(tabName) {
             if (!tabName || !(tabName in scrollState.sub)) return;
+            if (isInputScrollRestoreSuppressed()) return;
             
             const scroller = getInputFormScroller();
             if (!scroller) return;
@@ -7967,38 +8145,27 @@
             }
             
             // Switch to input form main tab first
+            const navGen = beginInputNavigationScrollIntent(autoResizeEnabled ? 2600 : 1500);
             showMainTab('input-form');
-            
-            // Wait a bit, then switch to the correct inner tab
-            setTimeout(function() {
-                showTab(targetTab);
-                
-                // Wait for tab switch, then scroll to element
-                setTimeout(function() {
-                    if (element && element.scrollIntoView) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        // Highlight the element briefly (dark-mode-aware: accent tint for dark, yellow for light)
-                        const originalBg = element.style.backgroundColor;
-                        const isDark = document.body.getAttribute('data-theme') === 'dark';
-                        element.style.backgroundColor = isDark ? 'rgba(102, 126, 234, 0.4)' : '#fff3cd';
-                        element.style.transition = 'background-color 0.3s ease';
-                        setTimeout(function() {
-                            element.style.backgroundColor = originalBg;
-                            setTimeout(function() {
-                                element.style.transition = '';
-                            }, 300);
-                        }, 2000);
-                        // Focus the input if it's an input or textarea
-                        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-                            element.focus();
-                        } else {
-                            // Try to find and focus the input/textarea within
-                            const input = element.querySelector('input, textarea');
-                            if (input) input.focus();
-                        }
+            showTab(targetTab);
+            runAfterInputTabSwitch(function() {
+                waitForInputTabFullyLoaded(targetTab, navGen, function() {
+                    if ((window.__inputNavigationGen || 0) !== navGen) return;
+                    if (!element || !element.isConnected) return;
+                    scrollToInputElementWithSettle(element, targetTab, 'smooth');
+
+                    // Highlight the element briefly
+                    highlightNavigationTarget(element, 2000);
+                    // Focus the input if it's an input or textarea
+                    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+                        focusElementWithoutScroll(element);
+                    } else {
+                        // Try to find and focus the input/textarea within
+                        const input = element.querySelector('input, textarea');
+                        if (input) focusElementWithoutScroll(input);
                     }
-                }, 100);
-            }, 50);
+                });
+            });
         }
 
         // Final Preview bbox-check: page canvas cache (reuse across checks)
@@ -10021,7 +10188,6 @@
             // Render based on question type
             if (questionType === 'multiple_choice' || questionType === 'checkbox') {
                 html += renderMultipleChoicePreview(questionEl, questionType);
-                // Guide answer is already included in renderMultipleChoicePreview
             } else if (questionType === 'fill_in_the_blanks') {
                 html += renderFillInBlanksPreview(questionEl);
                 // Guide answer is already included in renderFillInBlanksPreview
@@ -10042,9 +10208,6 @@
         // Renders a single choice row for both MCQ and Checkbox questions
         // Ensures all choices have edit pens regardless of correctness
         function renderChoiceRowPreview(choiceEl, questionIndex, choiceIndex, isMCQ, isCorrect, correctUidMCQ, correctUidsCheckbox) {
-            // Read user-entered Choice ID from the .choice-id input (NOT internal UID)
-            const choiceIdInput = choiceEl.querySelector('input.choice-id');
-            const choiceId = choiceIdInput ? choiceIdInput.value.trim() : '';
             const choiceUid = choiceEl.dataset.choiceUid || '';
             
             const choiceTextarea = choiceEl.querySelector('textarea');
@@ -10059,9 +10222,6 @@
                 ? `<span style="display: inline-block; background: #28a745; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 3px; margin-left: 8px; font-weight: 600;">${isMCQ ? '✓ Correct Answer' : '✓ Correct'}</span>`
                 : '';
             
-            // Choice ID label (only if user provided one)
-            const choiceIdLabel = choiceId ? `<span class="choice-id" style="font-weight: 600;">${escapeHtml(choiceId)}.</span> ` : '';
-            
             // Build edit pen - ALWAYS present for all choices
             // Use a reliable selector: get question by index, then find choices list within it, then get choice by index
             const editTarget = `navigateToInput((function(){var q=document.querySelectorAll('#questions_container > .array-item')[${questionIndex}];if(!q)return null;var cl=q.querySelector('[id^=\\'choices-list-\\']');if(!cl)return null;var ci=cl.querySelectorAll('.choice-item')[${choiceIndex}];return ci?ci.querySelector('textarea'):null;})())`;
@@ -10075,7 +10235,7 @@
             
             // Choice content (with padding-right to prevent overlap with actions)
             html += `<div class="preview-choice-main">`;
-            html += `${choiceIdLabel}${correctBadge}`;
+            html += `${correctBadge}`;
             
             if (choiceText && choiceTextarea) {
                 const choicePreview = document.createElement('div');
@@ -10135,25 +10295,6 @@
             });
             
             html += '</div></div>';
-            
-            // Guide answer section
-            const choicesContainer = questionEl.querySelector('#choices-container');
-            if (choicesContainer) {
-                const guideAnswerTextarea = choicesContainer.querySelector('.guide-answer-notes');
-                if (guideAnswerTextarea && guideAnswerTextarea.value && guideAnswerTextarea.value.trim()) {
-                    const guidePreview = document.createElement('div');
-                    guidePreview.className = 'live-preview';
-                    guidePreview.setAttribute('dir', 'rtl');
-                    guidePreview.style.textAlign = 'right';
-                    renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
-                    html += buildPreviewBox({
-                        title: 'Guide Answer',
-                        editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('#choices-container .guide-answer-notes'))`,
-                        bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div>`,
-                        bodyClass: 'guide-answer'
-                    });
-                }
-            }
             
             return html;
         }
@@ -10521,16 +10662,17 @@
             } else if (['book_metadata', 'basic', 'preamble', 'content', 'questions'].includes(value)) {
                 // Switch to input form tab first
                 showMainTab('input-form');
-                setTimeout(() => {
-                    showTab(value);
-                }, 100);
+                showTab(value);
             } else if (value.startsWith('content-') || value.startsWith('question-')) {
                 // Jump to specific section using canonical section ID lookup
                 const isContent = value.startsWith('content-');
+                const navGen = beginInputNavigationScrollIntent(autoResizeEnabled ? 2600 : 1500);
                 showMainTab('input-form');
-                setTimeout(() => {
-                    showTab(isContent ? 'content' : 'questions');
-                    setTimeout(() => {
+                const targetTab = isContent ? 'content' : 'questions';
+                showTab(targetTab);
+                runAfterInputTabSwitch(function() {
+                    waitForInputTabFullyLoaded(targetTab, navGen, function() {
+                        if ((window.__inputNavigationGen || 0) !== navGen) return;
                         // Use canonical section marker lookup (strict - only sections with data-section-id)
                         const container = isContent 
                             ? document.getElementById('content_sections_container')
@@ -10543,16 +10685,14 @@
                         
                         // Verify it's a valid section (not a nested element)
                         if (element && isValidSection(element)) {
-                            // Use universal scroll helper to scroll to top with sticky offset
-                            scrollElementToTop(element);
+                            // Use shared stabilized scroll helper (handles deferred hydration/layout settle).
+                            scrollToInputElementWithSettle(element, targetTab, 'smooth');
                             // Highlight briefly (dark-mode-aware)
-                            const isDark = document.body.getAttribute('data-theme') === 'dark';
-                            element.style.backgroundColor = isDark ? 'rgba(102, 126, 234, 0.4)' : '#fff3cd';
-                            setTimeout(() => element.style.backgroundColor = '', 2000);
+                            highlightNavigationTarget(element, 2000);
                         }
                         // If not found or invalid, do nothing (no console errors, no fallback)
-                    }, 100);
-                }, 100);
+                    });
+                });
             }
             
             // Reset select
@@ -10822,14 +10962,9 @@
                         choiceTextareas.forEach((choiceTextarea, choiceIndex) => {
                             const choiceText = choiceTextarea.value || '';
                             if (choiceText.toLowerCase().includes(lowerTerm)) {
-                                // Get choice ID if available
-                                const choiceItem = choiceTextarea.closest('.choice-item');
-                                const choiceIdInput = choiceItem?.querySelector('.choice-id');
-                                const choiceId = choiceIdInput?.value || String.fromCharCode(65 + choiceIndex); // A, B, C, etc.
-                                
                                 results.push({
                                     type: typeLabel,
-                                    title: questionTitle + ` (Choice ${choiceId})`,
+                                    title: questionTitle + ` (Choice ${choiceIndex + 1})`,
                                     preview: getContextPreview(choiceText, term),
                                     element: question,
                                     index: index + 1
@@ -11487,7 +11622,10 @@
             if (!questionEl) return;
             
             const previousType = getQuestionType(questionEl);
-            const currentGuideAnswer = getGuideAnswerValue(questionEl, previousType, { trim: false });
+            const preserveGuideAnswer = !isChoiceQuestionType(previousType);
+            const currentGuideAnswer = preserveGuideAnswer
+                ? getGuideAnswerValue(questionEl, previousType, { trim: false })
+                : null;
 
             // Update dataset (canonical source of truth)
             const currentType = selectElement.value || 'free_form';
@@ -11564,7 +11702,6 @@
                 if (setupContainer) setupContainer.style.display = 'block';
                 if (questionTextContainer) questionTextContainer.style.display = 'block';
                 if (questionImagesContainer) questionImagesContainer.style.display = 'block';
-                if (answerImagesContainer) answerImagesContainer.style.display = 'block';
                 if (guidePdfPageContainer) guidePdfPageContainer.style.display = 'block';
                 // Hide special containers
                 if (blanksContainer) blanksContainer.style.display = 'none';
@@ -11575,7 +11712,8 @@
                 if (blankBtn) blankBtn.style.display = 'none';
                 
                 // Handle choices vs guide answer
-                if (currentType === 'multiple_choice' || currentType === 'checkbox') {
+                if (isChoiceQuestionType(currentType)) {
+                    if (answerImagesContainer) answerImagesContainer.style.display = 'none';
                     if (guideAnswerContainer) guideAnswerContainer.style.display = 'none';
                     if (choicesContainer) {
                         choicesContainer.style.display = 'block';
@@ -11655,13 +11793,16 @@
                         }, 50);
                     }
                 } else {
+                    if (answerImagesContainer) answerImagesContainer.style.display = 'block';
                     if (guideAnswerContainer) guideAnswerContainer.style.display = 'block';
                     if (choicesContainer) choicesContainer.style.display = 'none';
                 }
             }
             
             // Restore guide answer value to the new active type field only.
-            setGuideAnswerValue(questionEl, currentGuideAnswer, currentType);
+            if (!isChoiceQuestionType(currentType) && currentGuideAnswer !== null) {
+                setGuideAnswerValue(questionEl, currentGuideAnswer, currentType);
+            }
             
             
             if (!suspendBootstrap) {
@@ -11703,7 +11844,7 @@
             const choiceItem = document.createElement('div');
             choiceItem.className = 'array-item choice-item';
             choiceItem.setAttribute('data-item-type', 'choice');
-            choiceItem.innerHTML = getChoiceRowHTML({ questionType, choiceId: '', choiceText: '' });
+            choiceItem.innerHTML = getChoiceRowHTML({ questionType, choiceText: '' });
             
             // Add choice at the specified position
             if (position === 'end') {
@@ -11781,20 +11922,6 @@
             
             const addBtn = choicesContainer.querySelector('.add-btn');
             addChoice(addBtn, { after: choiceItem }, questionType);
-        }
-
-        function updateChoiceHeader(inputElement) {
-            const choiceItem = inputElement.closest('.choice-item');
-            const header = choiceItem.querySelector('h5');
-            const choiceId = inputElement.value.trim();
-            if (header) {
-                header.textContent = choiceId ? `Choice ${choiceId}` : 'Choice';
-            }
-            // Update correct answer UI when ID changes
-            const questionEl = choiceItem.parentElement?.closest('.array-item');
-            if (questionEl) {
-                scheduleChoiceUISync(questionEl);
-            }
         }
 
         // Reusable confirmation helper for removing nested list items
@@ -12005,8 +12132,6 @@
                     if (!choiceUid) return; // Skip if no UID
                     
                     const choiceTextArea = choice.querySelector('.choice-text');
-                    const choiceIdInput = choice.querySelector('.choice-id');
-                    const choiceId = choiceIdInput ? choiceIdInput.value.trim() : '';
                     
                     // Display position (1-indexed) but use UID as value
                     const position = index + 1;
@@ -12052,22 +12177,14 @@
                     radioLabel.htmlFor = radioId;
                     radioLabel.style.cssText = 'cursor: pointer; flex: 1; margin: 0; color: var(--text-primary); display: flex; flex-direction: column; gap: 5px;';
                     
-                    // Header with position and ID
+                    // Header with position
                     const headerDiv = document.createElement('div');
                     headerDiv.style.cssText = 'display: flex; align-items: center; gap: 8px;';
                     
                     const positionBadge = document.createElement('strong');
                     positionBadge.textContent = `(${position})`;
                     positionBadge.style.cssText = 'color: var(--accent); margin-right: 0;';
-                    
-                    const idBadge = choiceId ? document.createElement('span') : null;
-                    if (idBadge) {
-                        idBadge.textContent = `[${choiceId}]`;
-                        idBadge.style.cssText = 'color: var(--text-secondary); margin-right: 0; font-weight: 600;';
-                    }
-                    
                     headerDiv.appendChild(positionBadge);
-                    if (idBadge) headerDiv.appendChild(idBadge);
                     
                     // Rendered preview (same pipeline as choice previews)
                     const previewDiv = document.createElement('div');
@@ -12102,9 +12219,7 @@
             choices.forEach((choice, index) => {
                 const correctCheckbox = choice.querySelector('.choice-correct');
                 if (correctCheckbox && correctCheckbox.checked) {
-                    const choiceIdInput = choice.querySelector('.choice-id');
-                    const choiceId = choiceIdInput ? choiceIdInput.value.trim() : '';
-                    correctChoices.push(choiceId || `Choice ${index + 1}`);
+                    correctChoices.push(`Choice ${index + 1}`);
                 }
             });
             
@@ -12381,9 +12496,8 @@
                     const y0 = row.querySelector('.bbox-y0')?.value || '';
                     if (page || x0 || y0) itemPreview = `Page ${page}, Position (${x0}, ${y0})`;
                 } else if (itemTypeLabel === 'choice') {
-                    const choiceId = row.querySelector('.choice-id')?.value || '';
                     const choiceText = row.querySelector('.choice-text')?.value || '';
-                    if (choiceId || choiceText) itemPreview = `${choiceId}: ${choiceText.substring(0, 30)}${choiceText.length > 30 ? '...' : ''}`;
+                    if (choiceText) itemPreview = `${choiceText.substring(0, 30)}${choiceText.length > 30 ? '...' : ''}`;
                 }
                 const confirmMessage = itemPreview
                     ? `Are you sure you want to remove this ${itemTypeLabel}?\n\n"${itemPreview}"\n\nThis action cannot be undone.`
@@ -13689,7 +13803,7 @@
         // Helper: Generate choice row HTML (for MCQ and Checkbox)
         // Returns HTML string for a complete choice item
         function getChoiceRowHTML(options = {}) {
-            const { questionType = 'multiple_choice', choiceId = '', choiceText = '' } = options;
+            const { questionType = 'multiple_choice', choiceText = '' } = options;
             const isCheckbox = questionType === 'checkbox';
             const checkedField = isCheckbox ? `
                 <div class="form-group checkbox-group" style="align-items: center; margin-top: 10px;">
@@ -13714,10 +13828,6 @@
                 <div class="array-item-header">
                     <h5>Choice</h5>
                     ${buildActionButtonsHTML(choiceConfig, { itemLabel: 'Choice' })}
-                </div>
-                <div class="form-group">
-                    <label>Choice ID <span style="opacity: 0.6; font-size: 0.85em;"></span></label>
-                    <input type="text" class="choice-id" value="${choiceId}" data-ltr="true" placeholder="A, B, C..." oninput="updateChoiceHeader(this)" title="Identifier for this choice (e.g., A, B, C, D)">
                 </div>
                 <div class="form-group required-field required">
                     <label>Choice Text</label>
@@ -13805,10 +13915,9 @@
                     </div>
                 `;
             } else {
-                // Format B: Optional guide answer (for multiple_choice, checkbox, fill_in_the_blanks, matching)
+                // Format B: Optional guide answer (for fill_in_the_blanks and matching)
                 return `
                     <div class="form-group${containerClasses ? ` ${containerClasses}` : ''}" ${containerId ? `id="${containerId}"` : ''} style="margin-top: 15px;">
-                        <!-- Prevent Guide Answer from being rendered in both common + per-type blocks -->
                         <label>Guide Answer <span style="opacity: 0.6; font-size: 0.85em;"></span></label>
                         <div class="text-field-container">
                             <span class="input-label">Input Markdown</span>
@@ -13883,7 +13992,6 @@
                             <span style="opacity: 0.7; color: var(--text-secondary);">Check the "✓ Correct Answer" boxes above to mark correct choices</span>
                         </div>
                     </div>
-                    ${getGuideAnswerHTML({ required: false })}
                 </div>
                 
                 <!-- Fill in the Blanks Section -->
@@ -18885,7 +18993,7 @@
          * Collects choices data from a question container
          * Replaces duplicate logic in copySection, generateJSON, saveProgress, and validation functions
          * @param {HTMLElement} questionContainer - The question container element
-         * @returns {Array} Array of choice objects with {id, text} properties
+         * @returns {Array} Array of choice objects with {text} properties
          */
         function collectChoicesData(questionContainer) {
             const choices = [];
@@ -18893,20 +19001,12 @@
             if (choicesList) {
                 const choiceItems = choicesList.querySelectorAll('.choice-item');
                 choiceItems.forEach((choiceItem) => {
-                    const choiceIdInput = choiceItem.querySelector('.choice-id');
                     const choiceTextArea = choiceItem.querySelector('.choice-text');
                     if (choiceTextArea) {
-                        const id = choiceIdInput ? choiceIdInput.value.trim() : '';
                         const text = choiceTextArea.value.trim();
-                        // Only require text, ID is optional now
+                        // Only require non-empty choice text.
                         if (text) {
-                            const choice = {};
-                            // Add ID first if provided (to maintain order: id, then text)
-                            if (id) {
-                                choice.id = id;
-                            }
-                            choice.text = text;
-                            choices.push(choice);
+                            choices.push({ text });
                         }
                     }
                 });
@@ -18921,19 +19021,14 @@
         /**
          * Collects choices or guide answer based on question type
          * @param {HTMLElement} questionEl - The question container element
-         * @returns {Object} Object with either {choices, value/values, guide_answer} or {guide_answer}
+         * @returns {Object} Object with either {choices, value/values} or {guide_answer}
          */
         function collectChoicesOrAnswer(questionEl) {
             const questionType = getQuestionType(questionEl);
-            if (questionType === 'multiple_choice' || questionType === 'checkbox') {
+            if (isChoiceQuestionType(questionType)) {
                 const choices = collectChoicesData(questionEl);
-                
-                // Get optional guide answer notes from the active type-specific field
-                const guideAnswer = getGuideAnswerValue(questionEl, questionType, { trim: true });
-                
                 const result = {
-                    choices: choices,
-                    guide_answer: guideAnswer
+                    choices: choices
                 };
                 
                 if (questionType === 'multiple_choice') {
@@ -19021,14 +19116,10 @@
             
             // Collect question images (bbox data)
             const questionImages = collectBboxData(questionEl, 'question_images', false);
-            const guideAnswerImages = collectBboxData(questionEl, 'answer_images', false);
-
+            const guideAnswerImages = isChoiceQuestionType(questionType)
+                ? []
+                : collectBboxData(questionEl, 'answer_images', false);
             const guidePdfPageRaw = getFieldValue(questionEl, 'Guide PDF Page') || '';
-            let guidePdfPage = null;
-            if (guidePdfPageRaw !== '') {
-                const parsedGuidePdfPage = parseInt(guidePdfPageRaw, 10);
-                guidePdfPage = Number.isNaN(parsedGuidePdfPage) ? null : parsedGuidePdfPage;
-            }
             
             // Build the question object
             const questionData = {
@@ -19049,7 +19140,7 @@
                 questionData.right = choicesOrAnswer.right || [];
                 questionData.relationship = choicesOrAnswer.relationship || [];
                 questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
-            } else if ((questionType === 'multiple_choice' || questionType === 'checkbox') && choicesOrAnswer.choices) {
+            } else if (isChoiceQuestionType(questionType) && choicesOrAnswer.choices) {
                 // Multiple choice or checkbox: add choices
                 questionData.choices = choicesOrAnswer.choices;
                 
@@ -19059,26 +19150,46 @@
                 } else if (questionType === 'checkbox' && choicesOrAnswer.values !== undefined) {
                     questionData.values = choicesOrAnswer.values;
                 }
-                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
+                questionData.guide_answer = '';
             } else {
                 // Free form: add guide_answer normally
                 questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
             }
             
             questionData.question_images = questionImages;
-            questionData.guide_pdf_page = guidePdfPage;
+            // Keep raw here; adapter is the single canonical coercion point.
+            questionData.guide_pdf_page = guidePdfPageRaw;
             questionData.guide_answer_images = guideAnswerImages;
             
             return questionData;
         }
 
         const QuestionSchemaAdapter = (() => {
+            const LEGACY_TYPE_FIELDS = ['choices', 'value', 'values', 'left', 'right', 'relationship'];
+            const QUESTION_DIFFICULTY_LEVELS = new Set(['easy', 'medium', 'hard']);
+            const PHASE3_SCHEMA_TARGET_TYPES = new Set(['free_form', 'annotate', 'create_table', 'multiple_choice', 'checkbox']);
+
             function isPlainObject(value) {
                 return !!(value && typeof value === 'object' && !Array.isArray(value));
             }
 
-            function normalizeQuestionKeyAliases(rawQuestion) {
+            function hasOwn(obj, key) {
+                return isPlainObject(obj) && Object.prototype.hasOwnProperty.call(obj, key);
+            }
+
+            function pruneDeprecatedQuestionFields(rawQuestion) {
                 const source = isPlainObject(rawQuestion) ? rawQuestion : {};
+                const pruned = { ...source };
+                delete pruned.related_question;
+                return pruned;
+            }
+
+            function isChoiceBasedType(questionType) {
+                return questionType === 'multiple_choice' || questionType === 'checkbox';
+            }
+
+            function normalizeQuestionKeyAliases(rawQuestion) {
+                const source = pruneDeprecatedQuestionFields(rawQuestion);
                 const normalized = { ...source };
 
                 if ((normalized.question === undefined || normalized.question === null) && normalized.question_text !== undefined) {
@@ -19093,15 +19204,44 @@
                 return normalized;
             }
 
+            function classifyPayloadShape(rawQuestion) {
+                const source = isPlainObject(rawQuestion) ? rawQuestion : {};
+                const hasLegacyTypeFields = LEGACY_TYPE_FIELDS.some(field => hasOwn(source, field));
+                const hasLegacyGuideAnswer = typeof source.guide_answer === 'string';
+                const hasNewGuideAnswer = Array.isArray(source.guide_answer);
+                const hasNewOptions = hasOwn(source, 'options');
+                const hasNewDifficulty = hasOwn(source, 'difficulty');
+
+                const hasLegacySignals = hasLegacyTypeFields || hasLegacyGuideAnswer;
+                const hasNewSignals = hasNewGuideAnswer || hasNewOptions || hasNewDifficulty;
+
+                if (hasLegacySignals && hasNewSignals) return 'mixed';
+                if (hasNewSignals) return 'new';
+                if (hasLegacySignals) return 'legacy';
+                return 'unknown';
+            }
+
             function normalizeGuideAnswerToArray(guideAnswer) {
                 if (Array.isArray(guideAnswer)) {
-                    return guideAnswer.map(item => (item == null ? '' : String(item))).filter(item => item !== '');
+                    const normalized = guideAnswer
+                        .map(item => (item == null ? '' : String(item)))
+                        .filter(item => item !== '');
+                    if (normalized.length > 0) return normalized;
+                    return [];
                 }
                 if (guideAnswer === undefined || guideAnswer === null) {
                     return [];
                 }
                 const text = String(guideAnswer).trim();
                 return text ? [text] : [];
+            }
+
+            function isPhase3SchemaTargetType(questionType) {
+                return PHASE3_SCHEMA_TARGET_TYPES.has(normalizeQuestionType(questionType));
+            }
+
+            function normalizeGuideAnswerForType(guideAnswer, questionType) {
+                return normalizeGuideAnswerToArray(guideAnswer);
             }
 
             function guideAnswerArrayToLegacyString(guideAnswer, questionType = 'free_form') {
@@ -19111,48 +19251,153 @@
                 return normalized[0];
             }
 
-            function buildCanonicalDraft(questionLike) {
-                const source = normalizeQuestionKeyAliases(questionLike);
-                const guidePdfPageValue = source.guide_pdf_page;
-                const normalizedGuidePdfPage = guidePdfPageValue === '' || guidePdfPageValue == null
-                    ? null
-                    : (Number.isNaN(parseInt(guidePdfPageValue, 10)) ? null : parseInt(guidePdfPageValue, 10));
-                return {
-                    id: source.id == null ? '' : String(source.id),
-                    question_type: source.question_type || 'free_form',
-                    question: source.question == null ? '' : String(source.question),
-                    setup_text: (source.setup_text === undefined || source.setup_text === null || source.setup_text === '') ? null : String(source.setup_text),
-                    guide_pdf_page: normalizedGuidePdfPage,
-                    question_images: Array.isArray(source.question_images) ? source.question_images : null,
-                    guide_answer_images: Array.isArray(source.guide_answer_images) ? source.guide_answer_images : null,
-                    guide_answer: normalizeGuideAnswerToArray(source.guide_answer),
-                    options: Array.isArray(source.options) ? source.options.map(opt => (opt == null ? '' : String(opt))) : null
-                };
+            function normalizeStringArray(value) {
+                if (!Array.isArray(value)) return null;
+                return value.map(item => (item == null ? '' : String(item)));
             }
 
-            function toLegacyExport(input) {
-                if (!isPlainObject(input)) return {};
+            function normalizeLegacyChoices(choicesLike) {
+                if (!Array.isArray(choicesLike)) return [];
+                return choicesLike
+                    .map((choice) => {
+                        if (isPlainObject(choice)) {
+                            return {
+                                text: choice.text == null ? '' : String(choice.text).trim(),
+                                checked: choice.checked === true || choice.checked === 1 || choice.checked === '1' || choice.checked === 'true'
+                            };
+                        }
+                        return {
+                            text: String(choice == null ? '' : choice).trim(),
+                            checked: false
+                        };
+                    })
+                    .filter(choice => choice.text !== '');
+            }
 
-                if (isPlainObject(input.legacyExport) && isPlainObject(input.canonical)) {
-                    return { ...input.legacyExport };
+            function normalizeOptionsForType(source, questionType) {
+                if (isChoiceBasedType(questionType)) {
+                    if (Array.isArray(source.options)) {
+                        return source.options
+                            .map(item => String(item == null ? '' : item).trim())
+                            .filter(item => item !== '');
+                    }
+                    const legacyChoices = normalizeLegacyChoices(source.choices);
+                    return legacyChoices.map(choice => choice.text);
+                }
+                return normalizeStringArray(source.options);
+            }
+
+            function normalizePositiveInteger(value) {
+                const parsed = normalizeIntegerOrNull(value);
+                return (typeof parsed === 'number' && parsed > 0) ? parsed : null;
+            }
+
+            function buildGuideAnswerForChoiceType(source, questionType, options) {
+                const normalizedOptions = Array.isArray(options) ? options : [];
+                const hasNewGuideAnswer = Array.isArray(source.guide_answer);
+
+                if (questionType === 'multiple_choice') {
+                    if (hasNewGuideAnswer) {
+                        const normalizedArray = normalizeGuideAnswerToArray(source.guide_answer);
+                        if (normalizedArray.length === 0) return [];
+                        return [normalizedArray[0]];
+                    }
+
+                    const correctIndex = normalizePositiveInteger(hasOwn(source, 'correct_answer_index') ? source.correct_answer_index : source.value);
+                    if (correctIndex && correctIndex <= normalizedOptions.length) {
+                        return [normalizedOptions[correctIndex - 1]];
+                    }
+                    return [];
                 }
 
-                const canonical = buildCanonicalDraft(input);
+                if (hasNewGuideAnswer) {
+                    const normalizedArray = normalizeGuideAnswerToArray(source.guide_answer);
+                    if (normalizedOptions.length === 0) {
+                        return normalizedArray;
+                    }
+                    const optionSet = new Set(normalizedOptions);
+                    return normalizedArray.filter(answer => optionSet.has(answer));
+                }
+
+                if (Array.isArray(source.values)) {
+                    if (source.values.length === 0) {
+                        return [];
+                    }
+                    const selected = [];
+                    normalizedOptions.forEach((text, index) => {
+                        const value = source.values[index];
+                        if (value === true || value === 1 || value === '1' || value === 'true') {
+                            selected.push(text);
+                        }
+                    });
+                    return selected;
+                }
+
+                const legacyChoices = normalizeLegacyChoices(source.choices);
+                return legacyChoices.filter(choice => choice.checked).map(choice => choice.text);
+            }
+
+            function normalizeIntegerOrNull(value) {
+                if (value === undefined || value === null || value === '') return null;
+                const parsed = parseInt(value, 10);
+                if (Number.isNaN(parsed)) return null;
+                return parsed;
+            }
+
+            function normalizeQuestionType(value) {
+                const questionType = (value == null || value === '') ? 'free_form' : String(value);
+                return questionType;
+            }
+
+            function normalizeDifficulty(value) {
+                if (value === undefined || value === null || value === '') return null;
+                const normalized = String(value).trim().toLowerCase();
+                return QUESTION_DIFFICULTY_LEVELS.has(normalized) ? normalized : null;
+            }
+
+            function buildCanonicalDraftFromSource(rawSource) {
+                const source = normalizeQuestionKeyAliases(rawSource);
+                const questionType = normalizeQuestionType(source.question_type);
+                const options = normalizeOptionsForType(source, questionType);
+                const guideAnswer = isChoiceBasedType(questionType)
+                    ? buildGuideAnswerForChoiceType(source, questionType, options)
+                    : normalizeGuideAnswerForType(source.guide_answer, questionType);
+                const guideAnswerImages = isChoiceBasedType(questionType)
+                    ? null
+                    : (Array.isArray(source.guide_answer_images) ? source.guide_answer_images : null);
                 return {
-                    id: canonical.id,
-                    question_type: canonical.question_type,
-                    question: canonical.question,
-                    setup_text: canonical.setup_text,
-                    guide_pdf_page: canonical.guide_pdf_page,
-                    guide_answer: guideAnswerArrayToLegacyString(canonical.guide_answer, canonical.question_type),
-                    question_images: Array.isArray(canonical.question_images) ? canonical.question_images : [],
-                    guide_answer_images: Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : []
+                    id: source.id == null ? '' : String(source.id),
+                    question_type: questionType,
+                    question: source.question == null ? '' : String(source.question),
+                    setup_text: (source.setup_text === undefined || source.setup_text === null || source.setup_text === '') ? null : String(source.setup_text),
+                    question_images: Array.isArray(source.question_images) ? source.question_images : null,
+                    guide_pdf_page: normalizeIntegerOrNull(source.guide_pdf_page),
+                    guide_answer_images: guideAnswerImages,
+                    guide_answer: guideAnswer,
+                    options: options,
+                    difficulty: normalizeDifficulty(source.difficulty)
                 };
             }
 
-            function normalizeIncoming(rawQuestion) {
-                const source = normalizeQuestionKeyAliases(rawQuestion);
-                const canonical = buildCanonicalDraft(source);
+            function buildCanonicalDraft(questionLike) {
+                return buildCanonicalDraftFromSource(questionLike);
+            }
+
+            function buildLegacyChoiceRowsFromOptions(options, checkedSet = null) {
+                const rows = [];
+                const normalizedOptions = Array.isArray(options) ? options : [];
+                normalizedOptions.forEach((text) => {
+                    const row = { text };
+                    if (checkedSet) {
+                        row.checked = checkedSet.has(text);
+                    }
+                    rows.push(row);
+                });
+                return rows;
+            }
+
+            function buildLegacyBridgeFromCanonical(rawSource, canonical) {
+                const source = normalizeQuestionKeyAliases(rawSource);
                 const legacyExport = { ...source };
 
                 legacyExport.id = canonical.id;
@@ -19160,28 +19405,118 @@
                 legacyExport.question = canonical.question;
                 legacyExport.setup_text = canonical.setup_text;
                 legacyExport.guide_pdf_page = canonical.guide_pdf_page;
-                legacyExport.question_images = Array.isArray(source.question_images) ? source.question_images : [];
-                legacyExport.guide_answer_images = Array.isArray(source.guide_answer_images) ? source.guide_answer_images : [];
-                legacyExport.guide_answer = guideAnswerArrayToLegacyString(source.guide_answer, canonical.question_type);
+                legacyExport.question_images = Array.isArray(source.question_images)
+                    ? source.question_images
+                    : (Array.isArray(canonical.question_images) ? canonical.question_images : []);
+                legacyExport.guide_answer_images = isChoiceBasedType(canonical.question_type)
+                    ? []
+                    : (Array.isArray(source.guide_answer_images)
+                        ? source.guide_answer_images
+                        : (Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : []));
+                legacyExport.guide_answer = isChoiceBasedType(canonical.question_type)
+                    ? ''
+                    : guideAnswerArrayToLegacyString(canonical.guide_answer, canonical.question_type);
 
-                return { canonical, legacyExport };
+                if (canonical.question_type === 'multiple_choice') {
+                    const options = Array.isArray(canonical.options) ? canonical.options : [];
+                    legacyExport.choices = buildLegacyChoiceRowsFromOptions(options);
+                    const correctText = Array.isArray(canonical.guide_answer) && canonical.guide_answer.length > 0 ? canonical.guide_answer[0] : '';
+                    const correctIndex = correctText ? options.indexOf(correctText) : -1;
+                    legacyExport.value = correctIndex >= 0 ? (correctIndex + 1) : null;
+                    delete legacyExport.values;
+                } else if (canonical.question_type === 'checkbox') {
+                    const options = Array.isArray(canonical.options) ? canonical.options : [];
+                    const selectedSet = new Set(normalizeGuideAnswerToArray(canonical.guide_answer));
+                    const boolValues = options.map(text => selectedSet.has(text));
+                    legacyExport.values = boolValues.some(Boolean) ? boolValues : [];
+                    legacyExport.choices = buildLegacyChoiceRowsFromOptions(options, selectedSet);
+                    delete legacyExport.value;
+                }
+
+                // Runtime contract requirement: difficulty is UI-hidden and always exported as explicit null.
+                legacyExport.difficulty = null;
+
+                return pruneDeprecatedQuestionFields(legacyExport);
+            }
+
+            function toLegacyExport(input) {
+                if (!isPlainObject(input)) return {};
+
+                if (isPlainObject(input.legacyExport) && isPlainObject(input.canonical)) {
+                    return buildLegacyBridgeFromCanonical(input.legacyExport, input.canonical);
+                }
+
+                const canonical = buildCanonicalDraft(input);
+                return buildLegacyBridgeFromCanonical({}, canonical);
+            }
+
+            function toSchemaExport(input) {
+                const canonical = (isPlainObject(input) && isPlainObject(input.canonical))
+                    ? input.canonical
+                    : buildCanonicalDraft(input);
+                const questionType = normalizeQuestionType(canonical.question_type);
+                const isTargetType = isPhase3SchemaTargetType(questionType);
+                const normalizedGuideAnswer = normalizeGuideAnswerForType(canonical.guide_answer, questionType);
+
+                const schemaExport = {
+                    id: canonical.id,
+                    question_type: questionType,
+                    question: canonical.question,
+                    guide_answer: normalizedGuideAnswer
+                };
+
+                schemaExport.setup_text = canonical.setup_text;
+                schemaExport.question_images = Array.isArray(canonical.question_images) ? canonical.question_images : null;
+                schemaExport.guide_pdf_page = canonical.guide_pdf_page;
+                schemaExport.guide_answer_images = isChoiceBasedType(questionType)
+                    ? null
+                    : (Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : null);
+                if (questionType === 'multiple_choice' || questionType === 'checkbox') {
+                    schemaExport.options = Array.isArray(canonical.options) ? canonical.options : [];
+                } else {
+                    schemaExport.options = isTargetType ? null : (Array.isArray(canonical.options) ? canonical.options : null);
+                }
+                schemaExport.difficulty = null;
+
+                return schemaExport;
+            }
+
+            function toPhaseExport(input) {
+                const canonical = (isPlainObject(input) && isPlainObject(input.canonical))
+                    ? input.canonical
+                    : buildCanonicalDraft(input);
+                if (isPhase3SchemaTargetType(canonical.question_type)) {
+                    return toSchemaExport({ canonical });
+                }
+                return toLegacyExport(input);
+            }
+
+            function normalizeIncoming(rawQuestion) {
+                const source = normalizeQuestionKeyAliases(rawQuestion);
+                const payloadShape = classifyPayloadShape(source);
+                const canonical = buildCanonicalDraftFromSource(source);
+                const legacyExport = buildLegacyBridgeFromCanonical(source, canonical);
+
+                return { canonical, legacyExport, payloadShape };
             }
 
             function fromUI(questionEl) {
                 const legacyFromUI = collectQuestionDataLegacy(questionEl);
                 const normalized = normalizeIncoming(legacyFromUI);
-                const legacyExport = {
-                    ...legacyFromUI,
-                    question: normalized.canonical.question,
-                    setup_text: normalized.canonical.setup_text
+                return {
+                    canonical: normalized.canonical,
+                    legacyExport: normalized.legacyExport,
+                    payloadShape: normalized.payloadShape
                 };
-                return { canonical: normalized.canonical, legacyExport };
             }
 
             return {
                 fromUI,
                 normalizeIncoming,
                 toLegacyExport,
+                toSchemaExport,
+                toPhaseExport,
+                classifyPayloadShape,
                 normalizeGuideAnswerToArray,
                 normalizeQuestionKeyAliases
             };
@@ -19190,12 +19525,12 @@
         function collectQuestionData(questionEl) {
             const adapted = QuestionSchemaAdapter.fromUI(questionEl);
 
-            // Scaffold phase: keep export shape unchanged while all callers use adapter flow.
+            // Phase-scoped export: target types use schema export, non-target types stay legacy.
             if (QUESTION_SCHEMA_MIGRATION_PHASE === 'global_scaffold') {
-                return QuestionSchemaAdapter.toLegacyExport(adapted);
+                return QuestionSchemaAdapter.toPhaseExport(adapted);
             }
 
-            return QuestionSchemaAdapter.toLegacyExport(adapted);
+            return QuestionSchemaAdapter.toPhaseExport(adapted);
         }
 
         function getEffectiveCheckboxValuesForValidation(values, choicesCount) {
@@ -19204,6 +19539,25 @@
                 return new Array(choicesCount).fill(false);
             }
             return values;
+        }
+
+        function findDuplicateChoiceTexts(choices) {
+            if (!Array.isArray(choices)) return [];
+            const seen = new Map();
+            const duplicates = [];
+            choices.forEach((choice) => {
+                const rawText = String(choice && choice.text != null ? choice.text : '').trim();
+                if (!rawText) return;
+                const key = rawText.toLowerCase();
+                if (seen.has(key)) {
+                    if (!duplicates.some(existing => existing.toLowerCase() === key)) {
+                        duplicates.push(seen.get(key));
+                    }
+                    return;
+                }
+                seen.set(key, rawText);
+            });
+            return duplicates;
         }
 
         /**
@@ -19247,7 +19601,7 @@
                 const adapted = QuestionSchemaAdapter.fromUI(sectionEl);
                 return {
                     type: 'question',
-                    data: QuestionSchemaAdapter.toLegacyExport(adapted)
+                    data: QuestionSchemaAdapter.toPhaseExport(adapted)
                 };
             } else {
                 return {
@@ -19392,7 +19746,7 @@
             if (questionImagesGroup) {
                 fillBboxGroup(questionImagesGroup, data.question_images || []);
             }
-            if (answerImagesGroup) {
+            if (!isChoiceQuestionType(questionType) && answerImagesGroup) {
                 fillBboxGroup(answerImagesGroup, data.guide_answer_images || []);
             }
             
@@ -19541,13 +19895,8 @@
                     } : {});
                     const lastChoice = choicesList.lastElementChild;
                     if (lastChoice) {
-                        const choiceIdInput = lastChoice.querySelector('.choice-id');
                         const choiceTextArea = lastChoice.querySelector('.choice-text');
                         const choiceCorrectInput = lastChoice.querySelector('.choice-correct');
-                        if (choiceIdInput) {
-                            choiceIdInput.value = choice.id || '';
-                            updateChoiceHeader(choiceIdInput);
-                        }
                         if (choiceTextArea) {
                             choiceTextArea.value = choice.text || '';
                         }
@@ -19556,13 +19905,6 @@
                         }
                     }
                 });
-            }
-            
-            // Set guide answer (in choices container)
-            const choicesContainer = questionEl.querySelector('#choices-container');
-            const choicesGuideAnswer = choicesContainer?.querySelector('.guide-answer-notes');
-            if (choicesGuideAnswer) {
-                choicesGuideAnswer.value = data.guide_answer || '';
             }
             
             // Restore correct answer state using UID-based approach
@@ -22259,9 +22601,14 @@
         function getQuestionTextIndices(question) {
             const questionText = question.question || '';
             const setupText = question.setup_text || '';
-            const guideAnswer = question.guide_answer || '';
             const questionType = question.question_type || 'free_form';
-            const choices = question.choices || [];
+            const guideAnswer = (questionType === 'multiple_choice' || questionType === 'checkbox')
+                ? ''
+                : (question.guide_answer || '');
+            const options = Array.isArray(question.options) ? question.options : [];
+            const choiceTexts = Array.isArray(question.choices)
+                ? question.choices.map(choice => choice && choice.text ? choice.text : '')
+                : ((questionType === 'multiple_choice' || questionType === 'checkbox') ? options : []);
             const leftItems = question.left || [];
             const rightItems = question.right || [];
             
@@ -22269,9 +22616,9 @@
             let allQuestionIndices = extractAllImageIndices([setupText, questionText]);
             
             // Add choice indices for multiple_choice and checkbox
-            if ((questionType === 'multiple_choice' || questionType === 'checkbox') && choices.length > 0) {
-                choices.forEach((choice) => {
-                    allQuestionIndices.push(...extractAllImageIndices(choice.text || ''));
+            if ((questionType === 'multiple_choice' || questionType === 'checkbox') && choiceTexts.length > 0) {
+                choiceTexts.forEach((choiceText) => {
+                    allQuestionIndices.push(...extractAllImageIndices(choiceText || ''));
                 });
             }
 
@@ -22871,6 +23218,16 @@
             const guidePdfInput = findFieldByLabel(questionEl, 'Guide PDF Page', 'input');
             const rawGuidePdf = guidePdfInput ? (guidePdfInput.value || '').trim() : '';
             const hasGuidePdf = rawGuidePdf !== '';
+            const questionType = questionData?.question_type || getQuestionType(questionEl) || 'free_form';
+            let hasGuideAnswer = false;
+            if (Array.isArray(questionData?.guide_answer)) {
+                hasGuideAnswer = questionData.guide_answer.some(item => String(item == null ? '' : item).trim() !== '');
+            } else if (typeof questionData?.guide_answer === 'string') {
+                hasGuideAnswer = questionData.guide_answer.trim() !== '';
+            } else {
+                const rawGuideAnswer = getGuideAnswerValue(questionEl, questionType, { trim: true });
+                hasGuideAnswer = rawGuideAnswer !== '';
+            }
 
             if (hasGuidebookRange && !hasGuidePdf) {
                 errors.push(ErrorMessages.requiredGuidePage(questionIndex));
@@ -22878,7 +23235,15 @@
             if (!hasGuidebookRange && hasGuidePdf) {
                 errors.push(`Question ${questionIndex + 1} - Problem: Guide PDF Page must be empty when Guidebook PDF Pages (Start - End) are empty.\n   ➡️ Fix: Leave Guide PDF Page empty for this question, or fill both Guidebook start and end pages.`);
             }
-
+            if (hasGuidebookRange && !hasGuideAnswer) {
+                if (questionType === 'multiple_choice') {
+                    errors.push(ErrorMessages.requiredCorrectAnswer(questionIndex));
+                } else if (questionType === 'checkbox') {
+                    errors.push(ErrorMessages.requiredCheckedChoice(questionIndex));
+                } else {
+                    errors.push(ErrorMessages.requiredAnswer(questionIndex));
+                }
+            }
             if (hasGuidePdf && (questionData?.guide_pdf_page == null || Number.isNaN(questionData.guide_pdf_page))) {
                 errors.push(ErrorMessages.invalidGuidePage(questionIndex));
             } else if (typeof questionData?.guide_pdf_page === 'number' && !Number.isNaN(questionData.guide_pdf_page)) {
@@ -23180,6 +23545,7 @@
             questionElements.forEach((questionEl, index) => {
                 try {
                     const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
+                    const questionOutputData = QuestionSchemaAdapter.toPhaseExport(questionAdapterPayload);
                     const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
                     const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
                     
@@ -23190,7 +23556,7 @@
 
                     const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
                         questionEl,
-                        questionData,
+                        questionData: questionOutputData,
                         questionIndex: index,
                         hasGuidebookRange,
                         guidebookStart,
@@ -23292,11 +23658,10 @@
                             if (!questionData.choices || questionData.choices.length === 0) {
                                 validationErrors.push(ErrorMessages.requiredChoices(index));
                             } else {
-                                // Validate choice IDs consistency (all filled or all empty)
-                                const choicesWithIDs = questionData.choices.filter(c => c.id && c.id.trim() !== '');
-                                if (choicesWithIDs.length > 0 && choicesWithIDs.length < questionData.choices.length) {
-                                    validationErrors.push(ErrorMessages.inconsistentChoiceIDs(index, 'multiple_choice'));
-                            }
+                                const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
+                                if (duplicateChoiceTexts.length > 0) {
+                                    validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'multiple_choice', duplicateChoiceTexts));
+                                }
                             }
                             // Correct Answer Position is optional; validate only when provided.
                             if (typeof questionData.value === 'number') {
@@ -23304,16 +23669,15 @@
                                     validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
                                 }
                             }
-                            // guide_answer is now optional (for notes)
+                            // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
                         } else if (questionData.question_type === 'checkbox') {
                             // Checkbox validation
                             if (!questionData.choices || questionData.choices.length === 0) {
                                 validationErrors.push(ErrorMessages.requiredCheckboxChoices(index));
                             } else {
-                                // Validate choice IDs consistency (all filled or all empty)
-                                const choicesWithIDs = questionData.choices.filter(c => c.id && c.id.trim() !== '');
-                                if (choicesWithIDs.length > 0 && choicesWithIDs.length < questionData.choices.length) {
-                                    validationErrors.push(ErrorMessages.inconsistentChoiceIDs(index, 'checkbox'));
+                                const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
+                                if (duplicateChoiceTexts.length > 0) {
+                                    validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'checkbox', duplicateChoiceTexts));
                                 }
                                 
                                 // Validate values array
@@ -23326,14 +23690,14 @@
                                     }
                                 }
                             }
-                            // guide_answer is now optional (for notes)
+                            // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
                         }
                     }
                     
                     // Only add question if no validation errors for this question
                     if (!validationErrors.some(e => e.startsWith(`Question ${index + 1}:`)) && 
                         !validationErrors.some(e => e.includes(`Question ${index + 1}`))) {
-                        jsonData.practice_questions.push(questionData);
+                        jsonData.practice_questions.push(questionOutputData);
                     }
                 } catch (error) {
                     validationErrors.push(`Question ${index + 1}: ${error.message}`);
@@ -23381,9 +23745,18 @@
             );
             const questionSizes = jsonData.practice_questions.map(q => {
                 let size = (q.question || '').length + (q.setup_text || '').length;
-                if (q.guide_answer) size += q.guide_answer.length;
+                if (q.guide_answer) {
+                    if (Array.isArray(q.guide_answer)) {
+                        size += q.guide_answer.join('').length;
+                    } else {
+                        size += q.guide_answer.length;
+                    }
+                }
                 if (q.choices) {
                     size += q.choices.reduce((sum, c) => sum + (c.text || '').length, 0);
+                }
+                if (Array.isArray(q.options)) {
+                    size += q.options.reduce((sum, opt) => sum + String(opt || '').length, 0);
                 }
                 return size;
             });
@@ -23439,7 +23812,7 @@
             questionElements.forEach((questionEl) => {
                 try {
                     const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
-                    const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
+                    const questionData = QuestionSchemaAdapter.toPhaseExport(questionAdapterPayload);
                     jsonData.practice_questions.push(questionData);
                 } catch (error) {
                     // Skip questions that fail to collect
@@ -24044,7 +24417,7 @@
                     if (guideAnswerNotesTextarea) {
                         guideAnswerNotesTextarea.value = (q.guide_answer ?? '').toString();
                     }
-                } else if ((questionType === 'multiple_choice' || questionType === 'checkbox') && q.choices && Array.isArray(q.choices)) {
+                } else if (isChoiceQuestionType(questionType) && q.choices && Array.isArray(q.choices)) {
                     // Fill choices
                     const choicesList = qEl.querySelector('[id^="choices-list-"]');
                     if (choicesList) {
@@ -24059,14 +24432,8 @@
                             } : {});
                             const lastChoice = choicesList.lastElementChild;
                             if (lastChoice) {
-                                const choiceIdInput = lastChoice.querySelector('.choice-id');
                                 const choiceTextArea = lastChoice.querySelector('.choice-text');
                                 const choiceCorrectInput = lastChoice.querySelector('.choice-correct');
-                                if (choiceIdInput) {
-                                    choiceIdInput.value = (choice.id ?? '').toString();
-                                    // Update header to reflect the ID
-                                    updateChoiceHeader(choiceIdInput);
-                                }
                                 if (choiceTextArea) {
                                     choiceTextArea.value = (choice.text ?? '').toString();
                                 }
@@ -24118,8 +24485,6 @@
                         afterQuestionTypeListMutation(qEl);
                     }
                     
-                    // Populate guide answer for the active type-specific field
-                    setGuideAnswerValue(qEl, q.guide_answer, questionType);
                 } else {
                     // Free form - fill guide answer
                     setGuideAnswerValue(qEl, q.guide_answer, questionType);
@@ -24140,7 +24505,7 @@
                 if (questionImagesGroup) {
                     fillBboxGroup(questionImagesGroup, questionImages);
                 }
-                if (answerImagesGroup) {
+                if (!isChoiceQuestionType(questionType) && answerImagesGroup) {
                     fillBboxGroup(answerImagesGroup, answerImages);
                 }
                 
@@ -25220,7 +25585,37 @@
             triggerAutoSave();
         }
         
-        // Insert table into text field with automatic indexing
+        // Build markdown table template with canonical placeholder tokens.
+        function buildTableTemplateMarkdown(numColumns, numRows) {
+            let tableMarkdown = '';
+
+            // Add table headers
+            const headers = [];
+            for (let i = 1; i <= numColumns; i++) {
+                headers.push(`Header_${i}`);
+            }
+            tableMarkdown += `| ${headers.join(' | ')} |\n`;
+
+            // Add separator line
+            const separators = [];
+            for (let i = 1; i <= numColumns; i++) {
+                separators.push(':--------:');
+            }
+            tableMarkdown += `| ${separators.join(' | ')} |\n`;
+
+            // Add data rows
+            for (let row = 1; row <= numRows; row++) {
+                const cells = [];
+                for (let col = 1; col <= numColumns; col++) {
+                    cells.push(`Row_${row}_Cell_${col}`);
+                }
+                tableMarkdown += `| ${cells.join(' | ')} |\n`;
+            }
+
+            return tableMarkdown;
+        }
+
+        // Insert table into text field
         function insertTable(textarea) {
             // Check if this is a restricted field (lesson text)
             const isLessonText = textarea.id === 'lesson_text';
@@ -25229,11 +25624,6 @@
                 alert('Tables are not allowed in lesson preamble text. Please add tables only in question text, guide answers, set-up text, or content sections.');
                 return;
             }
-            
-            const tableDescription = prompt('Enter table description:');
-            
-            // Get the next available image index automatically
-            const nextIndex = getNextImageIndexForField(textarea);
             
             const numColumns = prompt('Enter number of columns (e.g., 3):');
             if (!numColumns || isNaN(numColumns) || numColumns < 1) {
@@ -25247,38 +25637,7 @@
                 return;
             }
             
-            // Build table structure
-            let tableMarkdown = '';
-            
-            // Add image reference with automatic index
-            if (tableDescription && tableDescription.trim()) {
-                tableMarkdown += `![${tableDescription.trim()}](${nextIndex})\n`;
-            } else {
-                tableMarkdown += `![](${nextIndex})\n`;
-            }
-            
-            // Add table headers
-            const headers = [];
-            for (let i = 1; i <= numColumns; i++) {
-                headers.push(`Header ${i}`);
-            }
-            tableMarkdown += `| ${headers.join(' | ')} |\n`;
-            
-            // Add separator line
-            const separators = [];
-            for (let i = 1; i <= numColumns; i++) {
-                separators.push('----------');
-            }
-            tableMarkdown += `| ${separators.join(' | ')} |\n`;
-            
-            // Add data rows
-            for (let row = 1; row <= numRows; row++) {
-                const cells = [];
-                for (let col = 1; col <= numColumns; col++) {
-                    cells.push(`Row ${row}, Cell ${col}`);
-                }
-                tableMarkdown += `| ${cells.join(' | ')} |\n`;
-            }
+            const tableMarkdown = buildTableTemplateMarkdown(numColumns, numRows);
             
             // Insert at cursor position or at end
             const cursorPos = textarea.selectionStart;
@@ -25670,6 +26029,7 @@
                 questionElements.forEach((questionEl, index) => {
                     try {
                         const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
+                        const questionOutputData = QuestionSchemaAdapter.toPhaseExport(questionAdapterPayload);
                         const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
                         const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
                         
@@ -25678,7 +26038,7 @@
 
                         const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
                             questionEl,
-                            questionData,
+                            questionData: questionOutputData,
                             questionIndex: index,
                             hasGuidebookRange,
                             guidebookStart,
@@ -25771,11 +26131,10 @@
                                 if (!questionData.choices || questionData.choices.length === 0) {
                                     validationErrors.push(ErrorMessages.requiredChoices(index));
                                 } else {
-                                    // Validate choice IDs consistency (all filled or all empty)
-                                    const choicesWithIDs = questionData.choices.filter(c => c.id && c.id.trim() !== '');
-                                    if (choicesWithIDs.length > 0 && choicesWithIDs.length < questionData.choices.length) {
-                                        validationErrors.push(ErrorMessages.inconsistentChoiceIDs(index, 'multiple_choice'));
-                                }
+                                    const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
+                                    if (duplicateChoiceTexts.length > 0) {
+                                        validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'multiple_choice', duplicateChoiceTexts));
+                                    }
                                 }
                                 // Correct Answer Position is optional; validate only when provided.
                                 if (typeof questionData.value === 'number') {
@@ -25783,16 +26142,15 @@
                                         validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
                                     }
                                 }
-                                // guide_answer is now optional (for notes)
+                                // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
                             } else if (questionData.question_type === 'checkbox') {
                                 // Checkbox validation
                                 if (!questionData.choices || questionData.choices.length === 0) {
                                     validationErrors.push(ErrorMessages.requiredCheckboxChoices(index));
                                 } else {
-                                    // Validate choice IDs consistency (all filled or all empty)
-                                    const choicesWithIDs = questionData.choices.filter(c => c.id && c.id.trim() !== '');
-                                    if (choicesWithIDs.length > 0 && choicesWithIDs.length < questionData.choices.length) {
-                                        validationErrors.push(ErrorMessages.inconsistentChoiceIDs(index, 'checkbox'));
+                                    const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
+                                    if (duplicateChoiceTexts.length > 0) {
+                                        validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'checkbox', duplicateChoiceTexts));
                                     }
                                     
                                     // Validate values array
@@ -25805,14 +26163,14 @@
                                         }
                                     }
                                 }
-                                // guide_answer is now optional (for notes)
+                                // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
                             }
                         }
                         
                         // Only add question if no validation errors for this question
                         if (!validationErrors.some(e => e.startsWith(`Question ${index + 1}:`)) && 
                             !validationErrors.some(e => e.includes(`Question ${index + 1}`))) {
-                            jsonData.practice_questions.push(questionData);
+                            jsonData.practice_questions.push(questionOutputData);
                         }
                     } catch (error) {
                         console.warn(`Question ${index + 1}: ${error.message}`);
@@ -28223,15 +28581,18 @@
                     }
                 }
             } else if (type === 'answer') {
-                const answerBboxLabel = Array.from(questionEl.querySelectorAll('label')).find(
-                    label => label.textContent.includes('Answer Images')
-                );
-                if (answerBboxLabel) {
-                    const container = answerBboxLabel.closest('.form-group')?.querySelector('.bbox-container');
-                    if (container) {
-                        const firstBbox = container.querySelector('.array-item .bbox-page');
-                        if (firstBbox && firstBbox.value) {
-                            return parseInt(firstBbox.value, 10);
+                const questionType = getQuestionType(questionEl);
+                if (!isChoiceQuestionType(questionType)) {
+                    const answerBboxLabel = Array.from(questionEl.querySelectorAll('label')).find(
+                        label => label.textContent.includes('Answer Images')
+                    );
+                    if (answerBboxLabel) {
+                        const container = answerBboxLabel.closest('.form-group')?.querySelector('.bbox-container');
+                        if (container) {
+                            const firstBbox = container.querySelector('.array-item .bbox-page');
+                            if (firstBbox && firstBbox.value) {
+                                return parseInt(firstBbox.value, 10);
+                            }
                         }
                     }
                 }
@@ -28575,7 +28936,6 @@
             
             // Check for specific field classes that should navigate to guidebook
             if (element.classList.contains('choice-text') ||
-                element.classList.contains('choice-id') ||
                 element.classList.contains('blank-answer-input') ||
                 element.classList.contains('relationship-left') ||
                 element.classList.contains('relationship-right')) {
@@ -28593,7 +28953,6 @@
                         labelText.includes('Guide PDF Page') ||
                         labelText.includes('Answer Images') ||
                         labelText.includes('Choice Text') ||
-                        labelText.includes('Choice ID') ||
                         labelText.includes('Blank Answers') ||
                         labelText.includes('Relationships')) {
                         return true;
@@ -28975,3 +29334,4 @@
 
 </body>
 </html>
+
