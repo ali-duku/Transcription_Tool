@@ -1,75 +1,112 @@
-### Remove `guide_pdf_page`, `related_question`, `guide_answer_images` From `index.html`
+### Section 4–8 Replacement Plan: Canonical Compatibility, Validation, and Output Finalization
 
 ### Summary
-Completely remove the three fields from UI, state, JSON I/O, preview, validation, navigation, and image/bbox plumbing in `index.html`, while keeping all other question flows intact and canonical.  
-Per your selection, guide-answer images will be **disabled** (not remapped to `question_images`).
+Replace Sections 4–8 with a clean end-state plan that assumes no reliance on legacy/internal current behavior.  
+Goal: keep UI/flows unchanged, keep old JSON load-compatible, and make all exported questions strictly conform to `schema.json` using one canonical adapter path.
 
 ### Implementation Changes
-1. **Question UI + rendering**
-- Remove `Guide PDF Page` and `Related Question` header inputs from question HTML generation.
-- Remove `Answer Images` bbox group and all `addAnswerImage*` handlers/usages.
-- Update question type toggle logic to stop querying/showing/hiding removed containers.
-- Remove final preview sections/cards for `Guide PDF Page` and `Related Question`.
-- Remove related input-direction setup references and any UI selectors tied to these fields.
+1. **Backward-Compatible Loading (Single Canonical Path)**
+- Define one authoritative adapter load contract:
+- `normalizeIncoming(rawQuestion) -> canonicalQuestion`
+- `toPopulateShape(canonicalQuestion) -> uiBridgeQuestion`
+- Canonical question shape:
+- `id`, `question_type`, `question`, `guide_answer` (always array)
+- `setup_text`, `question_images`, `guide_pdf_page`, `guide_answer_images`, `options`, `difficulty`
+- Loading rules:
+- Alias keys once at load: `question_text -> question`, `set_up_text -> setup_text`
+- Mixed payload precedence: new flat fields win over legacy fields
+- `guide_pdf_page` normalize to `integer | null`
+- `difficulty` normalize to `null` always (UI-hidden policy)
+- Type policies:
+- `free_form`, `annotate`, `create_table`: accept legacy string `guide_answer`, normalize to `[]` or `[text]`
+- `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`: ignore legacy manual `guide_answer` string; derive canonical answer from structural/new fields
+- `guide_answer_images` policy:
+- keep `array | null` only for `free_form`, `annotate`, `create_table`
+- force `null` for `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`
+- Legacy IDs policy:
+- ignore `choices[].id` completely during load
+- never surface IDs in UI state
+- Empty-answer rule:
+- never use `[""]`; canonical empty answer is always `[]`
 
-2. **Question data model + state flows**
-- Remove the three fields from:
-  - undo/redo question state serialization/restoration,
-  - question collect/deserialize/load/populate paths,
-  - JSON generate + save-progress output.
-- Ensure question payload still exports all remaining keys exactly as before.
-- Keep backward load behavior implicit: old JSON containing removed keys is accepted but those keys are ignored and never re-emitted.
+2. **Validation Migration (Canonical Data Only)**
+- Move generate/save validation inputs to canonical adapter output, not legacy fields.
+- Preserve current UX/error style, but all checks run on canonical fields.
+- Type-specific canonical validation:
+- `multiple_choice`: `options` present; `guide_answer` either empty or exactly one option text
+- `checkbox`: `options` present; `guide_answer` members must exist in options
+- `fill_in_the_blanks`: blank tokens in question must align with ordered `guide_answer`
+- `matching`: `options` must contain one `"---"` separator; pair strings in `guide_answer` must be valid/resolvable
+- `free_form`, `annotate`, `create_table`: manual guide-answer/image checks remain supported
+- Keep existing guide range vs per-question `guide_pdf_page` validation logic.
+- Remove any validation branches tied to legacy choice IDs or removed manual-guide fields for auto-derived types.
 
-3. **Validation + errors**
-- Delete guide-page validation checks (required/empty/range/integer) from both generate and autosave validation paths.
-- Remove obsolete error message entries and references for guide-page and answer-images validations.
-- Remove answer-image consistency/reference/order checks.
-- Add a single canonical validation rule for guide-answer fields: image markdown is not supported (to enforce disabled guide-answer images).
+3. **Canonical Rollout Order (No UI Breakage)**
+- Phase A: wire all load/populate/copy-paste ingress through adapter normalization.
+- Phase B: wire all validation sources to canonical questions.
+- Phase C: switch all exports (`generateJSON`, `saveProgress`, autosave collection, copy/paste serialization) to schema export only.
+- Phase D: remove legacy output emission paths and dead compatibility branches from runtime export code.
+- Keep one migration switch for rollback safety until tests pass; then lock to canonical output mode.
 
-4. **BBox/image infrastructure cleanup**
-- Simplify bbox collection and fill logic to `images` / `question_images` only.
-- Remove answer-image before/after function routing in bbox row duplication/drawing/fill helpers.
-- Remove answer-image map keys and answer-image lookup branches in bbox preview key mapping/reconciliation.
-- Keep question image indexing/order logic canonical for setup/question/choices/matching only.
+4. **Final Output Contract**
+- Every exported question must include:
+- `id`, `question_type`, `question`, `guide_answer`
+- Optional fields emitted by policy:
+- `setup_text`, `question_images`, `guide_pdf_page`, `guide_answer_images`, `options`, `difficulty`
+- Forced policies:
+- `difficulty: null` for all questions
+- `guide_answer_images: null` for `multiple_choice`, `checkbox`, `fill_in_the_blanks`, `matching`
+- `guide_answer` is always array; empty is `[]`
+- Never emit legacy/removed fields:
+- `choices`, `value`, `values`, `left`, `right`, `relationship`, `related_question`
+- Never emit/transcribe choice IDs.
 
-5. **Navigation/context cleanup**
-- Remove Guide PDF Page–specific navigation extraction, field listeners, and related source/page branching.
-- Keep guide auto-navigation based on existing guidebook range + guide-answer context only.
-- Remove removed-field label checks from guide/textbook field classification helpers.
+5. **Patch Notes (8.0 Changes, Non-Technical)**
+- Add/update concise user-facing entries that state:
+- old files still load and are auto-updated in the background
+- exported questions now follow one consistent format
+- choice IDs are ignored and not exported
+- for MCQ/Checkbox/Blanks/Matching, answers are auto-built from existing entries (no extra answer text needed)
+- table insertion no longer needs extra description text
 
-6. **No-trace cleanup**
-- Remove all literal/comment/changelog/help text mentions of:
-  - `guide_pdf_page` / `Guide PDF Page`
-  - `related_question` / `Related Question`
-  - `guide_answer_images` / `Answer Images` / `answer_images`
-- Keep all unrelated guidebook/textbook logic and UI unchanged.
+### Public/Internal Interface Changes
+- Internal adapter APIs (canonicalized):
+- `normalizeIncoming(rawQuestion)`
+- `toPopulateShape(canonicalQuestion)`
+- `toSchemaExport(canonicalQuestion)`
+- Exported question JSON public contract:
+- flat `PracticeQuestion` shape only (no legacy per-type fields)
+- `guide_answer` array-only semantics
+- `difficulty` always `null`
 
 ### Test Plan
-1. **Schema/output**
-- Generate JSON from mixed question types.
-- Confirm no question includes `guide_pdf_page`, `related_question`, or `guide_answer_images`.
+1. **Compatibility Matrix**
+- Load old-only, new-only, and mixed payloads for all 7 question types.
+- Verify populate behavior is stable and non-blocking for valid legacy data.
 
-2. **UI behavior**
-- Add/edit questions across all types; ensure no missing controls/layout regressions.
-- Verify question images bbox add/before/after/draw/copy/paste/duplicate still work.
+2. **Roundtrip Integrity**
+- Load -> edit -> save/generate -> reload.
+- Confirm no legacy fields reappear and no UI regressions.
 
-3. **Load/restore/undo**
-- Load JSON that still contains removed keys; form loads without errors.
-- Save/regenerate immediately; removed keys are not present.
-- Undo/redo and restore latest work without console errors.
+3. **Type Contract Assertions**
+- `multiple_choice`: one-or-zero correct text in `guide_answer`, options text list only
+- `checkbox`: selected texts in `guide_answer`
+- `fill_in_the_blanks`: ordered blanks array in `guide_answer`
+- `matching`: options with `"---"` separator + `left:right` guide pairs
+- manual-answer types keep supported image behavior only where allowed
 
-4. **Validation**
-- Confirm no guide-page errors appear.
-- Confirm guide-answer image markdown is blocked by the new canonical validation rule.
+4. **Policy Assertions**
+- `guide_answer_images` null-forced for auto-derived types
+- `difficulty` always null
+- no `[""]` in output; empty answers are `[]`
+- no choice IDs in runtime output
 
-5. **Navigation/final preview**
-- Auto-navigation still works for existing guidebook range behavior.
-- Final preview renders without removed field cards and without broken edit targets.
+5. **Regression Scenarios**
+- Undo/redo, copy/paste, restore latest, autosave, quick jump, final preview edit navigation unchanged.
 
-6. **Trace check**
-- Run final grep in `index.html` for removed tokens; must return zero matches.
-
-### Assumptions
-- Guide-answer images are intentionally disabled (chosen option).
-- Only `index.html` is modified.
-- Guidebook range fields remain supported (only per-question guide page is removed).
+### Assumptions and Defaults
+- This is a replacement plan for Sections 4–8 only.
+- UI structure and authoring flow remain unchanged.
+- Old payloads are accepted and normalized silently unless irrecoverably malformed.
+- Text matching for ambiguous duplicate options/pairs follows deterministic first-match behavior unless stricter duplicate validation already blocks ambiguity.
+- Implementation target remains `index.html` (with optional synchronized doc update after approval).

@@ -19,8 +19,9 @@
         //   - Version reload checks
         const APP_VERSION = '8.0';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
-        // Question schema migration phase switch (scaffold only in this release).
-        const QUESTION_SCHEMA_MIGRATION_PHASE = 'global_scaffold';
+        // Question schema migration phase switch.
+        // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
+        const QUESTION_SCHEMA_MIGRATION_PHASE = 'canonical_output';
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
@@ -42,6 +43,16 @@
                             '<strong>Simpler answer flow for selected question types:</strong> For Multiple Choice, Checkbox, Fill in the Blanks, and Matching, we removed extra Guide Answer and Answer Images inputs. Answers are now built automatically from your existing selections/entries, so you do not need to add extra answer text manually.',
                             '<strong>Title Page and Book Metadata update:</strong> You can now choose <code>Title Page</code>, fill details in the new Book Metadata tab (also available in Quick Jump and Final Preview), and these fields are required only for title pages.',
                             '<strong>Cleaner Insert Table templates:</strong> Inserted tables now start directly with table rows (no image line), no table description is required anymore, placeholders are clearer (like <code>Header_1</code> and <code>Row_1_Cell_1</code>), and tables are center-aligned by default.'
+                        ]
+                    },
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: '#28a745',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Clearer matching relationship menus:</strong> In Matching questions, relationship dropdown options now show each item label with a text snippet (or full text when short), so it is easier to pick the correct pair.'
                         ]
                     },
                     {
@@ -2381,15 +2392,17 @@
             return questionType === 'multiple_choice' || questionType === 'checkbox';
         }
 
+        function usesManualGuideAnswerInput(questionType) {
+            return questionType === 'free_form' || questionType === 'annotate' || questionType === 'create_table';
+        }
+
+        function supportsGuideAnswerImages(questionType) {
+            return usesManualGuideAnswerInput(questionType);
+        }
+
         // Guide answer field resolver (single source of truth by question type)
         function getGuideAnswerSelectorForType(questionType) {
-            if (isChoiceQuestionType(questionType)) return null;
-            if (questionType === 'fill_in_the_blanks') {
-                return '#blanks-container .guide-answer-notes';
-            }
-            if (questionType === 'matching') {
-                return '#matching-container .guide-answer-notes';
-            }
+            if (!usesManualGuideAnswerInput(questionType)) return null;
             return '#guide-answer-container textarea';
         }
 
@@ -2546,7 +2559,7 @@
             const questionImagesGroup = findFormGroupByLabel(questionEl, 'Question Images');
             const answerImagesGroup = findFormGroupByLabel(questionEl, 'Answer Images');
             state.question_images = questionImagesGroup ? serializeBboxGroup(questionImagesGroup) : [];
-            state.guide_answer_images = (!isChoiceQuestionType(state.question_type) && answerImagesGroup)
+            state.guide_answer_images = (supportsGuideAnswerImages(state.question_type) && answerImagesGroup)
                 ? serializeBboxGroup(answerImagesGroup)
                 : [];
             
@@ -2645,13 +2658,6 @@
                     });
                     updateFilledBlanksPreview(newQuestion);
                 }
-                
-                // Set guide answer in blanks container
-                const blanksContainer = newQuestion.querySelector('#blanks-container');
-                const guideAnswerNotes = blanksContainer?.querySelector('.guide-answer-notes');
-                if (guideAnswerNotes) {
-                    guideAnswerNotes.value = state.guide_answer || '';
-                }
             } else if (questionType === 'matching') {
                 // Populate left items
                 const leftList = newQuestion.querySelector('[id^="matching-left-list-"]');
@@ -2720,13 +2726,6 @@
                     // Rebuild UI to show correct selections
                     afterQuestionTypeListMutation(newQuestion);
                 }
-                
-                // Set guide answer in matching container
-                const matchingContainer = newQuestion.querySelector('#matching-container');
-                const matchingGuideAnswer = matchingContainer?.querySelector('.guide-answer-notes');
-                if (matchingGuideAnswer) {
-                    matchingGuideAnswer.value = state.guide_answer || '';
-                }
             } else if (questionType === 'multiple_choice' || questionType === 'checkbox') {
                 // Populate choices
                 const choicesList = newQuestion.querySelector('[id^="choices-list-"]');
@@ -2786,7 +2785,7 @@
                     fillBboxGroup(questionImagesGroup, state.question_images);
                 }
             }
-            if (!isChoiceQuestionType(questionType) && state.guide_answer_images && state.guide_answer_images.length > 0) {
+            if (supportsGuideAnswerImages(questionType) && state.guide_answer_images && state.guide_answer_images.length > 0) {
                 const answerImagesGroup = findFormGroupByLabel(newQuestion, 'Answer Images');
                 if (answerImagesGroup) {
                     fillBboxGroup(answerImagesGroup, state.guide_answer_images);
@@ -10190,10 +10189,8 @@
                 html += renderMultipleChoicePreview(questionEl, questionType);
             } else if (questionType === 'fill_in_the_blanks') {
                 html += renderFillInBlanksPreview(questionEl);
-                // Guide answer is already included in renderFillInBlanksPreview
             } else if (questionType === 'matching') {
                 html += renderMatchingPreview(questionEl);
-                // Guide answer is already included in renderMatchingPreview
             } else if (questionType === 'annotate' || questionType === 'create_table' || questionType === 'free_form') {
                 html += renderGuideAnswerPreview(questionEl, questionType);
             }
@@ -10396,22 +10393,6 @@
                 }
             }
             
-            // Guide answer - always RTL in final preview
-            const guideAnswerTextarea = blanksContainer.querySelector('.guide-answer-notes');
-            if (guideAnswerTextarea && guideAnswerTextarea.value && guideAnswerTextarea.value.trim()) {
-                const guidePreview = document.createElement('div');
-                guidePreview.className = 'live-preview';
-                guidePreview.setAttribute('dir', 'rtl');
-                guidePreview.style.textAlign = 'right';
-                renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
-                html += buildPreviewBox({
-                    title: 'Guide Answer',
-                    editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('#blanks-container .guide-answer-notes'))`,
-                    bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div>`,
-                    bodyClass: 'guide-answer'
-                });
-            }
-            
             return html;
         }
 
@@ -10604,22 +10585,6 @@
                 bodyHTML: relationshipsBodyHTML,
                 bodyClass: 'matching-container'
             });
-            
-            // Guide answer section
-            const guideAnswerTextarea = matchingContainer.querySelector('.guide-answer-notes');
-            if (guideAnswerTextarea && guideAnswerTextarea.value && guideAnswerTextarea.value.trim()) {
-                const guidePreview = document.createElement('div');
-                guidePreview.className = 'live-preview';
-                guidePreview.setAttribute('dir', 'rtl');
-                guidePreview.style.textAlign = 'right';
-                renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
-                html += buildPreviewBox({
-                    title: 'Guide Answer',
-                    editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('#matching-container .guide-answer-notes'))`,
-                    bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div>`,
-                    bodyClass: 'guide-answer'
-                });
-            }
             
             return html;
         }
@@ -11622,7 +11587,7 @@
             if (!questionEl) return;
             
             const previousType = getQuestionType(questionEl);
-            const preserveGuideAnswer = !isChoiceQuestionType(previousType);
+            const preserveGuideAnswer = usesManualGuideAnswerInput(previousType);
             const currentGuideAnswer = preserveGuideAnswer
                 ? getGuideAnswerValue(questionEl, previousType, { trim: false })
                 : null;
@@ -11653,7 +11618,7 @@
             
             // Hide/show fields based on question type (use currentType, not questionType)
             if (currentType === 'fill_in_the_blanks') {
-                // fill_in_the_blanks: Show question text, blanks, images, and guide page
+                // fill_in_the_blanks: Show question text, blanks, question images, and guide page
                 if (setupContainer) setupContainer.style.display = 'block';
                 if (questionTextContainer) questionTextContainer.style.display = 'block';
                 if (guideAnswerContainer) guideAnswerContainer.style.display = 'none';
@@ -11661,7 +11626,7 @@
                 if (blanksContainer) blanksContainer.style.display = 'block';
                 if (matchingContainer) matchingContainer.style.display = 'none';
                 if (questionImagesContainer) questionImagesContainer.style.display = 'block';
-                if (answerImagesContainer) answerImagesContainer.style.display = 'block';
+                if (answerImagesContainer) answerImagesContainer.style.display = 'none';
                 if (guidePdfPageContainer) guidePdfPageContainer.style.display = 'block';
                 
                 // Add listener to question text to update blanks UI
@@ -11675,7 +11640,7 @@
                     updateBlankAnswersUI(questionEl);
                 }
             } else if (currentType === 'matching') {
-                // matching: Show question text, matching section, images, and guide page
+                // matching: Show question text, matching section, question images, and guide page
                 if (setupContainer) setupContainer.style.display = 'block';
                 if (questionTextContainer) questionTextContainer.style.display = 'block';
                 if (guideAnswerContainer) guideAnswerContainer.style.display = 'none';
@@ -11683,7 +11648,7 @@
                 if (blanksContainer) blanksContainer.style.display = 'none';
                 if (matchingContainer) matchingContainer.style.display = 'block';
                 if (questionImagesContainer) questionImagesContainer.style.display = 'block';
-                if (answerImagesContainer) answerImagesContainer.style.display = 'block';
+                if (answerImagesContainer) answerImagesContainer.style.display = 'none';
                 if (guidePdfPageContainer) guidePdfPageContainer.style.display = 'block';
                 
                 // Initialize with at least one item on each side if empty
@@ -11800,7 +11765,7 @@
             }
             
             // Restore guide answer value to the new active type field only.
-            if (!isChoiceQuestionType(currentType) && currentGuideAnswer !== null) {
+            if (usesManualGuideAnswerInput(currentType) && currentGuideAnswer !== null) {
                 setGuideAnswerValue(questionEl, currentGuideAnswer, currentType);
             }
             
@@ -13915,7 +13880,7 @@
                     </div>
                 `;
             } else {
-                // Format B: Optional guide answer (for fill_in_the_blanks and matching)
+                // Format B: Optional guide answer (used by manual-answer question types)
                 return `
                     <div class="form-group${containerClasses ? ` ${containerClasses}` : ''}" ${containerId ? `id="${containerId}"` : ''} style="margin-top: 15px;">
                         <label>Guide Answer <span style="opacity: 0.6; font-size: 0.85em;"></span></label>
@@ -14016,7 +13981,6 @@
                         </div>
                     </div>
                     
-                    ${getGuideAnswerHTML({ required: false })}
                 </div>
                 
                 <!-- Matching Section -->
@@ -14052,7 +14016,6 @@
                         </div>
                     </div>
                     
-                    ${getGuideAnswerHTML({ required: false })}
                 </div>
                 
                 <div class="form-group">
@@ -19096,19 +19059,11 @@
             if (questionType === 'fill_in_the_blanks') {
                 // For fill_in_the_blanks, collect blank answers
                 const values = collectBlankAnswers(questionEl);
-                // Query specifically within blanks container to avoid conflicts with other guide_answer textareas
-                const blanksContainer = questionEl.querySelector('#blanks-container');
-                const guideAnswerNotesTextarea = blanksContainer?.querySelector('.guide-answer-notes');
-                const guideAnswer = guideAnswerNotesTextarea ? guideAnswerNotesTextarea.value.trim() : '';
-                choicesOrAnswer = { values, guide_answer: guideAnswer };
+                choicesOrAnswer = { values };
             } else if (questionType === 'matching') {
                 // For matching, collect left, right, and relationship
                 const matchingData = collectMatchingData(questionEl);
-                // Query specifically within matching container to avoid conflicts
-                const matchingContainer = questionEl.querySelector('#matching-container');
-                const guideAnswerNotesTextarea = matchingContainer?.querySelector('.guide-answer-notes');
-                const guideAnswer = guideAnswerNotesTextarea ? guideAnswerNotesTextarea.value.trim() : '';
-                choicesOrAnswer = { ...matchingData, guide_answer: guideAnswer };
+                choicesOrAnswer = { ...matchingData };
             } else {
                 // For standard types (free_form, multiple_choice, checkbox)
                 choicesOrAnswer = collectChoicesOrAnswer(questionEl);
@@ -19116,7 +19071,7 @@
             
             // Collect question images (bbox data)
             const questionImages = collectBboxData(questionEl, 'question_images', false);
-            const guideAnswerImages = isChoiceQuestionType(questionType)
+            const guideAnswerImages = !supportsGuideAnswerImages(questionType)
                 ? []
                 : collectBboxData(questionEl, 'answer_images', false);
             const guidePdfPageRaw = getFieldValue(questionEl, 'Guide PDF Page') || '';
@@ -19133,13 +19088,13 @@
             if (questionType === 'fill_in_the_blanks') {
                 // Fill in the blanks: add values array
                 questionData.values = choicesOrAnswer.values || [];
-                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
+                questionData.guide_answer = '';
             } else if (questionType === 'matching') {
                 // Matching: add left, right, relationship
                 questionData.left = choicesOrAnswer.left || [];
                 questionData.right = choicesOrAnswer.right || [];
                 questionData.relationship = choicesOrAnswer.relationship || [];
-                questionData.guide_answer = getGuideAnswerValue(questionEl, questionType, { trim: true });
+                questionData.guide_answer = '';
             } else if (isChoiceQuestionType(questionType) && choicesOrAnswer.choices) {
                 // Multiple choice or checkbox: add choices
                 questionData.choices = choicesOrAnswer.choices;
@@ -19166,8 +19121,6 @@
 
         const QuestionSchemaAdapter = (() => {
             const LEGACY_TYPE_FIELDS = ['choices', 'value', 'values', 'left', 'right', 'relationship'];
-            const QUESTION_DIFFICULTY_LEVELS = new Set(['easy', 'medium', 'hard']);
-            const PHASE3_SCHEMA_TARGET_TYPES = new Set(['free_form', 'annotate', 'create_table', 'multiple_choice', 'checkbox']);
 
             function isPlainObject(value) {
                 return !!(value && typeof value === 'object' && !Array.isArray(value));
@@ -19186,6 +19139,10 @@
 
             function isChoiceBasedType(questionType) {
                 return questionType === 'multiple_choice' || questionType === 'checkbox';
+            }
+
+            function supportsGuideAnswerImagesForType(questionType) {
+                return questionType === 'free_form' || questionType === 'annotate' || questionType === 'create_table';
             }
 
             function normalizeQuestionKeyAliases(rawQuestion) {
@@ -19224,7 +19181,7 @@
             function normalizeGuideAnswerToArray(guideAnswer) {
                 if (Array.isArray(guideAnswer)) {
                     const normalized = guideAnswer
-                        .map(item => (item == null ? '' : String(item)))
+                        .map(item => (item == null ? '' : String(item).trim()))
                         .filter(item => item !== '');
                     if (normalized.length > 0) return normalized;
                     return [];
@@ -19236,12 +19193,111 @@
                 return text ? [text] : [];
             }
 
-            function isPhase3SchemaTargetType(questionType) {
-                return PHASE3_SCHEMA_TARGET_TYPES.has(normalizeQuestionType(questionType));
+            function normalizeGuideAnswerForType(guideAnswer, questionType) {
+                if (questionType === 'fill_in_the_blanks') {
+                    if (!Array.isArray(guideAnswer)) return [];
+                    return guideAnswer.map(item => (item == null ? '' : String(item)));
+                }
+                return normalizeGuideAnswerToArray(guideAnswer);
             }
 
-            function normalizeGuideAnswerForType(guideAnswer, questionType) {
-                return normalizeGuideAnswerToArray(guideAnswer);
+            function normalizeLegacyBlankValues(valuesLike) {
+                if (!Array.isArray(valuesLike)) return [];
+                return valuesLike.map(item => (item == null ? '' : String(item)));
+            }
+
+            function normalizeLegacyMatchingSide(itemsLike) {
+                if (!Array.isArray(itemsLike)) return [];
+                return itemsLike.map(item => (item == null ? '' : String(item)));
+            }
+
+            function splitMatchingOptions(optionsLike) {
+                if (!Array.isArray(optionsLike)) {
+                    return { left: [], right: [] };
+                }
+                const normalizedOptions = optionsLike.map(item => (item == null ? '' : String(item)));
+                const separatorIndex = normalizedOptions.indexOf('---');
+                if (separatorIndex < 0) {
+                    return { left: normalizedOptions, right: [] };
+                }
+                return {
+                    left: normalizedOptions.slice(0, separatorIndex),
+                    right: normalizedOptions.slice(separatorIndex + 1)
+                };
+            }
+
+            function buildMatchingOptionsFromSides(leftItems, rightItems) {
+                const left = Array.isArray(leftItems) ? leftItems.map(item => (item == null ? '' : String(item))) : [];
+                const right = Array.isArray(rightItems) ? rightItems.map(item => (item == null ? '' : String(item))) : [];
+                if (left.length === 0 && right.length === 0) {
+                    return [];
+                }
+                return [...left, '---', ...right];
+            }
+
+            function buildGuideAnswerForFillInTheBlanks(source) {
+                if (Array.isArray(source.guide_answer)) {
+                    return normalizeGuideAnswerForType(source.guide_answer, 'fill_in_the_blanks');
+                }
+                return normalizeLegacyBlankValues(source.values);
+            }
+
+            function buildGuideAnswerForMatching(source, options) {
+                if (Array.isArray(source.guide_answer)) {
+                    return normalizeGuideAnswerToArray(source.guide_answer);
+                }
+                if (!Array.isArray(source.relationship)) {
+                    return [];
+                }
+
+                const sidesFromOptions = splitMatchingOptions(options);
+                const left = sidesFromOptions.left.length > 0 || sidesFromOptions.right.length > 0
+                    ? sidesFromOptions.left
+                    : normalizeLegacyMatchingSide(source.left);
+                const right = sidesFromOptions.left.length > 0 || sidesFromOptions.right.length > 0
+                    ? sidesFromOptions.right
+                    : normalizeLegacyMatchingSide(source.right);
+
+                const pairs = [];
+                source.relationship.forEach((rel) => {
+                    if (!Array.isArray(rel) || rel.length !== 2) return;
+                    const leftIndex = normalizePositiveInteger(rel[0]);
+                    const rightIndex = normalizePositiveInteger(rel[1]);
+                    if (!leftIndex || !rightIndex) return;
+                    if (leftIndex > left.length || rightIndex > right.length) return;
+                    pairs.push(`${left[leftIndex - 1]}:${right[rightIndex - 1]}`);
+                });
+                return pairs;
+            }
+
+            function buildLegacyMatchingRelationships(guideAnswer, left, right) {
+                const leftIndexByText = new Map();
+                const rightIndexByText = new Map();
+                left.forEach((text, index) => {
+                    if (!leftIndexByText.has(text)) leftIndexByText.set(text, index + 1);
+                    const trimmed = String(text == null ? '' : text).trim();
+                    if (trimmed !== '' && !leftIndexByText.has(trimmed)) leftIndexByText.set(trimmed, index + 1);
+                });
+                right.forEach((text, index) => {
+                    if (!rightIndexByText.has(text)) rightIndexByText.set(text, index + 1);
+                    const trimmed = String(text == null ? '' : text).trim();
+                    if (trimmed !== '' && !rightIndexByText.has(trimmed)) rightIndexByText.set(trimmed, index + 1);
+                });
+
+                const relationships = [];
+                normalizeGuideAnswerToArray(guideAnswer).forEach((pair) => {
+                    const rawPair = String(pair == null ? '' : pair);
+                    const separatorIndex = rawPair.indexOf(':');
+                    if (separatorIndex < 0) return;
+                    const leftText = rawPair.slice(0, separatorIndex).trim();
+                    const rightText = rawPair.slice(separatorIndex + 1).trim();
+                    const leftIndex = leftIndexByText.get(leftText);
+                    const rightIndex = rightIndexByText.get(rightText);
+                    if (leftIndex && rightIndex) {
+                        relationships.push([leftIndex, rightIndex]);
+                    }
+                });
+                return relationships;
             }
 
             function guideAnswerArrayToLegacyString(guideAnswer, questionType = 'free_form') {
@@ -19283,6 +19339,15 @@
                     }
                     const legacyChoices = normalizeLegacyChoices(source.choices);
                     return legacyChoices.map(choice => choice.text);
+                }
+                if (questionType === 'matching') {
+                    if (Array.isArray(source.options)) {
+                        return source.options.map(item => (item == null ? '' : String(item)));
+                    }
+                    return buildMatchingOptionsFromSides(source.left, source.right);
+                }
+                if (questionType === 'fill_in_the_blanks') {
+                    return null;
                 }
                 return normalizeStringArray(source.options);
             }
@@ -19349,22 +19414,23 @@
                 return questionType;
             }
 
-            function normalizeDifficulty(value) {
-                if (value === undefined || value === null || value === '') return null;
-                const normalized = String(value).trim().toLowerCase();
-                return QUESTION_DIFFICULTY_LEVELS.has(normalized) ? normalized : null;
-            }
-
             function buildCanonicalDraftFromSource(rawSource) {
                 const source = normalizeQuestionKeyAliases(rawSource);
                 const questionType = normalizeQuestionType(source.question_type);
                 const options = normalizeOptionsForType(source, questionType);
-                const guideAnswer = isChoiceBasedType(questionType)
-                    ? buildGuideAnswerForChoiceType(source, questionType, options)
-                    : normalizeGuideAnswerForType(source.guide_answer, questionType);
-                const guideAnswerImages = isChoiceBasedType(questionType)
-                    ? null
-                    : (Array.isArray(source.guide_answer_images) ? source.guide_answer_images : null);
+                let guideAnswer;
+                if (isChoiceBasedType(questionType)) {
+                    guideAnswer = buildGuideAnswerForChoiceType(source, questionType, options);
+                } else if (questionType === 'fill_in_the_blanks') {
+                    guideAnswer = buildGuideAnswerForFillInTheBlanks(source);
+                } else if (questionType === 'matching') {
+                    guideAnswer = buildGuideAnswerForMatching(source, options);
+                } else {
+                    guideAnswer = normalizeGuideAnswerForType(source.guide_answer, questionType);
+                }
+                const guideAnswerImages = supportsGuideAnswerImagesForType(questionType)
+                    ? (Array.isArray(source.guide_answer_images) ? source.guide_answer_images : null)
+                    : null;
                 return {
                     id: source.id == null ? '' : String(source.id),
                     question_type: questionType,
@@ -19375,7 +19441,8 @@
                     guide_answer_images: guideAnswerImages,
                     guide_answer: guideAnswer,
                     options: options,
-                    difficulty: normalizeDifficulty(source.difficulty)
+                    // Runtime contract requirement: difficulty is UI-hidden and always null.
+                    difficulty: null
                 };
             }
 
@@ -19408,14 +19475,14 @@
                 legacyExport.question_images = Array.isArray(source.question_images)
                     ? source.question_images
                     : (Array.isArray(canonical.question_images) ? canonical.question_images : []);
-                legacyExport.guide_answer_images = isChoiceBasedType(canonical.question_type)
-                    ? []
-                    : (Array.isArray(source.guide_answer_images)
+                legacyExport.guide_answer_images = supportsGuideAnswerImagesForType(canonical.question_type)
+                    ? (Array.isArray(source.guide_answer_images)
                         ? source.guide_answer_images
-                        : (Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : []));
-                legacyExport.guide_answer = isChoiceBasedType(canonical.question_type)
-                    ? ''
-                    : guideAnswerArrayToLegacyString(canonical.guide_answer, canonical.question_type);
+                        : (Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : []))
+                    : [];
+                legacyExport.guide_answer = usesManualGuideAnswerInput(canonical.question_type)
+                    ? guideAnswerArrayToLegacyString(canonical.guide_answer, canonical.question_type)
+                    : '';
 
                 if (canonical.question_type === 'multiple_choice') {
                     const options = Array.isArray(canonical.options) ? canonical.options : [];
@@ -19431,6 +19498,31 @@
                     legacyExport.values = boolValues.some(Boolean) ? boolValues : [];
                     legacyExport.choices = buildLegacyChoiceRowsFromOptions(options, selectedSet);
                     delete legacyExport.value;
+                } else if (canonical.question_type === 'fill_in_the_blanks') {
+                    legacyExport.values = normalizeGuideAnswerForType(canonical.guide_answer, canonical.question_type);
+                    delete legacyExport.choices;
+                    delete legacyExport.value;
+                    delete legacyExport.left;
+                    delete legacyExport.right;
+                    delete legacyExport.relationship;
+                } else if (canonical.question_type === 'matching') {
+                    const hasNewMatchingSignals = Array.isArray(source.options) || Array.isArray(source.guide_answer);
+                    if (!hasNewMatchingSignals && Array.isArray(source.left) && Array.isArray(source.right) && Array.isArray(source.relationship)) {
+                        legacyExport.left = normalizeLegacyMatchingSide(source.left);
+                        legacyExport.right = normalizeLegacyMatchingSide(source.right);
+                        legacyExport.relationship = source.relationship
+                            .filter(rel => Array.isArray(rel) && rel.length === 2)
+                            .map(rel => [normalizePositiveInteger(rel[0]) || 0, normalizePositiveInteger(rel[1]) || 0])
+                            .filter(([leftIdx, rightIdx]) => leftIdx > 0 && rightIdx > 0);
+                    } else {
+                        const sides = splitMatchingOptions(canonical.options);
+                        legacyExport.left = sides.left;
+                        legacyExport.right = sides.right;
+                        legacyExport.relationship = buildLegacyMatchingRelationships(canonical.guide_answer, sides.left, sides.right);
+                    }
+                    delete legacyExport.choices;
+                    delete legacyExport.value;
+                    delete legacyExport.values;
                 }
 
                 // Runtime contract requirement: difficulty is UI-hidden and always exported as explicit null.
@@ -19455,49 +19547,57 @@
                     ? input.canonical
                     : buildCanonicalDraft(input);
                 const questionType = normalizeQuestionType(canonical.question_type);
-                const isTargetType = isPhase3SchemaTargetType(questionType);
                 const normalizedGuideAnswer = normalizeGuideAnswerForType(canonical.guide_answer, questionType);
+                const normalizedOptions = (questionType === 'multiple_choice' || questionType === 'checkbox' || questionType === 'matching')
+                    ? (Array.isArray(canonical.options) ? canonical.options : [])
+                    : null;
+                const normalizedQuestionImages = Array.isArray(canonical.question_images) ? canonical.question_images : null;
+                const normalizedGuideAnswerImages = supportsGuideAnswerImagesForType(questionType)
+                    ? (Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : null)
+                    : null;
 
                 const schemaExport = {
                     id: canonical.id,
+                    difficulty: null,
                     question_type: questionType,
+                    guide_pdf_page: canonical.guide_pdf_page,
+                    setup_text: canonical.setup_text,
                     question: canonical.question,
-                    guide_answer: normalizedGuideAnswer
+                    options: normalizedOptions,
+                    question_images: normalizedQuestionImages,
+                    guide_answer: normalizedGuideAnswer,
+                    guide_answer_images: normalizedGuideAnswerImages
                 };
-
-                schemaExport.setup_text = canonical.setup_text;
-                schemaExport.question_images = Array.isArray(canonical.question_images) ? canonical.question_images : null;
-                schemaExport.guide_pdf_page = canonical.guide_pdf_page;
-                schemaExport.guide_answer_images = isChoiceBasedType(questionType)
-                    ? null
-                    : (Array.isArray(canonical.guide_answer_images) ? canonical.guide_answer_images : null);
-                if (questionType === 'multiple_choice' || questionType === 'checkbox') {
-                    schemaExport.options = Array.isArray(canonical.options) ? canonical.options : [];
-                } else {
-                    schemaExport.options = isTargetType ? null : (Array.isArray(canonical.options) ? canonical.options : null);
-                }
-                schemaExport.difficulty = null;
 
                 return schemaExport;
             }
 
-            function toPhaseExport(input) {
+            function toPopulateShape(input) {
                 const canonical = (isPlainObject(input) && isPlainObject(input.canonical))
                     ? input.canonical
                     : buildCanonicalDraft(input);
-                if (isPhase3SchemaTargetType(canonical.question_type)) {
-                    return toSchemaExport({ canonical });
+                return buildLegacyBridgeFromCanonical({}, canonical);
+            }
+
+            function toPhaseExport(input) {
+                if (QUESTION_SCHEMA_MIGRATION_PHASE === 'global_scaffold') {
+                    return toLegacyExport(input);
                 }
-                return toLegacyExport(input);
+                return toSchemaExport(input);
             }
 
             function normalizeIncoming(rawQuestion) {
                 const source = normalizeQuestionKeyAliases(rawQuestion);
                 const payloadShape = classifyPayloadShape(source);
                 const canonical = buildCanonicalDraftFromSource(source);
-                const legacyExport = buildLegacyBridgeFromCanonical(source, canonical);
+                const populateShape = buildLegacyBridgeFromCanonical(source, canonical);
 
-                return { canonical, legacyExport, payloadShape };
+                return {
+                    canonical,
+                    populateShape,
+                    legacyExport: populateShape,
+                    payloadShape
+                };
             }
 
             function fromUI(questionEl) {
@@ -19505,7 +19605,8 @@
                 const normalized = normalizeIncoming(legacyFromUI);
                 return {
                     canonical: normalized.canonical,
-                    legacyExport: normalized.legacyExport,
+                    populateShape: normalized.populateShape,
+                    legacyExport: normalized.populateShape,
                     payloadShape: normalized.payloadShape
                 };
             }
@@ -19515,6 +19616,7 @@
                 normalizeIncoming,
                 toLegacyExport,
                 toSchemaExport,
+                toPopulateShape,
                 toPhaseExport,
                 classifyPayloadShape,
                 normalizeGuideAnswerToArray,
@@ -19524,13 +19626,7 @@
 
         function collectQuestionData(questionEl) {
             const adapted = QuestionSchemaAdapter.fromUI(questionEl);
-
-            // Phase-scoped export: target types use schema export, non-target types stay legacy.
-            if (QUESTION_SCHEMA_MIGRATION_PHASE === 'global_scaffold') {
-                return QuestionSchemaAdapter.toPhaseExport(adapted);
-            }
-
-            return QuestionSchemaAdapter.toPhaseExport(adapted);
+            return QuestionSchemaAdapter.toSchemaExport(adapted);
         }
 
         function getEffectiveCheckboxValuesForValidation(values, choicesCount) {
@@ -19601,7 +19697,7 @@
                 const adapted = QuestionSchemaAdapter.fromUI(sectionEl);
                 return {
                     type: 'question',
-                    data: QuestionSchemaAdapter.toPhaseExport(adapted)
+                    data: QuestionSchemaAdapter.toSchemaExport(adapted)
                 };
             } else {
                 return {
@@ -19665,7 +19761,7 @@
             
             if (payload.type === 'question') {
                 const normalizedQuestion = QuestionSchemaAdapter.normalizeIncoming(payload.data);
-                return deserializeQuestion(normalizedQuestion.legacyExport, { container, insertBefore, isReplacement, targetEl }, options);
+                return deserializeQuestion(normalizedQuestion.populateShape, { container, insertBefore, isReplacement, targetEl }, options);
             } else if (payload.type === 'content') {
                 return deserializeContentSection(payload.data, { container, insertBefore, isReplacement, targetEl }, options);
             } else {
@@ -19681,7 +19777,7 @@
             const { container, insertBefore, isReplacement, targetEl } = context;
             const inBulkFastPath = options.bulkBuild === true || isPerformanceBulkBuildActive();
             const deferFinalize = options.deferFinalize === true || inBulkFastPath;
-            data = QuestionSchemaAdapter.normalizeIncoming(data).legacyExport;
+            data = QuestionSchemaAdapter.normalizeIncoming(data).populateShape;
             
             let questionEl;
             if (isReplacement && targetEl) {
@@ -19746,7 +19842,7 @@
             if (questionImagesGroup) {
                 fillBboxGroup(questionImagesGroup, data.question_images || []);
             }
-            if (!isChoiceQuestionType(questionType) && answerImagesGroup) {
+            if (supportsGuideAnswerImages(questionType) && answerImagesGroup) {
                 fillBboxGroup(answerImagesGroup, data.guide_answer_images || []);
             }
             
@@ -19772,13 +19868,6 @@
                     }
                 });
                 updateFilledBlanksPreview(questionEl);
-            }
-            
-            // Set guide answer (in blanks container)
-            const blanksContainer = questionEl.querySelector('#blanks-container');
-            const guideAnswerNotesTextarea = blanksContainer?.querySelector('.guide-answer-notes');
-            if (guideAnswerNotesTextarea) {
-                guideAnswerNotesTextarea.value = data.guide_answer || '';
             }
         }
         
@@ -19869,12 +19958,6 @@
                 });
             }
             
-            // Set guide answer (in matching container)
-            const matchingContainer = questionEl.querySelector('#matching-container');
-            const matchingGuideAnswerTextarea = matchingContainer?.querySelector('.guide-answer-notes');
-            if (matchingGuideAnswerTextarea) {
-                matchingGuideAnswerTextarea.value = data.guide_answer || '';
-            }
         }
         
         /**
@@ -22229,6 +22312,88 @@
             });
         }
 
+        const MATCHING_RELATIONSHIP_LABEL_SNIPPET_LIMIT = 80;
+        const matchingRelationshipLabelRefreshTimers = new WeakMap();
+
+        function normalizeMatchingRelationshipLabelText(text) {
+            return String(text == null ? '' : text)
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function formatMatchingRelationshipOptionLabel(sidePrefix, position, text) {
+            const baseLabel = `${sidePrefix}${position}`;
+            const normalizedText = normalizeMatchingRelationshipLabelText(text);
+            if (!normalizedText) return baseLabel;
+            if (normalizedText.length <= MATCHING_RELATIONSHIP_LABEL_SNIPPET_LIMIT) {
+                return `${baseLabel} - ${normalizedText}`;
+            }
+            const clippedText = normalizedText.slice(0, MATCHING_RELATIONSHIP_LABEL_SNIPPET_LIMIT - 3);
+            return `${baseLabel} - ${clippedText}...`;
+        }
+
+        function buildMatchingRelationshipSelectOptions(questionEl, side, selectedUid = null) {
+            const isLeft = side === 'left';
+            const listSelector = isLeft
+                ? '[id^="matching-left-list-"] .matching-item'
+                : '[id^="matching-right-list-"] .matching-item';
+            const uidKey = isLeft ? 'leftUid' : 'rightUid';
+            const sidePrefix = isLeft ? 'L' : 'R';
+            const placeholderText = isLeft ? 'Select Left Item' : 'Select Right Item';
+
+            const fragment = document.createDocumentFragment();
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = placeholderText;
+            fragment.appendChild(placeholderOption);
+
+            let hasValidSelection = false;
+            const items = questionEl.querySelectorAll(listSelector);
+            items.forEach((item, index) => {
+                const itemUid = item.dataset[uidKey];
+                if (!itemUid) return;
+
+                const textarea = item.querySelector('.matching-item-text');
+                const option = document.createElement('option');
+                option.value = itemUid;
+                option.textContent = formatMatchingRelationshipOptionLabel(sidePrefix, index + 1, textarea ? textarea.value : '');
+
+                if (selectedUid && selectedUid === itemUid) {
+                    option.selected = true;
+                    hasValidSelection = true;
+                }
+                fragment.appendChild(option);
+            });
+
+            return { fragment, hasValidSelection };
+        }
+
+        function applyMatchingRelationshipSelectOptions(questionEl, selectEl, side, selectedUid = null) {
+            if (!questionEl || !selectEl) return false;
+            const { fragment, hasValidSelection } = buildMatchingRelationshipSelectOptions(questionEl, side, selectedUid);
+            selectEl.innerHTML = '';
+            selectEl.appendChild(fragment);
+            if (selectedUid) {
+                selectEl.value = hasValidSelection ? selectedUid : '';
+            }
+            return hasValidSelection;
+        }
+
+        function scheduleMatchingRelationshipLabelRefresh(questionEl, delayMs = 120) {
+            if (!questionEl || getQuestionType(questionEl) !== 'matching') return;
+            const existingTimer = matchingRelationshipLabelRefreshTimers.get(questionEl);
+            if (existingTimer) {
+                clearTimeout(existingTimer);
+            }
+            const timer = setTimeout(() => {
+                matchingRelationshipLabelRefreshTimers.delete(questionEl);
+                if (!questionEl.isConnected) return;
+                if (getQuestionType(questionEl) !== 'matching') return;
+                rebuildMatchingRelationshipUI(questionEl);
+            }, delayMs);
+            matchingRelationshipLabelRefreshTimers.set(questionEl, timer);
+        }
+
         /**
          * Add a relationship between left and right items
          * @param {HTMLElement} button - The add button
@@ -22239,6 +22404,7 @@
             const skipRecord = options.skipRecord === true || inBulkFastPath;
             const skipSync = options.skipSync === true || inBulkFastPath;
             const questionEl = button.closest('.array-item');
+            ensureMatchingUids(questionEl);
             const leftItems = questionEl.querySelectorAll('[id^="matching-left-list-"] .matching-item');
             const rightItems = questionEl.querySelectorAll('[id^="matching-right-list-"] .matching-item');
             
@@ -22262,29 +22428,20 @@
             relationshipDiv.className = 'relationship-item';
             relationshipDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px;';
             
-            // Build options for left items
-            let leftOptions = '<option value="">Select Left Item</option>';
-            leftItems.forEach((item, index) => {
-                leftOptions += `<option value="${index + 1}">L${index + 1}</option>`;
-            });
-            
-            // Build options for right items
-            let rightOptions = '<option value="">Select Right Item</option>';
-            rightItems.forEach((item, index) => {
-                rightOptions += `<option value="${index + 1}">R${index + 1}</option>`;
-            });
-            
             relationshipDiv.innerHTML = `
                 <select class="relationship-left" style="flex: 1; padding: 6px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" title="Select a left item to connect">
-                    ${leftOptions}
                 </select>
                 <span style="color: var(--text-secondary); font-weight: bold;">→</span>
                 <select class="relationship-right" style="flex: 1; padding: 6px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;" title="Select a right item to connect">
-                    ${rightOptions}
                 </select>
                 ${buildActionButtonsHTML(ACTION_BUTTON_CONFIGS.RELATIONSHIP)}
             `;
             
+            const leftSelect = relationshipDiv.querySelector('.relationship-left');
+            const rightSelect = relationshipDiv.querySelector('.relationship-right');
+            applyMatchingRelationshipSelectOptions(questionEl, leftSelect, 'left');
+            applyMatchingRelationshipSelectOptions(questionEl, rightSelect, 'right');
+
             relationshipsList.appendChild(relationshipDiv);
             
             // Finalize the relationship item: apply font settings
@@ -22373,20 +22530,6 @@
             if (!relationshipsList) return;
             
             const relationships = relationshipsList.querySelectorAll('.relationship-item');
-            const leftItems = questionEl.querySelectorAll('[id^="matching-left-list-"] .matching-item');
-            const rightItems = questionEl.querySelectorAll('[id^="matching-right-list-"] .matching-item');
-            
-            // Create UID-to-index maps for display
-            const leftUidToIndex = new Map();
-            const rightUidToIndex = new Map();
-            leftItems.forEach((item, index) => {
-                const uid = item.dataset.leftUid;
-                if (uid) leftUidToIndex.set(uid, index + 1);
-            });
-            rightItems.forEach((item, index) => {
-                const uid = item.dataset.rightUid;
-                if (uid) rightUidToIndex.set(uid, index + 1);
-            });
             
             // Rebuild options for each relationship
             relationships.forEach(relDiv => {
@@ -22399,17 +22542,7 @@
                 const storedRightUid = relDiv.dataset.rightUid || null;
                 
                 // Rebuild left options
-                let leftOptions = '<option value="">Select Left Item</option>';
-                let hasValidLeftSelection = false;
-                leftItems.forEach((item, index) => {
-                    const leftUid = item.dataset.leftUid;
-                    if (!leftUid) return;
-                    const position = index + 1;
-                    const selected = storedLeftUid === leftUid ? 'selected' : '';
-                    if (selected) hasValidLeftSelection = true;
-                    leftOptions += `<option value="${leftUid}" ${selected}>L${position}</option>`;
-                });
-                leftSelect.innerHTML = leftOptions;
+                const hasValidLeftSelection = applyMatchingRelationshipSelectOptions(questionEl, leftSelect, 'left', storedLeftUid);
                 
                 // If stored UID exists and is valid, restore selection
                 // If stored UID doesn't exist yet, show placeholder but KEEP the UID in dataset
@@ -22423,17 +22556,7 @@
                 }
                 
                 // Rebuild right options
-                let rightOptions = '<option value="">Select Right Item</option>';
-                let hasValidRightSelection = false;
-                rightItems.forEach((item, index) => {
-                    const rightUid = item.dataset.rightUid;
-                    if (!rightUid) return;
-                    const position = index + 1;
-                    const selected = storedRightUid === rightUid ? 'selected' : '';
-                    if (selected) hasValidRightSelection = true;
-                    rightOptions += `<option value="${rightUid}" ${selected}>R${position}</option>`;
-                });
-                rightSelect.innerHTML = rightOptions;
+                const hasValidRightSelection = applyMatchingRelationshipSelectOptions(questionEl, rightSelect, 'right', storedRightUid);
                 
                 // If stored UID exists and is valid, restore selection
                 // If stored UID doesn't exist yet, show placeholder but KEEP the UID in dataset
@@ -22602,15 +22725,25 @@
             const questionText = question.question || '';
             const setupText = question.setup_text || '';
             const questionType = question.question_type || 'free_form';
-            const guideAnswer = (questionType === 'multiple_choice' || questionType === 'checkbox')
-                ? ''
-                : (question.guide_answer || '');
+            const guideAnswer = supportsGuideAnswerImages(questionType)
+                ? (question.guide_answer || '')
+                : '';
             const options = Array.isArray(question.options) ? question.options : [];
             const choiceTexts = Array.isArray(question.choices)
                 ? question.choices.map(choice => choice && choice.text ? choice.text : '')
                 : ((questionType === 'multiple_choice' || questionType === 'checkbox') ? options : []);
-            const leftItems = question.left || [];
-            const rightItems = question.right || [];
+            let leftItems = Array.isArray(question.left) ? question.left : [];
+            let rightItems = Array.isArray(question.right) ? question.right : [];
+            if (questionType === 'matching' && (leftItems.length === 0 && rightItems.length === 0) && options.length > 0) {
+                const separatorIndex = options.indexOf('---');
+                if (separatorIndex >= 0) {
+                    leftItems = options.slice(0, separatorIndex);
+                    rightItems = options.slice(separatorIndex + 1);
+                } else {
+                    leftItems = options.slice();
+                    rightItems = [];
+                }
+            }
             
             // Get question + setup indices
             let allQuestionIndices = extractAllImageIndices([setupText, questionText]);
@@ -23240,6 +23373,10 @@
                     errors.push(ErrorMessages.requiredCorrectAnswer(questionIndex));
                 } else if (questionType === 'checkbox') {
                     errors.push(ErrorMessages.requiredCheckedChoice(questionIndex));
+                } else if (questionType === 'fill_in_the_blanks') {
+                    errors.push(`Question ${questionIndex + 1} (Fill in the Blanks) - Problem: Answer is missing.\n   ➡️ Fix: Fill at least one blank answer in the "Blank Answers" section.`);
+                } else if (questionType === 'matching') {
+                    errors.push(`Question ${questionIndex + 1} (Matching) - Problem: Answer is missing.\n   ➡️ Fix: Add at least one valid relationship between Left and Right items.`);
                 } else {
                     errors.push(ErrorMessages.requiredAnswer(questionIndex));
                 }
@@ -23261,6 +23398,199 @@
             }
 
             return errors;
+        }
+
+        function splitMatchingOptionsForValidation(options) {
+            const normalized = Array.isArray(options)
+                ? options.map(item => String(item == null ? '' : item))
+                : [];
+            const separatorIndices = [];
+            normalized.forEach((item, index) => {
+                if (item === '---') separatorIndices.push(index);
+            });
+
+            if (separatorIndices.length !== 1) {
+                return {
+                    left: [],
+                    right: [],
+                    separatorCount: separatorIndices.length
+                };
+            }
+
+            const separatorIndex = separatorIndices[0];
+            return {
+                left: normalized.slice(0, separatorIndex),
+                right: normalized.slice(separatorIndex + 1),
+                separatorCount: 1
+            };
+        }
+
+        function findDuplicateOptionTexts(options) {
+            const asChoices = (Array.isArray(options) ? options : []).map(text => ({ text }));
+            return findDuplicateChoiceTexts(asChoices);
+        }
+
+        function parseMatchingGuidePair(pairText) {
+            const raw = String(pairText == null ? '' : pairText).trim();
+            const separatorIndex = raw.indexOf(':');
+            if (separatorIndex <= 0 || separatorIndex >= raw.length - 1) return null;
+            const leftText = raw.slice(0, separatorIndex).trim();
+            const rightText = raw.slice(separatorIndex + 1).trim();
+            if (!leftText || !rightText) return null;
+            return { leftText, rightText };
+        }
+
+        function validateQuestionWithCanonicalData(params) {
+            const {
+                questionEl,
+                questionIndex,
+                hasGuidebookRange,
+                guidebookStart,
+                guidebookEnd
+            } = params || {};
+
+            const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
+            const questionData = QuestionSchemaAdapter.toSchemaExport(questionAdapterPayload);
+            const validationErrors = [];
+            const validationWarnings = [];
+            const questionType = questionData.question_type || getQuestionType(questionEl) || 'free_form';
+            const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
+
+            if (!questionData.id) {
+                validationErrors.push(ErrorMessages.requiredQuestionID(questionIndex));
+            }
+
+            const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
+                questionEl,
+                questionData,
+                questionIndex,
+                hasGuidebookRange,
+                guidebookStart,
+                guidebookEnd
+            });
+            if (guidePageErrors.length > 0) {
+                validationErrors.push(...guidePageErrors);
+            }
+
+            if (questionType === 'annotate' || questionType === 'create_table') {
+                if (isQuestionTextEmpty) {
+                    validationWarnings.push(ErrorMessages.warningQuestionText(questionIndex, questionType));
+                }
+                return { questionData, validationErrors, validationWarnings };
+            }
+
+            if (questionType === 'fill_in_the_blanks') {
+                if (isQuestionTextEmpty) {
+                    validationWarnings.push(ErrorMessages.warningQuestionText(questionIndex, questionType));
+                    return { questionData, validationErrors, validationWarnings };
+                }
+
+                const { valid, errors, blanks } = validateBlankFormat(questionData.question);
+                if (blanks.length === 0) {
+                    validationErrors.push(ErrorMessages.noBlanksFound(questionIndex));
+                } else if (!valid) {
+                    errors.forEach(err => {
+                        validationErrors.push(ErrorMessages.invalidBlankFormat(questionIndex, err));
+                    });
+                }
+
+                const answers = Array.isArray(questionData.guide_answer) ? questionData.guide_answer : [];
+                if (answers.length !== blanks.length) {
+                    validationErrors.push(ErrorMessages.blankAnswerMismatch(questionIndex, blanks.length, answers.length));
+                }
+                return { questionData, validationErrors, validationWarnings };
+            }
+
+            if (questionType === 'matching') {
+                if (isQuestionTextEmpty) {
+                    validationWarnings.push(ErrorMessages.warningQuestionText(questionIndex, questionType));
+                }
+
+                const { left, right, separatorCount } = splitMatchingOptionsForValidation(questionData.options);
+                if (separatorCount !== 1) {
+                    validationErrors.push(`Question ${questionIndex + 1} (Matching) - Problem: Options must contain exactly one \"---\" separator between left and right items.\n   -> Fix: Keep one separator between Left items and Right items.`);
+                }
+
+                if (!left || left.length === 0) {
+                    validationErrors.push(ErrorMessages.matchingNoLeftItems(questionIndex));
+                } else {
+                    left.forEach((item, itemIdx) => {
+                        if (!item || item.trim() === '') {
+                            validationErrors.push(ErrorMessages.matchingEmptyLeftItem(questionIndex, itemIdx + 1));
+                        }
+                    });
+                }
+
+                if (!right || right.length === 0) {
+                    validationErrors.push(ErrorMessages.matchingNoRightItems(questionIndex));
+                } else {
+                    right.forEach((item, itemIdx) => {
+                        if (!item || item.trim() === '') {
+                            validationErrors.push(ErrorMessages.matchingEmptyRightItem(questionIndex, itemIdx + 1));
+                        }
+                    });
+                }
+
+                const relationships = Array.isArray(questionData.guide_answer) ? questionData.guide_answer : [];
+                relationships.forEach((pair, relIdx) => {
+                    const parsed = parseMatchingGuidePair(pair);
+                    if (!parsed) {
+                        validationErrors.push(ErrorMessages.matchingIncompleteRelationship(questionIndex, relIdx + 1));
+                        return;
+                    }
+                    if (!left.includes(parsed.leftText) || !right.includes(parsed.rightText)) {
+                        validationErrors.push(`Question ${questionIndex + 1} (Matching) - Problem: Relationship "${parsed.leftText}:${parsed.rightText}" does not match current left/right items.\n   -> Fix: Update the relationship so both sides exactly match existing item text.`);
+                    }
+                });
+
+                return { questionData, validationErrors, validationWarnings };
+            }
+
+            if (isQuestionTextEmpty) {
+                validationWarnings.push(ErrorMessages.warningQuestionText(questionIndex, questionType));
+            }
+
+            if (questionType === 'multiple_choice') {
+                const options = Array.isArray(questionData.options) ? questionData.options : [];
+                if (options.length === 0) {
+                    validationErrors.push(ErrorMessages.requiredChoices(questionIndex));
+                } else {
+                    const duplicateChoiceTexts = findDuplicateOptionTexts(options);
+                    if (duplicateChoiceTexts.length > 0) {
+                        validationErrors.push(ErrorMessages.duplicateChoiceTexts(questionIndex, 'multiple_choice', duplicateChoiceTexts));
+                    }
+                }
+
+                const answers = Array.isArray(questionData.guide_answer) ? questionData.guide_answer : [];
+                if (answers.length > 1) {
+                    validationErrors.push(`Question ${questionIndex + 1} (Multiple Choice) - Problem: More than one correct answer was derived.\n   -> Fix: Keep exactly one correct choice selected.`);
+                }
+                if (answers.length === 1 && !options.includes(answers[0])) {
+                    validationErrors.push(`Question ${questionIndex + 1} (Multiple Choice) - Problem: Derived correct answer does not match any option text.\n   -> Fix: Re-select the correct option so it matches one of the current choices.`);
+                }
+                return { questionData, validationErrors, validationWarnings };
+            }
+
+            if (questionType === 'checkbox') {
+                const options = Array.isArray(questionData.options) ? questionData.options : [];
+                if (options.length === 0) {
+                    validationErrors.push(ErrorMessages.requiredCheckboxChoices(questionIndex));
+                } else {
+                    const duplicateChoiceTexts = findDuplicateOptionTexts(options);
+                    if (duplicateChoiceTexts.length > 0) {
+                        validationErrors.push(ErrorMessages.duplicateChoiceTexts(questionIndex, 'checkbox', duplicateChoiceTexts));
+                    }
+                }
+
+                const answers = Array.isArray(questionData.guide_answer) ? questionData.guide_answer : [];
+                const invalidAnswers = answers.filter(answer => !options.includes(answer));
+                if (invalidAnswers.length > 0) {
+                    validationErrors.push(`Question ${questionIndex + 1} (Checkbox) - Problem: Some derived correct answers are not present in options: ${invalidAnswers.join(', ')}.\n   -> Fix: Re-check the correct choices so answers map to existing option text.`);
+                }
+                return { questionData, validationErrors, validationWarnings };
+            }
+
+            return { questionData, validationErrors, validationWarnings };
         }
 
         function getBookMetadataPreviewEntries(metadata) {
@@ -23544,160 +23874,18 @@
             const questionElements = document.querySelectorAll('#questions_container > .array-item');
             questionElements.forEach((questionEl, index) => {
                 try {
-                    const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
-                    const questionOutputData = QuestionSchemaAdapter.toPhaseExport(questionAdapterPayload);
-                    const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
-                    const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
-                    
-                    // Enforce required fields for each question
-                    if (!questionData.id) {
-                        validationErrors.push(ErrorMessages.requiredQuestionID(index));
-                    }
-
-                    const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
+                    const validationResult = validateQuestionWithCanonicalData({
                         questionEl,
-                        questionData: questionOutputData,
                         questionIndex: index,
                         hasGuidebookRange,
                         guidebookStart,
                         guidebookEnd
                     });
-                    if (guidePageErrors.length > 0) {
-                        validationErrors.push(...guidePageErrors);
-                    }
-                    
-                    // Validate annotate and create_table types
-                    if (questionData.question_type === 'annotate' || questionData.question_type === 'create_table') {
-                        if (isQuestionTextEmpty) {
-                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                        }
-                        
-                        // Guidebook may be missing for some books: guide page/answer fields are optional.
-                    } else if (questionData.question_type === 'fill_in_the_blanks') {
-                        // Fill in the blanks validation
-                        if (isQuestionTextEmpty) {
-                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                        } else {
-                            // Validate blank format
-                            const { valid, errors, blanks } = validateBlankFormat(questionData.question);
-                            
-                            if (blanks.length === 0) {
-                                validationErrors.push(ErrorMessages.noBlanksFound(index));
-                            } else if (!valid) {
-                                errors.forEach(err => {
-                                    validationErrors.push(ErrorMessages.invalidBlankFormat(index, err));
-                                });
-                            }
-                            
-                            // Validate values array
-                            if (!questionData.values || !Array.isArray(questionData.values)) {
-                                validationErrors.push(ErrorMessages.blankAnswerMismatch(index, blanks.length, 0));
-                            } else {
-                                // Check count matches
-                                if (questionData.values.length !== blanks.length) {
-                                    validationErrors.push(ErrorMessages.blankAnswerMismatch(index, blanks.length, questionData.values.length));
-                                }
-                                
-                                // Blank answer fields are optional; keep only structural/count checks.
-                            }
-                        }
-                    } else if (questionData.question_type === 'matching') {
-                        // Matching validation
-                        if (isQuestionTextEmpty) {
-                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                        }
-                        
-                        // Validate left items
-                        if (!questionData.left || questionData.left.length === 0) {
-                            validationErrors.push(ErrorMessages.matchingNoLeftItems(index));
-                        } else {
-                            questionData.left.forEach((item, itemIdx) => {
-                                if (!item || item.trim() === '') {
-                                    validationErrors.push(ErrorMessages.matchingEmptyLeftItem(index, itemIdx + 1));
-                                }
-                            });
-                        }
-                        
-                        // Validate right items
-                        if (!questionData.right || questionData.right.length === 0) {
-                            validationErrors.push(ErrorMessages.matchingNoRightItems(index));
-                        } else {
-                            questionData.right.forEach((item, itemIdx) => {
-                                if (!item || item.trim() === '') {
-                                    validationErrors.push(ErrorMessages.matchingEmptyRightItem(index, itemIdx + 1));
-                                }
-                            });
-                        }
-                        
-                        // Validate relationships
-                        if (questionData.relationship && Array.isArray(questionData.relationship)) {
-                            questionData.relationship.forEach((rel, relIdx) => {
-                                if (!Array.isArray(rel) || rel.length !== 2) {
-                                    validationErrors.push(ErrorMessages.matchingIncompleteRelationship(index, relIdx + 1));
-                                } else {
-                                    const [leftIdx, rightIdx] = rel;
-                                    const leftCount = questionData.left ? questionData.left.length : 0;
-                                    const rightCount = questionData.right ? questionData.right.length : 0;
-                                    
-                                    if (!leftIdx || !rightIdx) {
-                                        validationErrors.push(ErrorMessages.matchingIncompleteRelationship(index, relIdx + 1));
-                                    } else if (leftIdx < 1 || leftIdx > leftCount || rightIdx < 1 || rightIdx > rightCount) {
-                                        validationErrors.push(ErrorMessages.matchingInvalidRelationship(index, leftIdx, rightIdx, leftCount, rightCount));
-                                    }
-                                }
-                            });
-                        }
-                    } else {
-                        // Validate other fields for all other types
-                        if (isQuestionTextEmpty) {
-                            validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                        }
-                        
-                        if (questionData.question_type === 'multiple_choice') {
-                            // Multiple choice validation
-                            if (!questionData.choices || questionData.choices.length === 0) {
-                                validationErrors.push(ErrorMessages.requiredChoices(index));
-                            } else {
-                                const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
-                                if (duplicateChoiceTexts.length > 0) {
-                                    validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'multiple_choice', duplicateChoiceTexts));
-                                }
-                            }
-                            // Correct Answer Position is optional; validate only when provided.
-                            if (typeof questionData.value === 'number') {
-                                if (questionData.value < 1 || questionData.value > questionData.choices.length) {
-                                    validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
-                                }
-                            }
-                            // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
-                        } else if (questionData.question_type === 'checkbox') {
-                            // Checkbox validation
-                            if (!questionData.choices || questionData.choices.length === 0) {
-                                validationErrors.push(ErrorMessages.requiredCheckboxChoices(index));
-                            } else {
-                                const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
-                                if (duplicateChoiceTexts.length > 0) {
-                                    validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'checkbox', duplicateChoiceTexts));
-                                }
-                                
-                                // Validate values array
-                                if (!questionData.values || !Array.isArray(questionData.values)) {
-                                    validationErrors.push(ErrorMessages.requiredCheckedChoice(index));
-                                } else {
-                                    const effectiveValues = getEffectiveCheckboxValuesForValidation(questionData.values, questionData.choices.length);
-                                    if (questionData.values.length !== 0 && effectiveValues.length !== questionData.choices.length) {
-                                    validationErrors.push(`Question ${index + 1} (Checkbox) - Problem: Mismatch between number of choices (${questionData.choices.length}) and values array (${questionData.values.length}).\n   ➡️ Fix: Make sure each choice has a corresponding correct/incorrect value.`);
-                                    }
-                                }
-                            }
-                            // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
-                        }
-                    }
-                    
-                    // Only add question if no validation errors for this question
-                    if (!validationErrors.some(e => e.startsWith(`Question ${index + 1}:`)) && 
-                        !validationErrors.some(e => e.includes(`Question ${index + 1}`))) {
-                        jsonData.practice_questions.push(questionOutputData);
+                    validationErrors.push(...validationResult.validationErrors);
+                    validationWarnings.push(...validationResult.validationWarnings);
+
+                    if (validationResult.validationErrors.length === 0) {
+                        jsonData.practice_questions.push(validationResult.questionData);
                     }
                 } catch (error) {
                     validationErrors.push(`Question ${index + 1}: ${error.message}`);
@@ -23751,9 +23939,6 @@
                     } else {
                         size += q.guide_answer.length;
                     }
-                }
-                if (q.choices) {
-                    size += q.choices.reduce((sum, c) => sum + (c.text || '').length, 0);
                 }
                 if (Array.isArray(q.options)) {
                     size += q.options.reduce((sum, opt) => sum + String(opt || '').length, 0);
@@ -23812,7 +23997,7 @@
             questionElements.forEach((questionEl) => {
                 try {
                     const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
-                    const questionData = QuestionSchemaAdapter.toPhaseExport(questionAdapterPayload);
+                    const questionData = QuestionSchemaAdapter.toSchemaExport(questionAdapterPayload);
                     jsonData.practice_questions.push(questionData);
                 } catch (error) {
                     // Skip questions that fail to collect
@@ -24255,7 +24440,7 @@
             
             questions.forEach(q => {
                 const normalizedQuestion = QuestionSchemaAdapter.normalizeIncoming(q);
-                q = normalizedQuestion.legacyExport;
+                q = normalizedQuestion.populateShape;
                 addQuestion();
                 const qEl = container.lastElementChild;
                 
@@ -24305,13 +24490,6 @@
                         
                         // Update the filled blanks preview after loading values
                         updateFilledBlanksPreview(qEl);
-                    }
-                    
-                    // Populate guide answer notes (optional) - query within blanks container
-                    const blanksContainer = qEl.querySelector('#blanks-container');
-                    const guideAnswerNotesTextarea = blanksContainer?.querySelector('.guide-answer-notes');
-                    if (guideAnswerNotesTextarea) {
-                        guideAnswerNotesTextarea.value = (q.guide_answer ?? '').toString();
                     }
                 } else if (questionType === 'matching') {
                     // Matching: populate left items, right items, and relationships
@@ -24411,12 +24589,6 @@
                         }
                     }
                     
-                    // Populate guide answer notes (optional) - query within matching container
-                    const matchingContainer = qEl.querySelector('#matching-container');
-                    const guideAnswerNotesTextarea = matchingContainer?.querySelector('.guide-answer-notes');
-                    if (guideAnswerNotesTextarea) {
-                        guideAnswerNotesTextarea.value = (q.guide_answer ?? '').toString();
-                    }
                 } else if (isChoiceQuestionType(questionType) && q.choices && Array.isArray(q.choices)) {
                     // Fill choices
                     const choicesList = qEl.querySelector('[id^="choices-list-"]');
@@ -24505,7 +24677,7 @@
                 if (questionImagesGroup) {
                     fillBboxGroup(questionImagesGroup, questionImages);
                 }
-                if (!isChoiceQuestionType(questionType) && answerImagesGroup) {
+                if (supportsGuideAnswerImages(questionType) && answerImagesGroup) {
                     fillBboxGroup(answerImagesGroup, answerImages);
                 }
                 
@@ -24540,7 +24712,7 @@
             questions.forEach((q, index) => {
                 if (!q || typeof q !== 'object') return;
                 const normalized = QuestionSchemaAdapter.normalizeIncoming(q);
-                questions[index] = normalized.legacyExport;
+                questions[index] = normalized.canonical;
             });
 
             return data;
@@ -26028,149 +26200,18 @@
                 const questionElements = document.querySelectorAll('#questions_container > .array-item');
                 questionElements.forEach((questionEl, index) => {
                     try {
-                        const questionAdapterPayload = QuestionSchemaAdapter.fromUI(questionEl);
-                        const questionOutputData = QuestionSchemaAdapter.toPhaseExport(questionAdapterPayload);
-                        const questionData = QuestionSchemaAdapter.toLegacyExport(questionAdapterPayload);
-                        const isQuestionTextEmpty = !questionData.question || /^\d+$/.test(questionData.question);
-                        
-                        // Validate required fields
-                        if (!questionData.id) validationErrors.push(ErrorMessages.requiredQuestionID(index));
-
-                        const guidePageErrors = collectGuidePageValidationErrorsForQuestion({
+                        const validationResult = validateQuestionWithCanonicalData({
                             questionEl,
-                            questionData: questionOutputData,
                             questionIndex: index,
                             hasGuidebookRange,
                             guidebookStart,
                             guidebookEnd
                         });
-                        if (guidePageErrors.length > 0) {
-                            validationErrors.push(...guidePageErrors);
-                        }
-                        
-                        // Validate annotate and create_table types
-                        if (questionData.question_type === 'annotate' || questionData.question_type === 'create_table') {
-                            if (isQuestionTextEmpty) {
-                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                            }
-                        } else if (questionData.question_type === 'fill_in_the_blanks') {
-                            // Fill in the blanks validation (same as in generateJSON)
-                            if (isQuestionTextEmpty) {
-                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                            } else {
-                                const { valid, errors, blanks } = validateBlankFormat(questionData.question);
-                                
-                                if (blanks.length === 0) {
-                                    validationErrors.push(ErrorMessages.noBlanksFound(index));
-                                } else if (!valid) {
-                                    errors.forEach(err => {
-                                        validationErrors.push(ErrorMessages.invalidBlankFormat(index, err));
-                                    });
-                                }
-                                
-                                if (!questionData.values || !Array.isArray(questionData.values)) {
-                                    validationErrors.push(ErrorMessages.blankAnswerMismatch(index, blanks.length, 0));
-                                } else {
-                                    if (questionData.values.length !== blanks.length) {
-                                        validationErrors.push(ErrorMessages.blankAnswerMismatch(index, blanks.length, questionData.values.length));
-                                    }
-                                    
-                                    // Blank answer fields are optional; keep only structural/count checks.
-                                }
-                            }
-                        } else if (questionData.question_type === 'matching') {
-                            // Matching validation (same as in generateJSON)
-                            if (isQuestionTextEmpty) {
-                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                            }
-                            
-                            if (!questionData.left || questionData.left.length === 0) {
-                                validationErrors.push(ErrorMessages.matchingNoLeftItems(index));
-                            } else {
-                                questionData.left.forEach((item, itemIdx) => {
-                                    if (!item || item.trim() === '') {
-                                        validationErrors.push(ErrorMessages.matchingEmptyLeftItem(index, itemIdx + 1));
-                                    }
-                                });
-                            }
-                            
-                            if (!questionData.right || questionData.right.length === 0) {
-                                validationErrors.push(ErrorMessages.matchingNoRightItems(index));
-                            } else {
-                                questionData.right.forEach((item, itemIdx) => {
-                                    if (!item || item.trim() === '') {
-                                        validationErrors.push(ErrorMessages.matchingEmptyRightItem(index, itemIdx + 1));
-                                    }
-                                });
-                            }
-                            
-                            if (questionData.relationship && Array.isArray(questionData.relationship)) {
-                                questionData.relationship.forEach((rel, relIdx) => {
-                                    if (!Array.isArray(rel) || rel.length !== 2) {
-                                        validationErrors.push(ErrorMessages.matchingIncompleteRelationship(index, relIdx + 1));
-                                    } else {
-                                        const [leftIdx, rightIdx] = rel;
-                                        const leftCount = questionData.left ? questionData.left.length : 0;
-                                        const rightCount = questionData.right ? questionData.right.length : 0;
-                                        
-                                        if (!leftIdx || !rightIdx) {
-                                            validationErrors.push(ErrorMessages.matchingIncompleteRelationship(index, relIdx + 1));
-                                        } else if (leftIdx < 1 || leftIdx > leftCount || rightIdx < 1 || rightIdx > rightCount) {
-                                            validationErrors.push(ErrorMessages.matchingInvalidRelationship(index, leftIdx, rightIdx, leftCount, rightCount));
-                                        }
-                                    }
-                                });
-                            }
-                        } else {
-                            // Validate other fields for all other types
-                            if (isQuestionTextEmpty) {
-                                validationWarnings.push(ErrorMessages.warningQuestionText(index, questionData.question_type));
-                            }
-                            
-                            if (questionData.question_type === 'multiple_choice') {
-                                if (!questionData.choices || questionData.choices.length === 0) {
-                                    validationErrors.push(ErrorMessages.requiredChoices(index));
-                                } else {
-                                    const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
-                                    if (duplicateChoiceTexts.length > 0) {
-                                        validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'multiple_choice', duplicateChoiceTexts));
-                                    }
-                                }
-                                // Correct Answer Position is optional; validate only when provided.
-                                if (typeof questionData.value === 'number') {
-                                    if (questionData.value < 1 || questionData.value > questionData.choices.length) {
-                                        validationErrors.push(`Question ${index + 1} (Multiple Choice) - Problem: Selected answer position (${questionData.value}) is out of range. You have ${questionData.choices.length} choices.\n   ➡️ Fix: Select a valid answer position.`);
-                                    }
-                                }
-                                // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
-                            } else if (questionData.question_type === 'checkbox') {
-                                // Checkbox validation
-                                if (!questionData.choices || questionData.choices.length === 0) {
-                                    validationErrors.push(ErrorMessages.requiredCheckboxChoices(index));
-                                } else {
-                                    const duplicateChoiceTexts = findDuplicateChoiceTexts(questionData.choices);
-                                    if (duplicateChoiceTexts.length > 0) {
-                                        validationErrors.push(ErrorMessages.duplicateChoiceTexts(index, 'checkbox', duplicateChoiceTexts));
-                                    }
-                                    
-                                    // Validate values array
-                                    if (!questionData.values || !Array.isArray(questionData.values)) {
-                                        validationErrors.push(ErrorMessages.requiredCheckedChoice(index));
-                                    } else {
-                                        const effectiveValues = getEffectiveCheckboxValuesForValidation(questionData.values, questionData.choices.length);
-                                        if (questionData.values.length !== 0 && effectiveValues.length !== questionData.choices.length) {
-                                            validationErrors.push(`Question ${index + 1} (Checkbox) - Problem: Mismatch between number of choices (${questionData.choices.length}) and values array (${questionData.values.length}).\n   ➡️ Fix: Make sure each choice has a corresponding correct/incorrect value.`);
-                                        }
-                                    }
-                                }
-                                // Guide answer requirement follows guidebook range checks in collectGuidePageValidationErrorsForQuestion().
-                            }
-                        }
-                        
-                        // Only add question if no validation errors for this question
-                        if (!validationErrors.some(e => e.startsWith(`Question ${index + 1}:`)) && 
-                            !validationErrors.some(e => e.includes(`Question ${index + 1}`))) {
-                            jsonData.practice_questions.push(questionOutputData);
+                        validationErrors.push(...validationResult.validationErrors);
+                        validationWarnings.push(...validationResult.validationWarnings);
+
+                        if (validationResult.validationErrors.length === 0) {
+                            jsonData.practice_questions.push(validationResult.questionData);
                         }
                     } catch (error) {
                         console.warn(`Question ${index + 1}: ${error.message}`);
@@ -26380,6 +26421,13 @@
                     
                     if (originalValue !== currentValue) {
                         markFormAsChanged();
+                    }
+
+                    if (e.target.classList && e.target.classList.contains('matching-item-text')) {
+                        const questionEl = e.target.closest && e.target.closest('#questions_container > .array-item');
+                        if (questionEl) {
+                            scheduleMatchingRelationshipLabelRefresh(questionEl);
+                        }
                     }
                 }
             });
@@ -28582,7 +28630,7 @@
                 }
             } else if (type === 'answer') {
                 const questionType = getQuestionType(questionEl);
-                if (!isChoiceQuestionType(questionType)) {
+                if (supportsGuideAnswerImages(questionType)) {
                     const answerBboxLabel = Array.from(questionEl.querySelectorAll('label')).find(
                         label => label.textContent.includes('Answer Images')
                     );
@@ -29334,4 +29382,5 @@
 
 </body>
 </html>
+
 
