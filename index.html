@@ -41,7 +41,9 @@
                             '<strong>Question text key update with backward support:</strong> New files now use clearer question text field names, and older files with old names still load correctly because they are updated automatically when you load them.',
                             '<strong>Simpler answer choices:</strong> Choice letter/ID fields were removed and IDs are no longer transcribed or exported.',
                             '<strong>Simpler answer flow for selected question types:</strong> For Multiple Choice, Checkbox, Fill in the Blanks, and Matching, we removed extra Guide Answer and Answer Images inputs. Answers are now built automatically from your existing selections/entries, so you do not need to add extra answer text manually.',
-                            '<strong>Title Page and Book Metadata update:</strong> You can now choose <code>Title Page</code>, fill details in the new Book Metadata tab (also available in Quick Jump and Final Preview), and these fields are required only for title pages.',
+                            '<strong>New Book Metadata tab:</strong> A new <code>Book Metadata</code> section was added for title/cover page details. Use it only when Page Type is <code>Title Page</code>. It is now available in Subtabs, Quick Jump, JSON output, and Final Preview, and these fields are required only for title pages.',
+                            '<strong>New Unit Preamble tab:</strong> A new <code>Unit Preamble</code> section was added (with Unit ID, Unit Title, Unit Title Translation, and Unit Text). Use it on the first content page of each unit. It is now available in Subtabs, Quick Jump, JSON output, and Final Preview.',
+                            '<strong>New Lesson Title Translation field:</strong> In Lesson Preamble, use <code>Lesson Title</code> for the Arabic title and <code>Lesson Title Translation</code> for the English title. If the title is Arabic only, leave translation empty.',
                             '<strong>Cleaner Insert Table templates:</strong> Inserted tables now start directly with table rows (no image line), no table description is required anymore, placeholders are clearer (like <code>Header_1</code> and <code>Row_1_Cell_1</code>), and tables are center-aligned by default.'
                         ]
                     },
@@ -52,7 +54,8 @@
                         iconColor: '#28a745',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
-                            '<strong>Clearer matching relationship menus:</strong> In Matching questions, relationship dropdown options now show each item label with a text snippet (or full text when short), so it is easier to pick the correct pair.'
+                            '<strong>Clearer matching relationship menus:</strong> In Matching questions, relationship dropdown options now show each item label with a text snippet (or full text when short), so it is easier to pick the correct pair.',
+                            '<strong>New clear-current-subtab button:</strong> You can now clear only the fields in your current Input Form subtab with one click. In Final Preview, this button is disabled because it only works in Input Form.'
                         ]
                     },
                     {
@@ -63,7 +66,8 @@
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Clear Form now refreshes Final Preview correctly:</strong> Clearing the form while you are on Final Preview now removes old values and empty boxes right away, so Book Metadata and Basic Info no longer show stale output.',
-                            '<strong>Smoother jump-to-edit navigation:</strong> Quick Jump and Final Preview edit buttons now wait for the destination tab to finish loading before scrolling, so the page lands in the right place without jumpy movement (with auto-resize on or off).'
+                            '<strong>Smoother jump-to-edit navigation:</strong> Quick Jump and Final Preview edit buttons now wait for the destination tab to finish loading before scrolling, so the page lands in the right place without jumpy movement (with auto-resize on or off).',
+                            '<strong>Preview with Answers now expands correctly:</strong> In Fill in the Blanks questions, the Preview with Answers box no longer gets stuck at a limited height, so long content and images display fully like other output previews.'
                         ]
                     }
                 ]
@@ -1971,18 +1975,17 @@
         const STATIC_BUTTON_CONFIGS = {
             // Top bar undo/redo buttons
             TOPBAR_UNDO_REDO: [
-                { id: 'undo-btn', onClick: 'undoAction()', title: 'Undo', className: 'dark-mode-toggle', iconClass: 'fa-undo', disabled: true },
-                { id: 'redo-btn', onClick: 'redoAction()', title: 'Redo', className: 'dark-mode-toggle', iconClass: 'fa-redo', disabled: true }
+                { id: 'undo-btn', onClick: 'undoAction()', title: 'Undo', className: 'header-action-btn', iconClass: 'fa-undo', disabled: true },
+                { id: 'redo-btn', onClick: 'redoAction()', title: 'Redo', className: 'header-action-btn', iconClass: 'fa-redo', disabled: true }
             ],
             
             // Top bar action buttons
             TOPBAR_ACTIONS: [
-                { id: 'saveBtn', className: 'dark-mode-toggle', onClick: 'saveProgress()', title: 'Save Progress (Ctrl+S)', iconClass: 'fa-save' },
-                { className: 'dark-mode-toggle', onClick: 'location.reload()', title: 'Reload Page', iconClass: 'fa-sync-alt' },
-                { className: 'dark-mode-toggle', onClick: 'scrollToTop()', title: 'Scroll to Top', iconClass: 'fa-arrow-up' },
-                { id: 'autoResizeToggle', className: 'dark-mode-toggle', onClick: 'toggleAutoResize()', title: 'Toggle Auto-Resize Textareas', iconClass: 'fa-arrows-alt-v' },
-                { id: 'trailingSpacesToggle', className: 'dark-mode-toggle', onClick: 'toggleTrailingSpacesIndicator()', title: 'Show trailing spaces indicator in preview boxes', iconClass: 'fa-exclamation-triangle' },
-                { id: 'darkModeToggle', className: 'dark-mode-toggle', onClick: 'toggleDarkMode()', iconClass: 'fa-moon' }
+                { id: 'saveBtn', className: 'header-action-btn', onClick: 'saveProgress()', title: 'Save Progress (Ctrl+S)', iconClass: 'fa-save' },
+                { className: 'header-action-btn', onClick: 'location.reload()', title: 'Reload Page', iconClass: 'fa-sync-alt' },
+                { className: 'header-action-btn', onClick: 'scrollToTop()', title: 'Scroll to Top', iconClass: 'fa-arrow-up' },
+                { id: 'autoResizeToggle', className: 'header-action-btn', onClick: 'toggleAutoResize()', title: 'Toggle Auto-Resize Textareas', iconClass: 'fa-arrows-alt-v' },
+                { id: 'trailingSpacesToggle', className: 'header-action-btn', onClick: 'toggleTrailingSpacesIndicator()', title: 'Show trailing spaces indicator in preview boxes', iconClass: 'fa-exclamation-triangle' }
             ],
             
             // Clear search button
@@ -1996,9 +1999,10 @@
                 { className: 'tab', id: 'main-tab-preview', onClick: "showMainTab('final-preview')", title: 'Preview all sections and questions', label: 'Final Preview' }
             ],
             
-            // Sub tabs (Book Metadata, Lesson Preamble, Basic Info, Content, Questions)
+            // Sub tabs (Book Metadata, Unit Preamble, Lesson Preamble, Basic Info, Content, Questions)
             SUB_TABS: [
                 { className: 'tab', onClick: "showTab('book_metadata')", title: 'Book title-page metadata', label: 'Book Metadata' },
+                { className: 'tab', onClick: "showTab('unit_preamble')", title: 'Unit opening-page metadata (ID, title, title translation, text)', label: 'Unit Preamble' },
                 { className: 'tab', onClick: "showTab('preamble')", title: 'Lesson metadata (ID, title, standards, terminology)', label: 'Lesson Preamble' },
                 { className: 'tab active', onClick: "showTab('basic')", title: 'Basic page information (page numbers, page type)', label: 'Basic Info' },
                 { className: 'tab', onClick: "showTab('content')", title: 'Instructional content sections', label: 'Content' },
@@ -2015,6 +2019,7 @@
                 { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); loadJSON()', title: 'Load JSON or Python dictionary from the text area below to populate the form', label: 'Load JSON/Dict', iconClass: 'fa-file-upload' },
                 { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); restoreLatest()', title: 'Restore the latest saved work from storage (overwrites current form)', label: 'Restore Latest', iconClass: 'fa-history' },
                 { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); confirmClearForm()', title: 'Clear all form data and start fresh', label: 'Clear Form', iconClass: 'fa-broom' },
+                { id: 'clearCurrentSubtabBtn', className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); confirmClearCurrentSubtab()', title: 'Clear all fields in the current input subtab', label: 'Clear Current Subtab', iconClass: 'fa-eraser' },
                 { className: 'add-btn', type: 'button', onClick: 'event.stopPropagation(); openBboxDrawerForPDFs()', title: 'Upload textbook or guidebook PDF for drawing bounding boxes', label: 'Upload PDFs', iconClass: 'fa-file-pdf' }
             ],
             
@@ -2964,7 +2969,7 @@
             width: 100vw;
             margin: 0;
             padding: 0;
-            background: white;
+            background: var(--bg-primary);
             border-radius: 0;
             box-shadow: none;
             overflow: hidden; /* app itself doesn't scroll */
@@ -3069,7 +3074,7 @@
             opacity: 0.8;
         }
 
-        /* CSS variables for icon buttons - ensures consistent styling across themes */
+        /* CSS variables for top-bar icon buttons */
         :root {
             --icon-btn-border: 1px solid rgba(255, 255, 255, 0.3);
             --icon-btn-bg: rgba(255, 255, 255, 0.1);
@@ -3079,16 +3084,7 @@
             --icon-btn-focus-outline: 2px solid rgba(255, 255, 255, 0.5);
         }
         
-        [data-theme="dark"] {
-            --icon-btn-border: 1px solid rgba(255, 255, 255, 0.3);
-            --icon-btn-bg: rgba(255, 255, 255, 0.1);
-            --icon-btn-fg: white;
-            --icon-btn-hover-bg: rgba(255, 255, 255, 0.2);
-            --icon-btn-hover-border: rgba(255, 255, 255, 0.5);
-            --icon-btn-focus-outline: 2px solid rgba(255, 255, 255, 0.5);
-        }
-        
-        .dark-mode-toggle {
+        .header-action-btn {
             background: var(--icon-btn-bg);
             border: var(--icon-btn-border);
             color: var(--icon-btn-fg);
@@ -3106,23 +3102,23 @@
             flex-shrink: 0;
         }
         
-        .dark-mode-toggle i {
+        .header-action-btn i {
             font-size: 0.85rem;
             line-height: 1;
             color: currentColor;
         }
 
-        .dark-mode-toggle:hover {
+        .header-action-btn:hover {
             background: var(--icon-btn-hover-bg);
             border: var(--icon-btn-hover-border);
             transform: scale(1.1);
         }
 
-        .dark-mode-toggle:active {
+        .header-action-btn:active {
             transform: scale(0.95);
         }
         
-        .dark-mode-toggle:focus-visible {
+        .header-action-btn:focus-visible {
             outline: var(--icon-btn-focus-outline);
             outline-offset: 2px;
         }
@@ -3297,11 +3293,11 @@
         
 
         .form-section {
-            background: #f8f9fa;
+            background: var(--bg-secondary);
             border-radius: 12px;
             /* Remove top padding to allow sticky tabs to stick flush at top */
             padding: 0 min(15px, 1.5vw) min(15px, 1.5vw) min(15px, 1.5vw); /* top, right, bottom, left */
-            border: 2px solid #e9ecef;
+            border: 2px solid var(--border-color);
             min-width: 0; /* Allow flex/grid children to shrink */
             max-width: 100%; /* Prevent expansion beyond column */
             box-sizing: border-box;
@@ -3321,7 +3317,7 @@
         }
 
         .form-section h2 {
-            color: #2c3e50;
+            color: var(--text-primary);
             margin-bottom: 10px;
             font-size: 1rem;
             display: flex;
@@ -3341,18 +3337,20 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #495057;
+            color: var(--text-primary);
         }
 
         .form-group input, .form-group textarea, .form-group select {
             width: 100%;
             padding: 12px;
-            border: 2px solid #dee2e6;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
             font-family: var(--app-font-family);
             font-size: var(--app-font-size);
             line-height: var(--app-line-height);
             transition: border-color 0.3s ease;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-feature-settings: "kern" 1, "liga" 1; /* Better character spacing */
             text-rendering: optimizeLegibility; /* Better diacritic rendering */
         }
@@ -3377,7 +3375,7 @@
             margin: 0;
             cursor: pointer;
             font-weight: 600;
-            color: #495057;
+            color: var(--text-primary);
             user-select: none;
         }
 
@@ -3410,8 +3408,8 @@
         }
 
         .array-item {
-            background: white;
-            border: 1px solid #dee2e6;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
@@ -3580,6 +3578,16 @@
             background: #218838;
         }
 
+        .add-btn:disabled {
+            background: #6c757d;
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .add-btn:disabled:hover {
+            background: #6c757d;
+        }
+
         /* Add-bbox-btn and add-section-btn inherit from add-btn but can be customized */
         .add-bbox-btn,
         .add-section-btn {
@@ -3630,11 +3638,11 @@
 
         /* Live rendered preview under each textarea */
         .live-preview {
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 12px;
-            background: #ffffff;
-            color: #212529;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-family: var(--app-font-family);
             font-size: var(--app-font-size);
             line-height: var(--app-line-height);
@@ -3766,7 +3774,7 @@
         /* Respect markdown alignment; provide a default only when none specified */
         .live-preview th:not([align]), .live-preview td:not([align]) { text-align: start; }
         /* Default direction will be set dynamically based on content type */
-        .live-preview blockquote { border-left: 4px solid #667eea; margin: 8px 0; padding: 6px 10px; color: #495057; background: #f8f9fa; }
+        .live-preview blockquote { border-left: 4px solid #667eea; margin: 8px 0; padding: 6px 10px; color: var(--text-secondary); background: var(--bg-secondary); }
         /* List styling to ensure proper visibility */
         .live-preview ul, .live-preview ol { margin: 8px 0; padding-left: 30px; }
         .live-preview ul { list-style-type: disc; }
@@ -4181,7 +4189,7 @@
         /* ============================================================
          * STICKY TABS SYSTEM
          * Main tabs (Input Form / Final Preview) are sticky at form-section level.
-         * Sub tabs (Book Metadata / Lesson Preamble / Basic Info / Content / Questions) are sticky 
+         * Sub tabs (Book Metadata / Unit Preamble / Lesson Preamble / Basic Info / Content / Questions) are sticky 
          * inside Input Form only, wrapped in .sticky-tabs-stack.
          * 
          * Structure:
@@ -4269,11 +4277,11 @@
             box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
         
-        /* Dark mode background for sticky stack */
-        [data-theme="dark"] {
+        /* Sticky tab stack background variable */
+        :root {
             --tabs-bg: var(--bg-secondary, #2d3748);
         }
-        [data-theme="dark"] .sticky-tab-bar--sub {
+        .sticky-tab-bar--sub {
             box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.3);
         }
         
@@ -4413,7 +4421,7 @@
             border: 2px solid var(--border-color);
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        [data-theme="dark"] .final-preview-section {
+        .final-preview-section {
             border: 2px solid #4a5568;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
             background: #2d3748;
@@ -4435,11 +4443,11 @@
         .final-preview-question {
             margin-bottom: 24px;
             padding: 16px;
-            background: white;
+            background: var(--bg-primary);
             border-radius: 6px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid var(--border-color);
             border-left: 4px solid var(--accent);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 1px 3px var(--shadow);
         }
         .final-preview-question h4 {
             margin-top: 0;
@@ -4640,32 +4648,32 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        [data-theme="dark"] .final-preview-question {
+        .final-preview-question {
             background: #2d3748;
             color: var(--text-primary);
             border: 2px solid #4a5568;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
         }
-        [data-theme="dark"] .final-preview-question .setup-text {
+        .final-preview-question .setup-text {
             background: none;
             border: none;
         }
-        [data-theme="dark"] .final-preview-question .preview-section-label {
+        .final-preview-question .preview-section-label {
             color: #a0aec0;
         }
-        [data-theme="dark"] .final-preview-question .choice-item {
+        .final-preview-question .choice-item {
             background: #2d3238;
             border-left-color: #6c757d;
         }
-        [data-theme="dark"] .final-preview-question .choice-item.correct {
+        .final-preview-question .choice-item.correct {
             background: #1e4620;
             border-left-color: #28a745;
         }
-        [data-theme="dark"] .final-preview-question .blank-answer {
+        .final-preview-question .blank-answer {
             background: #3d3520;
             border-left-color: #ffc107;
         }
-        [data-theme="dark"] .final-preview-question .guide-answer {
+        .final-preview-question .guide-answer {
             background: none;
             border: none;
         }
@@ -4744,23 +4752,8 @@
             }
         }
 
-        /* Dark Mode Styles */
+        /* App Theme Styles (dark-only) */
         :root {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --bg-tertiary: #e9ecef;
-            --text-primary: #212529;
-            --text-secondary: #6c757d;
-            --border-color: #dee2e6;
-            --shadow: rgba(0,0,0,0.1);
-            --accent: #667eea;
-            --accent-dark: #764ba2;
-            --app-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            --app-font-size: 14px;
-            --app-line-height: 1.5;
-        }
-
-        [data-theme="dark"] {
             --bg-primary: #1a1a1a;
             --bg-secondary: #2d2d2d;
             --bg-tertiary: #3d3d3d;
@@ -4770,248 +4763,251 @@
             --shadow: rgba(0,0,0,0.3);
             --accent: #667eea;
             --accent-dark: #764ba2;
+            --app-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --app-font-size: 14px;
+            --app-line-height: 1.5;
         }
 
-        [data-theme="dark"] body {
+        body {
             background: #000000;
         }
 
-        [data-theme="dark"] .container {
+        .container {
             background: #000000;
             color: var(--text-primary);
         }
 
-        [data-theme="dark"] .form-section,
-        [data-theme="dark"] .preview-section {
+        .form-section,
+        .preview-section {
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .form-group input,
-        [data-theme="dark"] .form-group textarea,
-        [data-theme="dark"] .form-group select {
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
             background: var(--bg-primary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .form-group input:focus,
-        [data-theme="dark"] .form-group textarea:focus,
-        [data-theme="dark"] .form-group select:focus {
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
             border-color: var(--accent);
             box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
         }
 
-        [data-theme="dark"] .form-group.checkbox-group label {
+        .form-group.checkbox-group label {
             color: var(--text-primary);
         }
 
-        [data-theme="dark"] .btn {
+        .btn {
             background: var(--bg-tertiary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .btn:hover {
+        .btn:hover {
             background: var(--accent);
             color: white;
         }
 
-        [data-theme="dark"] .btn.primary {
+        .btn.primary {
             background: var(--accent);
             color: white;
         }
 
-        [data-theme="dark"] .btn.primary:hover {
+        .btn.primary:hover {
             background: var(--accent-dark);
         }
 
-        [data-theme="dark"] .highlight {
+        .highlight {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .array-item {
+        .array-item {
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .bbox-container {
+        .bbox-container {
             background: var(--bg-secondary);
         }
 
-        [data-theme="dark"] .bbox-item {
+        .bbox-item {
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .reorder-btn {
+        .reorder-btn {
             background: var(--bg-tertiary);
             color: var(--text-primary);
         }
 
-        [data-theme="dark"] .reorder-btn:hover {
+        .reorder-btn:hover {
             background: #5a6268;
         }
 
-        [data-theme="dark"] .reorder-btn:disabled {
+        .reorder-btn:disabled {
             background: var(--bg-secondary);
             opacity: 0.4;
         }
 
-        [data-theme="dark"] .copy-section-btn {
+        .copy-section-btn {
             background: #17a2b8;
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .copy-section-btn:hover {
+        .copy-section-btn:hover {
             background: #138496;
         }
 
-        [data-theme="dark"] .paste-section-btn {
+        .paste-section-btn {
             background: #17a2b8;
         }
 
-        [data-theme="dark"] .paste-section-btn:hover {
+        .paste-section-btn:hover {
             background: #138496;
         }
 
-        [data-theme="dark"] .paste-replace-btn {
+        .paste-replace-btn {
             background: #ffc107;
         }
 
-        [data-theme="dark"] .paste-replace-btn:hover {
+        .paste-replace-btn:hover {
             background: #e0a800;
         }
 
-        [data-theme="dark"] .duplicate-btn {
+        .duplicate-btn {
             background: #6f42c1;
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .duplicate-btn:hover {
+        .duplicate-btn:hover {
             background: #5a32a3;
         }
 
-        [data-theme="dark"] .preview-content {
+        .preview-content {
             background: var(--bg-primary);
             color: var(--text-primary);
         }
 
-        [data-theme="dark"] .json-preview {
+        .json-preview {
             background: var(--bg-primary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .json-preview-content {
+        .json-preview-content {
             color: var(--text-primary);
         }
 
-        [data-theme="dark"] .json-key {
+        .json-key {
             color: #ff79c6;
         }
 
-        [data-theme="dark"] .json-string {
+        .json-string {
             color: #f1fa8c;
         }
 
-        [data-theme="dark"] .json-number {
+        .json-number {
             color: #bd93f9;
         }
 
-        [data-theme="dark"] .json-boolean {
+        .json-boolean {
             color: #8be9fd;
         }
 
-        [data-theme="dark"] .json-null {
+        .json-null {
             color: #6272a4;
         }
 
-        [data-theme="dark"] .preview-indent {
+        .preview-indent {
             color: var(--text-secondary);
         }
 
-        [data-theme="dark"] .preview-indent-double {
+        .preview-indent-double {
             color: var(--text-secondary);
         }
 
         /* Dark mode icon buttons use CSS variables defined above - no override needed */
 
         /* BBox Modal Dark Mode */
-        [data-theme="dark"] .bbox-modal {
+        .bbox-modal {
             background: rgba(0, 0, 0, 0.8);
         }
 
-        [data-theme="dark"] .bbox-dialog {
+        .bbox-dialog {
             background: var(--bg-primary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .bbox-toolbar {
+        .bbox-toolbar {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .bbox-toolbar .group {
+        .bbox-toolbar .group {
             border-right: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .bbox-btn {
+        .bbox-btn {
             background: var(--bg-tertiary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
 
-        [data-theme="dark"] .bbox-btn:hover {
+        .bbox-btn:hover {
             background: var(--accent);
             color: white;
         }
 
-        [data-theme="dark"] .bbox-btn.primary {
+        .bbox-btn.primary {
             background: var(--accent);
             border-color: var(--accent);
         }
 
-        [data-theme="dark"] .bbox-btn.primary:hover {
+        .bbox-btn.primary:hover {
             background: var(--accent-dark);
         }
 
-        [data-theme="dark"] .bbox-btn.danger {
+        .bbox-btn.danger {
             background: #dc2626;
             border-color: #dc2626;
         }
 
-        [data-theme="dark"] .bbox-btn.danger:hover {
+        .bbox-btn.danger:hover {
             background: #b91c1c;
         }
 
-        [data-theme="dark"] .bbox-content {
+        .bbox-content {
             background: var(--bg-primary);
         }
 
-        [data-theme="dark"] .bbox-footer {
+        .bbox-footer {
             background: var(--bg-secondary);
         }
 
         /* Improved Title Contrast for Dark Mode */
-        [data-theme="dark"] h1,
-        [data-theme="dark"] h2,
-        [data-theme="dark"] h3,
-        [data-theme="dark"] h4,
-        [data-theme="dark"] h5,
-        [data-theme="dark"] h6 {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
             color: #ffffff;
             font-weight: 600;
         }
 
-        [data-theme="dark"] .header h1 {
+        .header h1 {
             color: #ffffff;
             font-weight: 700;
         }
 
-        [data-theme="dark"] .header p {
+        .header p {
             color: #e5e7eb;
         }
         
@@ -5036,7 +5032,7 @@
         
         /* What's New Modal Styles */
         .whats-new-modal-content {
-            background: white;
+            background: var(--bg-primary);
             border-radius: 12px;
             max-width: 800px;
             width: 100%;
@@ -5050,14 +5046,14 @@
         }
         
         .whats-new-modal-header {
-            color: #2c3e50;
+            color: var(--text-primary);
         }
         
         .whats-new-modal-list {
             margin: 0;
             padding-left: 25px;
             line-height: 1.8;
-            color: #495057;
+            color: var(--text-primary);
         }
         
         .whats-new-version-badge {
@@ -5074,68 +5070,68 @@
         }
         
         /* What's New Modal Dark Mode */
-        [data-theme="dark"] .whats-new-modal-content {
+        .whats-new-modal-content {
             background: var(--bg-primary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
         }
         
-        [data-theme="dark"] .whats-new-modal-header {
+        .whats-new-modal-header {
             color: var(--text-primary);
         }
         
-        [data-theme="dark"] .whats-new-modal-list {
+        .whats-new-modal-list {
             color: var(--text-secondary);
         }
         
-        [data-theme="dark"] .whats-new-version-badge {
+        .whats-new-version-badge {
             color: var(--text-secondary);
         }
         
-        [data-theme="dark"] .whats-new-modal-footer {
+        .whats-new-modal-footer {
             border-top-color: var(--border-color);
             color: var(--text-secondary);
         }
         
-        [data-theme="dark"] .whats-new-modal-footer a {
+        .whats-new-modal-footer a {
             color: var(--accent);
         }
         
-        [data-theme="dark"] .whats-new-modal-footer a:hover {
+        .whats-new-modal-footer a:hover {
             color: var(--accent-dark);
         }
 
-        [data-theme="dark"] .form-section h3 {
+        .form-section h3 {
             color: #ffffff;
             font-weight: 600;
         }
 
-        [data-theme="dark"] .form-section h4 {
+        .form-section h4 {
             color: #f3f4f6;
             font-weight: 600;
         }
 
-        [data-theme="dark"] .form-section label {
+        .form-section label {
             color: #f9fafb;
             font-weight: 500;
         }
 
-        [data-theme="dark"] .tab-button {
+        .tab-button {
             color: #d1d5db;
             font-weight: 500;
         }
 
-        [data-theme="dark"] .tab-button.active {
+        .tab-button.active {
             color: #ffffff;
             font-weight: 600;
         }
 
-        [data-theme="dark"] .tab-button:hover {
+        .tab-button:hover {
             color: #ffffff;
         }
 
         /* Live Preview Dark Mode */
-        [data-theme="dark"] .live-preview {
+        .live-preview {
             background: var(--bg-primary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
@@ -5147,77 +5143,77 @@
         }
         
         /* Trailing spaces indicator in dark mode */
-        [data-theme="dark"] .live-preview.has-trailing-spaces {
+        .live-preview.has-trailing-spaces {
             border: 2px solid #ffc107;
             border-left: 4px solid #ffc107;
             background: rgba(255, 193, 7, 0.1);
         }
         
-        [data-theme="dark"] .live-preview.has-trailing-spaces::before {
+        .live-preview.has-trailing-spaces::before {
             color: #ffc107;
             background: rgba(255, 193, 7, 0.2);
         }
         
-        [data-theme="dark"] .leading-space {
+        .leading-space {
             background-color: rgba(255, 0, 0, 0.2);
             border-top-color: rgba(255, 0, 0, 0.5);
         }
         
-        [data-theme="dark"] .trailing-space {
+        .trailing-space {
             background-color: rgba(255, 0, 0, 0.2);
             border-bottom-color: rgba(255, 0, 0, 0.5);
         }
         
-        [data-theme="dark"] .consecutive-space {
+        .consecutive-space {
             background-color: rgba(255, 0, 0, 0.2);
             border-top-color: rgba(255, 0, 0, 0.5);
             border-bottom-color: rgba(255, 0, 0, 0.5);
         }
         
-        [data-theme="dark"] .trailing-empty-line {
+        .trailing-empty-line {
             background-color: rgba(255, 193, 7, 0.1);
             border-left-color: #ffc107;
         }
         
-        [data-theme="dark"] .trailing-empty-line::before {
+        .trailing-empty-line::before {
             color: #ffc107;
             background: rgba(255, 193, 7, 0.25);
         }
         
-        [data-theme="dark"] .preview-label {
+        .preview-label {
             color: #818cf8 !important;
             opacity: 0.9;
         }
         
         /* Prevent required asterisk on preview labels in dark mode */
-        [data-theme="dark"] .preview-label::after {
+        .preview-label::after {
             content: none !important;
         }
         
-        [data-theme="dark"] .input-label {
+        .input-label {
             color: #818cf8;
         }
 
-        [data-theme="dark"] .live-preview table {
+        .live-preview table {
             border-collapse: collapse;
             width: 100%;
             margin: 8px 0;
         }
 
-        [data-theme="dark"] .live-preview th,
-        [data-theme="dark"] .live-preview td {
+        .live-preview th,
+        .live-preview td {
             border: 1px solid var(--border-color);
             padding: 6px 8px;
             background: var(--bg-secondary);
             color: var(--text-primary);
         }
 
-        [data-theme="dark"] .live-preview th {
+        .live-preview th {
             background: var(--bg-tertiary);
             font-weight: bold;
         }
 
-        [data-theme="dark"] .live-preview blockquote {
+        .live-preview blockquote {
             border-left: 4px solid var(--accent);
             margin: 8px 0;
             padding: 6px 10px;
@@ -5225,40 +5221,40 @@
             background: var(--bg-secondary);
         }
 
-        [data-theme="dark"] .live-preview ul,
-        [data-theme="dark"] .live-preview ol {
+        .live-preview ul,
+        .live-preview ol {
             margin: 8px 0;
             padding-left: 30px;
         }
-        [data-theme="dark"] .live-preview ul { list-style-type: disc; }
-        [data-theme="dark"] .live-preview ol { list-style-type: decimal; }
-        [data-theme="dark"] .live-preview li { margin: 4px 0; display: list-item; }
-        [data-theme="dark"] .live-preview ul ul { list-style-type: circle; margin: 4px 0; }
-        [data-theme="dark"] .live-preview ul ul ul { list-style-type: square; }
-        [data-theme="dark"] .live-preview ol ol { list-style-type: lower-alpha; }
-        [data-theme="dark"] .live-preview ol ol ol { list-style-type: lower-roman; }
-        [data-theme="dark"] .live-preview .ordered-literal-item { margin: 4px 0; }
-        [data-theme="dark"] .live-preview .ordered-literal-marker { font-weight: 600; margin-inline-end: 6px; }
+        .live-preview ul { list-style-type: disc; }
+        .live-preview ol { list-style-type: decimal; }
+        .live-preview li { margin: 4px 0; display: list-item; }
+        .live-preview ul ul { list-style-type: circle; margin: 4px 0; }
+        .live-preview ul ul ul { list-style-type: square; }
+        .live-preview ol ol { list-style-type: lower-alpha; }
+        .live-preview ol ol ol { list-style-type: lower-roman; }
+        .live-preview .ordered-literal-item { margin: 4px 0; }
+        .live-preview .ordered-literal-marker { font-weight: 600; margin-inline-end: 6px; }
         /* RTL list styling in dark mode */
-        [data-theme="dark"] .live-preview[dir="rtl"] ul,
-        [data-theme="dark"] .live-preview[dir="rtl"] ol { padding-left: 0; padding-right: 30px; }
-        [data-theme="dark"] .live-preview[dir="rtl"] ul ul,
-        [data-theme="dark"] .live-preview[dir="rtl"] ol ol { padding-left: 0; padding-right: 30px; }
+        .live-preview[dir="rtl"] ul,
+        .live-preview[dir="rtl"] ol { padding-left: 0; padding-right: 30px; }
+        .live-preview[dir="rtl"] ul ul,
+        .live-preview[dir="rtl"] ol ol { padding-left: 0; padding-right: 30px; }
 
         /* Save indicator dark mode */
-        [data-theme="dark"] .auto-save-indicator {
+        .auto-save-indicator {
             background: rgba(255, 255, 255, 0.05);
             border-color: rgba(255, 255, 255, 0.2);
         }
 
-        [data-theme="dark"] .auto-save-indicator.saving {
+        .auto-save-indicator.saving {
             background: rgba(255, 193, 7, 0.15);
             border-color: rgba(255, 193, 7, 0.4);
             color: #ffc107;
             font-weight: 600;
         }
 
-        [data-theme="dark"] .auto-save-indicator.saved {
+        .auto-save-indicator.saved {
             background: rgba(40, 167, 69, 0.15);
             border-color: rgba(40, 167, 69, 0.4);
             color: #4caf50;
@@ -5416,17 +5412,17 @@
             font-style: italic;
         }
         
-        [data-theme="dark"] .search-result-preview .highlight {
+        .search-result-preview .highlight {
             background-color: #ffd700;
             color: #000;
         }
         
         .quick-jump select {
             padding: 4px 8px;
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
-            background: white;
-            color: #495057;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             font-size: 0.75rem;
             cursor: pointer;
             transition: border-color 0.2s ease;
@@ -5463,29 +5459,29 @@
         }
 
         /* Dark mode navigation styles */
-        [data-theme="dark"] .quick-jump select {
+        .quick-jump select {
             background: #2d3748 !important;
             border-color: #4a5568 !important;
             color: #e2e8f0 !important;
         }
 
-        [data-theme="dark"] .quick-jump select:hover {
+        .quick-jump select:hover {
             border-color: #667eea !important;
         }
         
-        [data-theme="dark"] .quick-jump select option {
+        .quick-jump select option {
             background: #2d3748;
             color: #e2e8f0;
         }
 
         /* Dark mode header select styling */
-        [data-theme="dark"] .header-select {
+        .header-select {
             background: rgba(255, 255, 255, 0.15) !important;
             border: 1px solid rgba(255, 255, 255, 0.25) !important;
             color: white !important;
         }
         
-        [data-theme="dark"] .header-select option {
+        .header-select option {
             background: #2d3748;
             color: #e2e8f0;
         }
@@ -5553,45 +5549,33 @@
             display: none;
         }
 
-        .validation-message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            display: block;
-        }
-
-        .validation-message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-            display: block;
-        }
-
-        /* Dark mode field validation */
-        body.dark-mode .form-group.valid input,
-        body.dark-mode .form-group.valid textarea,
-        body.dark-mode .form-group.valid select {
+        /* Field validation */
+        .form-group.valid input,
+        .form-group.valid textarea,
+        .form-group.valid select {
             border-color: #28a745;
             background-color: #2d3748;
         }
 
-        body.dark-mode .form-group.invalid input,
-        body.dark-mode .form-group.invalid textarea,
-        body.dark-mode .form-group.invalid select {
+        .form-group.invalid input,
+        .form-group.invalid textarea,
+        .form-group.invalid select {
             border-color: #dc3545;
             background-color: #2d3748;
         }
 
-        body.dark-mode .validation-message.error {
+        .validation-message.error {
             background: #2d3748;
             color: #feb2b2;
             border-color: #4a5568;
+            display: block;
         }
 
-        body.dark-mode .validation-message.success {
+        .validation-message.success {
             background: #2d3748;
             color: #68d391;
             border-color: #4a5568;
+            display: block;
         }
 
         /* Floating Action Buttons - Hidden */
@@ -5639,17 +5623,6 @@
             background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
         }
 
-        .fab-secondary {
-            background: #f8f9fa;
-            color: #495057;
-            border: 1px solid #dee2e6;
-        }
-
-        .fab-secondary:hover {
-            background: #e9ecef;
-            border-color: #adb5bd;
-        }
-
         /* FAB animations */
         .fab {
             animation: fabSlideIn 0.3s ease-out;
@@ -5666,14 +5639,14 @@
             }
         }
 
-        /* Dark mode FABs */
-        body.dark-mode .fab-secondary {
+        /* FAB secondary styling */
+        .fab-secondary {
             background: #2d3748;
             color: #e2e8f0;
             border-color: #4a5568;
         }
 
-        body.dark-mode .fab-secondary:hover {
+        .fab-secondary:hover {
             background: #4a5568;
             border-color: #718096;
         }
@@ -5739,8 +5712,9 @@
 
         .view-toggle-btn {
             padding: 5px 10px;
-            border: 1px solid #dee2e6;
-            background: white;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -5753,7 +5727,7 @@
 
         .view-toggle-btn:hover {
             border-color: #667eea;
-            background: #f8f9fa;
+            background: var(--bg-secondary);
         }
 
         .view-toggle-btn.active {
@@ -5791,7 +5765,7 @@
 
         /* PDF Viewer Specific */
         #pdf-viewer-panel {
-            background: #f8f9fa;
+            background: var(--bg-secondary);
             border-radius: 6px;
             padding: 8px;
             display: flex;
@@ -5808,9 +5782,9 @@
             align-items: center;
             margin-bottom: 8px;
             padding: 6px;
-            background: white;
+            background: var(--bg-primary);
             border-radius: 6px;
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border-color);
             flex-shrink: 0; /* Prevent controls from shrinking */
         }
 
@@ -5821,8 +5795,9 @@
 
         .pdf-source-btn {
             padding: 4px 8px;
-            border: 1px solid #dee2e6;
-            background: white;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
             border-radius: 4px;
             cursor: pointer;
             font-size: 0.75rem;
@@ -5834,7 +5809,7 @@
 
         .pdf-source-btn:hover {
             border-color: #667eea;
-            background: #f8f9fa;
+            background: var(--bg-secondary);
         }
 
         .pdf-source-btn.active {
@@ -5845,7 +5820,7 @@
 
         .pdf-canvas-container {
             position: relative;
-            background: #e9ecef;
+            background: var(--bg-tertiary);
             border-radius: 6px;
             overflow: auto;
             flex: 1; /* Fill remaining vertical space */
@@ -5870,48 +5845,48 @@
         }
 
         /* Dark mode for PDF viewer */
-        [data-theme="dark"] .view-toggle-btn {
+        .view-toggle-btn {
             background: var(--bg-primary);
             color: var(--text-primary);
             border-color: var(--border-color);
         }
 
-        [data-theme="dark"] .view-toggle-btn:hover {
+        .view-toggle-btn:hover {
             background: var(--bg-secondary);
             border-color: #667eea;
         }
 
-        [data-theme="dark"] .view-toggle-btn.active {
+        .view-toggle-btn.active {
             background: #667eea;
             color: white;
         }
 
-        [data-theme="dark"] #pdf-viewer-panel {
+        #pdf-viewer-panel {
             background: var(--bg-secondary);
         }
 
-        [data-theme="dark"] .pdf-viewer-controls {
+        .pdf-viewer-controls {
             background: var(--bg-primary);
             border-color: var(--border-color);
         }
 
-        [data-theme="dark"] .pdf-source-btn {
+        .pdf-source-btn {
             background: var(--bg-primary);
             color: var(--text-primary);
             border-color: var(--border-color);
         }
 
-        [data-theme="dark"] .pdf-source-btn:hover {
+        .pdf-source-btn:hover {
             background: var(--bg-secondary);
             border-color: #667eea;
         }
 
-        [data-theme="dark"] .pdf-source-btn.active {
+        .pdf-source-btn.active {
             background: #667eea;
             color: white;
         }
 
-        [data-theme="dark"] .pdf-canvas-container {
+        .pdf-canvas-container {
             background: var(--bg-tertiary);
         }
 
@@ -6051,6 +6026,7 @@
                                 <option value="">Quick Jump...</option>
                                 <optgroup label="Form Sections">
                                     <option value="book_metadata">Book Metadata</option>
+                                    <option value="unit_preamble">Unit Preamble</option>
                                     <option value="preamble">Lesson Preamble</option>
                                     <option value="basic">Basic Info</option>
                                     <option value="content">Content Sections</option>
@@ -6083,7 +6059,7 @@
                 <div id="input-form" class="main-tab-content active">
                     <!-- Sticky Tabs Stack: Sub tabs only, inside Input Form (outside scroll container) -->
                     <div class="sticky-tabs-stack">
-                        <!-- Sub Tab Navigation: Book Metadata / Lesson Preamble / Basic Info / Content / Questions -->
+                        <!-- Sub Tab Navigation: Book Metadata / Unit Preamble / Lesson Preamble / Basic Info / Content / Questions -->
                         <div class="tabs sticky-tab-bar sticky-tab-bar--sub" id="sub-tabs-container">
                             <!-- Buttons will be hydrated by JS -->
                         </div>
@@ -6139,6 +6115,37 @@
                     </div>
                 </div>
 
+                <!-- Unit Preamble Tab -->
+                <div id="unit_preamble" class="tab-content">
+                    <!-- Unit ID - Refactored to use createFormControl -->
+                    <div id="unit_id_container"></div>
+
+                    <div class="form-group">
+                        <label>Unit Title</label>
+                        <span class="input-label">Input Markdown</span>
+                        <div id="unit_title_container"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Unit Title Translation</label>
+                        <span class="input-label">Input Markdown</span>
+                        <div id="unit_title_translation_container"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Unit Text</label>
+                        <div id="unit_text_container"></div>
+                    </div>
+
+                    <div class="highlight">
+                        <h4><i class="fas fa-lightbulb"></i> Unit Preamble Tips</h4>
+                        <p>• Unit ID: Use your unit identifier format (for example, "2" or "2-A")</p>
+                        <p>• Unit Title: Keep only the Arabic unit title in this field</p>
+                        <p>• Unit Title Translation: Use this only for the English title when present</p>
+                        <p>• Unit Text: Additional context not captured in other unit fields</p>
+                    </div>
+                </div>
+
                 <!-- Lesson Preamble Tab -->
                 <div id="preamble" class="tab-content">
                     <!-- Lesson ID - Refactored to use createFormControl -->
@@ -6148,6 +6155,12 @@
                         <label>Lesson Title</label>
                         <span class="input-label">Input Markdown</span>
                         <div id="lesson_title_container"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Lesson Title Translation</label>
+                        <span class="input-label">Input Markdown</span>
+                        <div id="lesson_title_translation_container"></div>
                     </div>
                     
                     <div class="form-group">
@@ -6212,7 +6225,6 @@
                         <p>• Standards: Educational standards this lesson addresses</p>
                         <p>• Terminology: Key mathematical terms students need to know</p>
                         <p>• Lesson Text: Additional context not captured in other fields</p>
-                        <p>• <strong>Note:</strong> Tables and images are not allowed in this section</p>
                     </div>
                 </div>
 
@@ -7071,7 +7083,7 @@
         // Single source of truth for all scroll positions
         const scrollState = {
             main: { input: 0, preview: 0 },
-            sub: { book_metadata: 0, basic: 0, preamble: 0, content: 0, questions: 0 }
+            sub: { book_metadata: 0, unit_preamble: 0, basic: 0, preamble: 0, content: 0, questions: 0 }
         };
         
         // Hydration flag: true ONLY during loadJSON() and initial restore flow
@@ -7413,10 +7425,9 @@
 
         function highlightNavigationTarget(element, durationMs = 2000) {
             if (!element) return;
-            const isDark = document.body.getAttribute('data-theme') === 'dark';
             const originalBg = element.style.backgroundColor;
             const originalTransition = element.style.transition;
-            element.style.backgroundColor = isDark ? 'rgba(102, 126, 234, 0.4)' : '#fff3cd';
+            element.style.backgroundColor = 'rgba(102, 126, 234, 0.4)';
             element.style.transition = 'background-color 0.3s ease';
             setTimeout(function() {
                 element.style.backgroundColor = originalBg;
@@ -7506,7 +7517,7 @@
             return activeMainTab.id === 'input-form' ? 'input' : 'preview';
         }
         
-        // Get active sub tab key ('book_metadata', 'basic', 'preamble', 'content', or 'questions')
+        // Get active sub tab key ('book_metadata', 'unit_preamble', 'basic', 'preamble', 'content', or 'questions')
         // Uses the sub-tab BUTTONS to avoid confusion with nested tab-content elements
         function getActiveSubTabKey() {
             const subTabsContainer = document.getElementById('sub-tabs-container');
@@ -7527,12 +7538,87 @@
             const tabName = match[1];
             
             // Only return if it's one of the main sub-tabs
-            if (tabName === 'book_metadata' || tabName === 'basic' || tabName === 'preamble' || 
+            if (tabName === 'book_metadata' || tabName === 'unit_preamble' || tabName === 'basic' || tabName === 'preamble' || 
                 tabName === 'content' || tabName === 'questions') {
                 return tabName;
             }
             
             return null;
+        }
+
+        const CLEARABLE_INPUT_SUBTAB_LABELS = {
+            book_metadata: 'Book Metadata',
+            unit_preamble: 'Unit Preamble',
+            preamble: 'Lesson Preamble',
+            basic: 'Basic Info',
+            content: 'Content',
+            questions: 'Questions'
+        };
+
+        function getClearCurrentSubtabContext() {
+            const mainKey = getActiveMainTabKey();
+            const subTabKey = getActiveSubTabKey();
+            const subTabLabel = subTabKey ? CLEARABLE_INPUT_SUBTAB_LABELS[subTabKey] : '';
+            const isInputForm = mainKey === 'input';
+            const canClear = isInputForm && !!subTabLabel;
+            return {
+                mainKey,
+                subTabKey,
+                subTabLabel,
+                canClear
+            };
+        }
+
+        function setClearCurrentSubtabButtonLabel(button, label) {
+            if (!button) return;
+            button.innerHTML = `<i class="fas fa-eraser"></i> ${label}`;
+        }
+
+        function updateClearCurrentSubtabButtonState() {
+            const button = document.getElementById('clearCurrentSubtabBtn');
+            const note = document.getElementById('clearCurrentSubtabNote');
+            if (!button) return;
+
+            const ctx = getClearCurrentSubtabContext();
+            const disabledMessage = 'This action works only in Input Form.';
+            const isFinalPreview = ctx.mainKey === 'preview';
+
+            if (ctx.canClear) {
+                setClearCurrentSubtabButtonLabel(button, `Clear All ${ctx.subTabLabel} Fields`);
+                button.disabled = false;
+                button.title = `Clear all fields in ${ctx.subTabLabel}`;
+            } else {
+                setClearCurrentSubtabButtonLabel(button, 'Clear Current Subtab');
+                button.disabled = true;
+                button.title = disabledMessage;
+            }
+
+            if (note) {
+                note.style.display = isFinalPreview ? 'block' : 'none';
+                note.textContent = disabledMessage;
+            }
+        }
+
+        function getScopeDescriptorForClearSubtab(tabKey) {
+            if (tabKey === 'book_metadata') {
+                return { scopeType: 'book_metadata', scopeContainerId: 'book_metadata', topLevelIndex: null, subScope: null, bboxGroup: null };
+            }
+            if (tabKey === 'unit_preamble') {
+                return { scopeType: 'unit_preamble', scopeContainerId: 'unit_preamble', topLevelIndex: null, subScope: null, bboxGroup: null };
+            }
+            if (tabKey === 'preamble') {
+                return { scopeType: 'preamble', scopeContainerId: 'preamble', topLevelIndex: null, subScope: null, bboxGroup: null };
+            }
+            if (tabKey === 'basic') {
+                return { scopeType: 'basic', scopeContainerId: 'basic', topLevelIndex: null, subScope: null, bboxGroup: null };
+            }
+            if (tabKey === 'content') {
+                return { scopeType: 'content', scopeContainerId: 'content_sections_container', topLevelIndex: null, subScope: null, bboxGroup: null };
+            }
+            if (tabKey === 'questions') {
+                return { scopeType: 'question', scopeContainerId: 'questions_container', topLevelIndex: null, subScope: null, bboxGroup: null };
+            }
+            return { scopeType: null, scopeContainerId: null, topLevelIndex: null, subScope: null, bboxGroup: null };
         }
         
         // Save current scroll positions BEFORE switching tabs
@@ -7593,6 +7679,7 @@
             scrollState.main.input = 0;
             scrollState.main.preview = 0;
             scrollState.sub.book_metadata = 0;
+            scrollState.sub.unit_preamble = 0;
             scrollState.sub.basic = 0;
             scrollState.sub.preamble = 0;
             scrollState.sub.content = 0;
@@ -7657,6 +7744,7 @@
         let contentStructureDirty = false;
         let questionsStructureDirty = false;
         let bookMetadataDirty = false;
+        let unitPreambleDirty = false;
         let basicInfoDirty = false;
         let lessonPreambleDirty = false;
         
@@ -7700,6 +7788,7 @@
         function markAllFinalPreviewDirty() {
             retagTopLevelIndices();
             bookMetadataDirty = true;
+            unitPreambleDirty = true;
             basicInfoDirty = true;
             lessonPreambleDirty = true;
             const content = document.querySelectorAll('#content_sections_container > .array-item');
@@ -7749,6 +7838,8 @@
             if (!node || !node.closest) return { scopeType: null, scopeContainerId: null, topLevelIndex: null, subScope: null, bboxGroup: null };
             const bookMetadata = node.closest && node.closest('#book_metadata');
             if (bookMetadata) return { scopeType: 'book_metadata', scopeContainerId: 'book_metadata', topLevelIndex: null, subScope: null, bboxGroup: null };
+            const unitPreamble = node.closest && node.closest('#unit_preamble');
+            if (unitPreamble) return { scopeType: 'unit_preamble', scopeContainerId: 'unit_preamble', topLevelIndex: null, subScope: null, bboxGroup: null };
             const basic = node.closest && node.closest('#basic');
             if (basic) return { scopeType: 'basic', scopeContainerId: 'basic', topLevelIndex: null, subScope: null, bboxGroup: null };
             const preamble = node.closest && node.closest('#preamble');
@@ -7821,6 +7912,11 @@
                 if (isFinalPreviewActive()) scheduleFinalPreviewDirtyFlush();
                 return;
             }
+            if (scope.scopeType === 'unit_preamble') {
+                unitPreambleDirty = true;
+                if (isFinalPreviewActive()) scheduleFinalPreviewDirtyFlush();
+                return;
+            }
             if (scope.scopeType === 'basic') {
                 basicInfoDirty = true;
                 if (isFinalPreviewActive()) scheduleFinalPreviewDirtyFlush();
@@ -7864,7 +7960,7 @@
         
         function flushFinalPreviewDirty() {
             if (!isFinalPreviewActive()) return;
-            if (finalPreviewDirtyRegistry.size === 0 && !contentStructureDirty && !questionsStructureDirty && !bookMetadataDirty && !basicInfoDirty && !lessonPreambleDirty) return;
+            if (finalPreviewDirtyRegistry.size === 0 && !contentStructureDirty && !questionsStructureDirty && !bookMetadataDirty && !unitPreambleDirty && !basicInfoDirty && !lessonPreambleDirty) return;
             const fpContent = document.getElementById('final-preview-content');
             if (!fpContent) return;
             // If final preview isn't built yet, do nothing (no full regeneration here).
@@ -7876,6 +7972,10 @@
             if (bookMetadataDirty) {
                 rebuildFinalPreviewBookMetadataArea();
                 bookMetadataDirty = false;
+            }
+            if (unitPreambleDirty) {
+                rebuildFinalPreviewUnitPreambleArea();
+                unitPreambleDirty = false;
             }
             if (basicInfoDirty) {
                 rebuildFinalPreviewBasicInfoArea();
@@ -7930,7 +8030,7 @@
         }
 
         function resetInputSubtabPreviewHydrationState() {
-            const tabIds = ['book_metadata', 'basic', 'preamble', 'content', 'questions'];
+            const tabIds = ['book_metadata', 'unit_preamble', 'preamble', 'basic', 'content', 'questions'];
             tabIds.forEach((tabId) => {
                 const tabRoot = document.getElementById(tabId);
                 if (tabRoot) {
@@ -8049,6 +8149,7 @@
             if (!isDocumentHydrating) {
                 restoreSubTabScrollPosition(tabName);
             }
+            updateClearCurrentSubtabButtonState();
         }
 
         function showMainTab(tabName) {
@@ -8076,7 +8177,7 @@
                         markAllFinalPreviewDirty();
                         finalPreviewNeedsResync = false;
                     }
-                    if (finalPreviewDirtyRegistry.size > 0 || contentStructureDirty || questionsStructureDirty || bookMetadataDirty || basicInfoDirty || lessonPreambleDirty) {
+                    if (finalPreviewDirtyRegistry.size > 0 || contentStructureDirty || questionsStructureDirty || bookMetadataDirty || unitPreambleDirty || basicInfoDirty || lessonPreambleDirty) {
                         flushFinalPreviewIfActive('final-preview-activate');
                     } else {
                         var fpContent = document.getElementById('final-preview-content');
@@ -8111,6 +8212,7 @@
             if (!isDocumentHydrating) {
                 restoreActiveScrollPositions();
             }
+            updateClearCurrentSubtabButtonState();
         }
 
         // Navigate to input field from preview
@@ -8131,6 +8233,10 @@
             // Check if element is in book metadata
             else if (element.closest('#book_metadata')) {
                 targetTab = 'book_metadata';
+            }
+            // Check if element is in unit preamble
+            else if (element.closest('#unit_preamble')) {
+                targetTab = 'unit_preamble';
             }
             // Check if element is in preamble
             else if (element.closest('#preamble')) {
@@ -8579,8 +8685,8 @@
 
         function retagFinalPreviewQuestionBlock(questionBlock, questionIndex) {
             if (!questionBlock) return;
-            var answerImgIndex = 0;
-            var questionGlobalIndex = 0;
+            var fallbackAnswerIndex = 0;
+            var fallbackQuestionIndex = 0;
             questionBlock.querySelectorAll('.preview-section').forEach(function (previewSection) {
                 var labelEl = previewSection.querySelector('.preview-section-label');
                 var isGuideAnswer = !!(previewSection.querySelector('.guide-answer') || (labelEl && labelEl.textContent && labelEl.textContent.indexOf('Guide Answer') !== -1));
@@ -8588,13 +8694,13 @@
                 var scopePrefix = scope + '-' + questionIndex;
                 previewSection.querySelectorAll('.live-preview').forEach(function (livePreview) {
                     livePreview.querySelectorAll('.image-placeholder-container').forEach(function (container) {
-                        var imageIndex;
-                        if (isGuideAnswer) {
-                            imageIndex = answerImgIndex++;
-                        } else {
-                            imageIndex = questionGlobalIndex++;
-                            container.setAttribute('data-image-index', String(imageIndex));
+                        // Keep a stable image index per placeholder to avoid remapping duplicates
+                        // (e.g., Question Text and Preview with Answers referencing the same image).
+                        var imageIndex = getStableImageIndexFromContainer(container, scopePrefix);
+                        if (imageIndex === null) {
+                            imageIndex = isGuideAnswer ? fallbackAnswerIndex++ : fallbackQuestionIndex++;
                         }
+                        container.setAttribute('data-image-index', String(imageIndex));
                         container.setAttribute('data-fp-key', scopePrefix + '-' + imageIndex);
                     });
                 });
@@ -9459,11 +9565,80 @@
             return html;
         }
         
+        function getFieldPreviewInnerHTML(inputEl) {
+            if (!inputEl) return '';
+            let existingPreview = null;
+            let sibling = inputEl.nextElementSibling;
+            while (sibling) {
+                if (sibling.classList && sibling.classList.contains('live-preview')) {
+                    existingPreview = sibling;
+                    break;
+                }
+                sibling = sibling.nextElementSibling;
+            }
+            if (existingPreview && existingPreview.innerHTML) {
+                return existingPreview.innerHTML;
+            }
+            const tempPreview = document.createElement('div');
+            tempPreview.className = 'live-preview';
+            tempPreview.setAttribute('dir', 'rtl');
+            tempPreview.style.textAlign = 'right';
+            renderLivePreviewToElement(inputEl, tempPreview);
+            return tempPreview.innerHTML;
+        }
+
+        function buildPreambleMarkdownPreviewCard(fieldTitle, inputEl, inputId) {
+            if (!inputEl) return '';
+            const fieldPreviewHTML = getFieldPreviewInnerHTML(inputEl);
+            return buildPreviewBox({
+                title: fieldTitle,
+                editTarget: `navigateToInput(document.getElementById('${inputId}'))`,
+                bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${fieldPreviewHTML}</div>`
+            });
+        }
+
+        function buildUnitPreamblePreviewHTML() {
+            let html = '';
+            const unitId = document.getElementById('unit_id') ? document.getElementById('unit_id').value || '' : '';
+            const unitTitleInput = document.getElementById('unit_title');
+            const unitTitle = unitTitleInput ? unitTitleInput.value || '' : '';
+            const unitTitleTranslationInput = document.getElementById('unit_title_translation');
+            const unitTitleTranslation = unitTitleTranslationInput ? unitTitleTranslationInput.value || '' : '';
+            const unitTextarea = document.getElementById('unit_text');
+            const unitText = unitTextarea ? unitTextarea.value || '' : '';
+            const hasUnitPreamble = unitId || unitTitle || unitTitleTranslation || unitText;
+
+            if (hasUnitPreamble) {
+                html += '<div class="final-preview-section"><h3>Unit Preamble</h3>';
+                html += '<div class="final-preview-section">';
+                if (unitId) {
+                    html += buildPreviewBox({
+                        title: 'Unit ID',
+                        editTarget: "navigateToInput(document.getElementById('unit_id'))",
+                        bodyHTML: `<div style="padding: 8px; dir: ltr; text-align: left;">${unitId}</div>`
+                    });
+                }
+                if (unitTitle && unitTitleInput) {
+                    html += buildPreambleMarkdownPreviewCard('Unit Title', unitTitleInput, 'unit_title');
+                }
+                if (unitTitleTranslation && unitTitleTranslationInput) {
+                    html += buildPreambleMarkdownPreviewCard('Unit Title Translation', unitTitleTranslationInput, 'unit_title_translation');
+                }
+                if (unitText && unitTextarea) {
+                    html += buildPreambleMarkdownPreviewCard('Unit Text', unitTextarea, 'unit_text');
+                }
+                html += '</div></div>';
+            }
+            return html;
+        }
+
         function buildLessonPreamblePreviewHTML() {
             let html = '';
             const lessonId = document.getElementById('lesson_id') ? document.getElementById('lesson_id').value || '' : '';
             const lessonTitleInput = document.getElementById('lesson_title');
             const lessonTitle = lessonTitleInput ? lessonTitleInput.value || '' : '';
+            const lessonTitleTranslationInput = document.getElementById('lesson_title_translation');
+            const lessonTitleTranslation = lessonTitleTranslationInput ? lessonTitleTranslationInput.value || '' : '';
             const lessonStandardsContainer = document.getElementById('lesson_standards');
             const lessonStandards = lessonStandardsContainer ? Array.from(lessonStandardsContainer.querySelectorAll('.array-item textarea')).map(textarea => textarea.value.trim()).filter(v => v) : [];
             const terminologyContainer = document.getElementById('terminology');
@@ -9473,7 +9648,7 @@
                 .filter(({ textarea }) => (textarea.value || '').trim().length > 0);
             const lessonTextarea = document.getElementById('lesson_text');
             const lessonText = lessonTextarea ? lessonTextarea.value || '' : '';
-            let hasLessonPreamble = lessonId || lessonTitle || lessonStandards.length > 0 || terminologyItems.length > 0 || lessonText;
+            let hasLessonPreamble = lessonId || lessonTitle || lessonTitleTranslation || lessonStandards.length > 0 || terminologyItems.length > 0 || lessonText;
             if (hasLessonPreamble) {
                 html += '<div class="final-preview-section"><h3>Lesson Preamble</h3>';
                 html += '<div class="final-preview-section">';
@@ -9485,31 +9660,10 @@
                     });
                 }
                 if (lessonTitle && lessonTitleInput) {
-                    let titlePreview = null;
-                    let sibling = lessonTitleInput.nextElementSibling;
-                    while (sibling) {
-                        if (sibling.classList && sibling.classList.contains('live-preview')) {
-                            titlePreview = sibling;
-                            break;
-                        }
-                        sibling = sibling.nextElementSibling;
-                    }
-                    let titlePreviewHTML;
-                    if (titlePreview && titlePreview.innerHTML) {
-                        titlePreviewHTML = titlePreview.innerHTML;
-                    } else {
-                        const tempTitlePreview = document.createElement('div');
-                        tempTitlePreview.className = 'live-preview';
-                        tempTitlePreview.setAttribute('dir', 'rtl');
-                        tempTitlePreview.style.textAlign = 'right';
-                        renderLivePreviewToElement(lessonTitleInput, tempTitlePreview);
-                        titlePreviewHTML = tempTitlePreview.innerHTML;
-                    }
-                    html += buildPreviewBox({
-                        title: 'Lesson Title',
-                        editTarget: "navigateToInput(document.getElementById('lesson_title'))",
-                        bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${titlePreviewHTML}</div>`
-                    });
+                    html += buildPreambleMarkdownPreviewCard('Lesson Title', lessonTitleInput, 'lesson_title');
+                }
+                if (lessonTitleTranslation && lessonTitleTranslationInput) {
+                    html += buildPreambleMarkdownPreviewCard('Lesson Title Translation', lessonTitleTranslationInput, 'lesson_title_translation');
                 }
                 if (lessonStandards.length > 0) {
                     const standardsTextareas = Array.from(lessonStandardsContainer.querySelectorAll('.array-item textarea'));
@@ -9540,38 +9694,14 @@
                     });
                 }
                 if (lessonText && lessonTextarea) {
-                    let textPreview = null;
-                    let sibling = lessonTextarea.nextElementSibling;
-                    while (sibling) {
-                        if (sibling.classList && sibling.classList.contains('live-preview')) {
-                            textPreview = sibling;
-                            break;
-                        }
-                        sibling = sibling.nextElementSibling;
-                    }
-                    let lessonTextPreviewHTML;
-                    if (textPreview && textPreview.innerHTML) {
-                        lessonTextPreviewHTML = textPreview.innerHTML;
-                    } else {
-                        const tempTextPreview = document.createElement('div');
-                        tempTextPreview.className = 'live-preview';
-                        tempTextPreview.setAttribute('dir', 'rtl');
-                        tempTextPreview.style.textAlign = 'right';
-                        renderLivePreviewToElement(lessonTextarea, tempTextPreview);
-                        lessonTextPreviewHTML = tempTextPreview.innerHTML;
-                    }
-                    html += buildPreviewBox({
-                        title: 'Lesson Text',
-                        editTarget: "navigateToInput(document.getElementById('lesson_text'))",
-                        bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${lessonTextPreviewHTML}</div>`
-                    });
+                    html += buildPreambleMarkdownPreviewCard('Lesson Text', lessonTextarea, 'lesson_text');
                 }
                 html += '</div></div>';
             }
             return html;
         }
 
-        const FINAL_PREVIEW_GROUP_ORDER = ['Book Metadata', 'Lesson Preamble', 'Basic Info', 'Content Sections', 'Questions'];
+        const FINAL_PREVIEW_GROUP_ORDER = ['Book Metadata', 'Unit Preamble', 'Lesson Preamble', 'Basic Info', 'Content Sections', 'Questions'];
 
         function getFinalPreviewGroupTitle(groupEl) {
             if (!groupEl || !groupEl.classList || !groupEl.classList.contains('final-preview-section')) return '';
@@ -9642,6 +9772,29 @@
                 existingGroup.parentNode.replaceChild(newGroup, existingGroup);
             } else {
                 insertFinalPreviewGroupInCanonicalOrder(fpContent, 'Book Metadata', newGroup);
+            }
+            normalizeFinalPreviewSectionOrder(fpContent);
+            schedulePostLayoutBboxRefresh(fpContent);
+        }
+
+        function rebuildFinalPreviewUnitPreambleArea() {
+            const fpContent = document.getElementById('final-preview-content');
+            if (!fpContent) return;
+            const existingGroup = findFinalPreviewGroupByTitle(fpContent, 'Unit Preamble');
+            const html = buildUnitPreamblePreviewHTML();
+            if (!html) {
+                if (existingGroup && existingGroup.parentNode) existingGroup.parentNode.removeChild(existingGroup);
+                normalizeFinalPreviewSectionOrder(fpContent);
+                return;
+            }
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            const newGroup = temp.firstElementChild;
+            if (!newGroup) return;
+            if (existingGroup && existingGroup.parentNode) {
+                existingGroup.parentNode.replaceChild(newGroup, existingGroup);
+            } else {
+                insertFinalPreviewGroupInCanonicalOrder(fpContent, 'Unit Preamble', newGroup);
             }
             normalizeFinalPreviewSectionOrder(fpContent);
             schedulePostLayoutBboxRefresh(fpContent);
@@ -9817,6 +9970,10 @@
             // First, render book metadata
             const bookMetadataHtml = buildBookMetadataPreviewHTML();
             html += bookMetadataHtml;
+
+            // Then, render unit preamble
+            const unitPreambleHtml = buildUnitPreamblePreviewHTML();
+            html += unitPreambleHtml;
             
             // Then, render lesson preamble
             const preambleHtml = buildLessonPreamblePreviewHTML();
@@ -9847,7 +10004,7 @@
             }
             
             // If no content, show message
-            if (!bookMetadataHtml && !basicHtml && !preambleHtml && contentSections.length === 0 && questions.length === 0) {
+            if (!bookMetadataHtml && !unitPreambleHtml && !basicHtml && !preambleHtml && contentSections.length === 0 && questions.length === 0) {
                 html = '<div class="final-preview-section"><p style="color: #6c757d; font-style: italic;">No content sections or questions to preview. Add some content in the Input Form tab.</p></div>';
             }
             
@@ -10624,7 +10781,7 @@
             // Check if it's a main tab
             if (value === 'final-preview') {
                 showMainTab('final-preview');
-            } else if (['book_metadata', 'basic', 'preamble', 'content', 'questions'].includes(value)) {
+            } else if (['book_metadata', 'unit_preamble', 'basic', 'preamble', 'content', 'questions'].includes(value)) {
                 // Switch to input form tab first
                 showMainTab('input-form');
                 showTab(value);
@@ -13976,7 +14133,7 @@
                         <label style="font-weight: 600; margin: 0;">Preview with Answers</label>
                         <button type="button" class="dir-btn" onclick="toggleFilledBlanksDirection(this)" style="margin: 0;" title="Toggle text direction (LTR/RTL)">LTR</button>
                         </div>
-                        <div id="filled-blanks-preview" class="live-preview" style="min-height: 80px; max-height: 400px;" dir="rtl" title="Preview of the question with blank answers filled in">
+                        <div id="filled-blanks-preview" class="live-preview" dir="rtl" title="Preview of the question with blank answers filled in">
                             <p style="color: var(--text-secondary); font-style: italic;">Preview will appear here when blanks are filled</p>
                         </div>
                     </div>
@@ -15002,7 +15159,8 @@
         // 1. Main preview system (attachPreviews + renderLivePreview):
         //    - DOM: <label class="preview-label">Output Preview</label>
         //            <div class="live-preview" dir="rtl|ltr">...</div>
-        //    - Selectors: .text-field-container textarea, #lesson_text, #lesson_title,
+        //    - Selectors: .text-field-container textarea, #unit_text, #unit_title, #unit_title_translation,
+        //                 #lesson_text, #lesson_title, #lesson_title_translation,
         //                 .form-group input[placeholder="Section title"], #terminology textarea,
         //                 #lesson_standards textarea
         //    - Features: Markdown rendering, LaTeX (block/inline), image handling,
@@ -15517,8 +15675,12 @@
             function collectPreviewSourceEls(rootEl = document) {
                 const selectors = [
                     '.text-field-container textarea',
+                    '#unit_text',
+                    '#unit_title',
+                    '#unit_title_translation',
                     '#lesson_text',
                     '#lesson_title',
+                    '#lesson_title_translation',
                     '#book_title_page_title',
                     '#book_title_page_subtitle',
                     '#book_title_page_version',
@@ -15692,7 +15854,7 @@
         function fitAllInputSubtabsOnceWhenAutoResizeOff(reason) {
             if (autoResizeEnabled) return;
             if (typeof AutoSizeManager === 'undefined' || !AutoSizeManager.fitHeightToContent) return;
-            const tabIds = ['book_metadata', 'basic', 'preamble', 'content', 'questions'];
+            const tabIds = ['book_metadata', 'unit_preamble', 'preamble', 'basic', 'content', 'questions'];
             const scroller = (typeof getInputFormScroller === 'function')
                 ? getInputFormScroller()
                 : document.querySelector('#input-form .input-form-scroll');
@@ -16060,40 +16222,6 @@
                     }, 0);
                 }
             });
-        }
-
-        function toggleDarkMode() {
-            const body = document.body;
-            const toggle = document.getElementById('darkModeToggle');
-            const icon = toggle.querySelector('i');
-            
-            // Toggle the data-theme attribute
-            const isDark = body.getAttribute('data-theme') !== 'dark';
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.removeAttribute('data-theme');
-                icon.className = 'fas fa-moon';
-                localStorage.setItem('darkMode', 'light');
-            } else {
-                body.setAttribute('data-theme', 'dark');
-                icon.className = 'fas fa-sun';
-                localStorage.setItem('darkMode', 'dark');
-            }
-        }
-
-        // Initialize dark mode from localStorage
-        function initializeDarkMode() {
-            const savedTheme = localStorage.getItem('darkMode');
-            const body = document.body;
-            const toggle = document.getElementById('darkModeToggle');
-            const icon = toggle.querySelector('i');
-            
-            if (savedTheme === 'dark') {
-                body.setAttribute('data-theme', 'dark');
-                icon.className = 'fas fa-sun';
-            } else {
-                body.removeAttribute('data-theme');
-                icon.className = 'fas fa-moon';
-            }
         }
 
         // Check if a textarea has trailing spaces or empty lines
@@ -21810,7 +21938,25 @@
                 preview.setAttribute('dir', newDir);
                 preview.style.textAlign = newDir === 'rtl' ? 'right' : 'left';
                 button.textContent = newDir === 'rtl' ? 'LTR' : 'RTL';
+                refreshFilledBlanksPreviewLayout(preview);
             });
+        }
+
+        function refreshFilledBlanksPreviewLayout(preview) {
+            if (!preview) return;
+            // Keep this custom preview on the same canonical sizing path as other output previews.
+            preview.__renderVersion = (preview.__renderVersion || 0) + 1;
+            if (autoResizeEnabled && typeof AutoSizeManager !== 'undefined') {
+                const hasImageOrBbox = !!(preview.querySelector('.image-placeholder-container') || preview.querySelector('.fp-bbox-canvas'));
+                if (hasImageOrBbox && AutoSizeManager.scheduleFit) {
+                    AutoSizeManager.scheduleFit(preview, 'filledBlanksPreview');
+                } else if (AutoSizeManager.fitHeightToContent) {
+                    AutoSizeManager.fitHeightToContent(preview);
+                }
+                return;
+            }
+            // In OFF mode, never keep stale fixed heights.
+            preview.style.height = 'auto';
         }
 
         /**
@@ -21828,6 +21974,7 @@
             
             if (!questionText) {
                 preview.innerHTML = '<p style="color: var(--text-secondary); font-style: italic;">Enter question text to see preview</p>';
+                refreshFilledBlanksPreviewLayout(preview);
                 return;
             }
             
@@ -21849,6 +21996,7 @@
             
             if (!allFilled) {
                 preview.innerHTML = '<p style="color: var(--text-secondary); font-style: italic;">Fill in all blank answers to see preview</p>';
+                refreshFilledBlanksPreviewLayout(preview);
                 return;
             }
             
@@ -21911,6 +22059,7 @@
                     preview.innerHTML = safeFilledText.replace(/\n/g, '<br>');
                 }
             }
+            refreshFilledBlanksPreviewLayout(preview);
         }
 
         /**
@@ -23232,6 +23381,10 @@
             const textareaId = textarea.id;
             if (textareaId) {
                 switch (textareaId) {
+                    case 'unit_text':
+                        return 'Unit Preamble';
+                    case 'lesson_text':
+                        return 'Lesson Preamble';
                     case 'lesson_preamble':
                         return 'Lesson Preamble';
                     default:
@@ -23821,6 +23974,7 @@
                 guidebook_pdf_pages: generateGuidebookPageArray(),
                 page_type: document.getElementById('page_type').value || "content",
                 book_title_page: bookMetadataValidation.payload,
+                unit_preamble: null,
                 lesson_preamble: null,
                 instructional_content: [],
                 practice_questions: []
@@ -23848,26 +24002,27 @@
                 }
             });
 
+            // Add unit preamble if provided
+            const unitIdRaw = document.getElementById('unit_id') ? document.getElementById('unit_id').value : '';
+            const unitPreamblePayload = buildUnitPreamblePayloadFromForm();
+            if (unitIdRaw && !unitPreamblePayload) {
+                validationErrors.push("Unit ID must be a non-empty string");
+            } else {
+                jsonData.unit_preamble = unitPreamblePayload;
+            }
+
             // Add lesson preamble if provided
-            const lessonId = document.getElementById('lesson_id').value;
-            if (lessonId) {
-                // Validate lesson ID is a string
-                if (typeof lessonId !== 'string' || lessonId.trim().length === 0) {
-                    validationErrors.push("Lesson ID must be a non-empty string");
-                }
-                
-                if (validationErrors.length > 0) {
-                    alert("Validation errors:\n" + validationErrors.join("\n"));
-                    return;
-                }
-                
-                jsonData.lesson_preamble = {
-                    id: lessonId.trim(),
-                    title: document.getElementById('lesson_title').value || "",
-                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
-                    terminology: Array.from(document.querySelectorAll('#terminology textarea')).map(textarea => textarea.value).filter(v => v),
-                    text: document.getElementById('lesson_text').value || ""
-                };
+            const lessonIdRaw = document.getElementById('lesson_id').value;
+            const lessonPreamblePayload = buildLessonPreamblePayloadFromForm();
+            if (lessonIdRaw && !lessonPreamblePayload) {
+                validationErrors.push("Lesson ID must be a non-empty string");
+            } else {
+                jsonData.lesson_preamble = lessonPreamblePayload;
+            }
+
+            if (validationErrors.length > 0) {
+                alert("Validation errors:\n" + validationErrors.join("\n"));
+                return;
             }
 
             // Collect questions - only get the main questions (direct children)
@@ -23963,6 +24118,7 @@
                 guidebook_pdf_pages: generateGuidebookPageArray(),
                 page_type: pageType || "content",
                 book_title_page: buildBookMetadataPayload(bookMetadata, { allowPartial: true }),
+                unit_preamble: null,
                 lesson_preamble: null,
                 instructional_content: [],
                 practice_questions: []
@@ -23980,17 +24136,9 @@
                 }
             });
 
-            // Add lesson preamble if provided
-            const lessonId = document.getElementById('lesson_id').value;
-            if (lessonId) {
-                jsonData.lesson_preamble = {
-                    id: lessonId.trim(),
-                    title: document.getElementById('lesson_title').value || "",
-                    lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
-                    terminology: Array.from(document.querySelectorAll('#terminology textarea')).map(textarea => textarea.value).filter(v => v),
-                    text: document.getElementById('lesson_text').value || ""
-                };
-            }
+            // Add unit and lesson preambles if provided
+            jsonData.unit_preamble = buildUnitPreamblePayloadFromForm();
+            jsonData.lesson_preamble = buildLessonPreamblePayloadFromForm();
 
             // Collect questions - only get the main questions (direct children)
             const questionElements = document.querySelectorAll('#questions_container > .array-item');
@@ -24209,6 +24357,56 @@
         function setInputValue(selector, value) {
             const el = document.querySelector(selector);
             if (el) el.value = value == null ? '' : value;
+        }
+
+        function getNullableTrimmedInputValue(id) {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            const value = String(el.value == null ? '' : el.value).trim();
+            return value === '' ? null : value;
+        }
+
+        function getTrimmedInputValue(id) {
+            const el = document.getElementById(id);
+            if (!el) return '';
+            return String(el.value == null ? '' : el.value).trim();
+        }
+
+        function buildUnitPreamblePayloadFromForm() {
+            const unitId = getTrimmedInputValue('unit_id');
+            if (!unitId) return null;
+            return {
+                id: unitId,
+                title: (document.getElementById('unit_title')?.value || ""),
+                title_translation: getNullableTrimmedInputValue('unit_title_translation'),
+                text: (document.getElementById('unit_text')?.value || "")
+            };
+        }
+
+        function buildLessonPreamblePayloadFromForm() {
+            const lessonId = getTrimmedInputValue('lesson_id');
+            if (!lessonId) return null;
+            return {
+                id: lessonId,
+                title: document.getElementById('lesson_title').value || "",
+                title_translation: getNullableTrimmedInputValue('lesson_title_translation'),
+                lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
+                terminology: Array.from(document.querySelectorAll('#terminology textarea')).map(textarea => textarea.value).filter(v => v),
+                text: document.getElementById('lesson_text').value || ""
+            };
+        }
+
+        function resetLessonPreambleArraysToSingleEmptyRow() {
+            const standards = document.getElementById('lesson_standards');
+            if (standards) {
+                standards.innerHTML = '';
+                addLessonStandard();
+            }
+            const terminology = document.getElementById('terminology');
+            if (terminology) {
+                terminology.innerHTML = '';
+                addTerminology();
+            }
         }
 
         function clearDynamicContainers() {
@@ -24753,11 +24951,26 @@
             });
             syncBookMetadataRequiredState();
 
+            // Unit preamble
+            const up = data.unit_preamble;
+            if (up && typeof up === 'object') {
+                setInputValue('#unit_id', up.id ?? up.unit_id ?? '');
+                setInputValue('#unit_title', up.title ?? up.unit_title ?? '');
+                setInputValue('#unit_title_translation', up.title_translation ?? up.unit_title_translation ?? '');
+                setInputValue('#unit_text', up.text ?? up.unit_text ?? '');
+            } else {
+                setInputValue('#unit_id', '');
+                setInputValue('#unit_title', '');
+                setInputValue('#unit_title_translation', '');
+                setInputValue('#unit_text', '');
+            }
+
             // Lesson preamble
             const lp = data.lesson_preamble;
             if (lp && typeof lp === 'object') {
                 setInputValue('#lesson_id', lp.id ?? lp.lesson_id ?? '');
                 setInputValue('#lesson_title', lp.title ?? lp.lesson_title ?? '');
+                setInputValue('#lesson_title_translation', lp.title_translation ?? '');
                 setInputValue('#lesson_text', lp.text ?? '');
                 fillStringArray('lesson_standards', lp.lesson_standards || [], addLessonStandard);
                 fillStringArray('terminology', lp.terminology || [], addTerminology);
@@ -25025,6 +25238,7 @@
             const t2 = t;
             t = t.replace(/\}\s*,\s*"(instructional_content)"/g, ', "$1"')
                  .replace(/\}\s*,\s*"(practice_questions)"/g, ', "$1"')
+                 .replace(/\}\s*,\s*"(unit_preamble)"/g, ', "$1"')
                  .replace(/\}\s*,\s*"(lesson_preamble)"/g, ', "$1"');
             if (t !== t2) notes.push('merged split top-level object');
 
@@ -25051,7 +25265,7 @@
             // Map a stray top-level text into lesson_preamble.text
             if (typeof data.text === 'string') {
                 if (!data.lesson_preamble || typeof data.lesson_preamble !== 'object') {
-                    data.lesson_preamble = { id: '', title: '', lesson_standards: [], terminology: [], text: data.text };
+                    data.lesson_preamble = { id: '', title: '', title_translation: null, lesson_standards: [], terminology: [], text: data.text };
                 } else if (!data.lesson_preamble.text) {
                     data.lesson_preamble.text = data.text;
                 }
@@ -25221,25 +25435,21 @@
             });
             syncBookMetadataRequiredState();
 
-            // lesson preamble
+            // unit + lesson preamble
+            setInputValue('#unit_id', '');
+            setInputValue('#unit_title', '');
+            setInputValue('#unit_title_translation', '');
+            setInputValue('#unit_text', '');
             setInputValue('#lesson_id', '');
             setInputValue('#lesson_title', '');
+            setInputValue('#lesson_title_translation', '');
             setInputValue('#lesson_text', '');
 
             // dynamic containers
             clearDynamicContainers();
 
             // Recreate one empty row for lesson standards and terminology
-            const standards = document.getElementById('lesson_standards');
-            if (standards) {
-                standards.innerHTML = '';
-                addLessonStandard();
-            }
-            const terminology = document.getElementById('terminology');
-            if (terminology) {
-                terminology.innerHTML = '';
-                addTerminology();
-            }
+            resetLessonPreambleArraysToSingleEmptyRow();
 
             // Clear JSON output/preview and input unless internal
             const jsonOutput = document.getElementById('json_output');
@@ -25789,11 +25999,11 @@
 
         // Insert table into text field
         function insertTable(textarea) {
-            // Check if this is a restricted field (lesson text)
-            const isLessonText = textarea.id === 'lesson_text';
+            // Check if this is a restricted field (unit/lesson preamble text)
+            const isPreambleText = textarea.id === 'lesson_text' || textarea.id === 'unit_text';
             
-            if (isLessonText) {
-                alert('Tables are not allowed in lesson preamble text. Please add tables only in question text, guide answers, set-up text, or content sections.');
+            if (isPreambleText) {
+                alert('Tables are not allowed in unit/lesson preamble text. Please add tables only in question text, guide answers, set-up text, or content sections.');
                 return;
             }
             
@@ -25836,11 +26046,11 @@
         // Insert image into text field with automatic indexing
         function insertImage(textarea) {
             
-            // Check if this is a restricted field (lesson text)
-            const isLessonText = textarea.id === 'lesson_text';
+            // Check if this is a restricted field (unit/lesson preamble text)
+            const isPreambleText = textarea.id === 'lesson_text' || textarea.id === 'unit_text';
             
-            if (isLessonText) {
-                alert('Images are not allowed in lesson preamble text. Please add images only in question text, guide answers, set-up text, or content sections.');
+            if (isPreambleText) {
+                alert('Images are not allowed in unit/lesson preamble text. Please add images only in question text, guide answers, set-up text, or content sections.');
                 return;
             }
             
@@ -25911,6 +26121,117 @@
                 copyBtn.style.background = '';
             }, 2000);
             
+        }
+
+        function clearSubtabFields(tabKey, options = {}) {
+            const { isInternalCall = false } = options;
+            const normalizedTabKey = typeof tabKey === 'string' ? tabKey.trim() : '';
+            if (!Object.prototype.hasOwnProperty.call(CLEARABLE_INPUT_SUBTAB_LABELS, normalizedTabKey)) {
+                return false;
+            }
+
+            let previewRoot = null;
+            let needsQuickJumpRefresh = false;
+
+            if (normalizedTabKey === 'book_metadata') {
+                BOOK_METADATA_FIELDS.forEach((field) => {
+                    setInputValue(`#${field.id}`, '');
+                });
+                syncBookMetadataRequiredState();
+                previewRoot = document.getElementById('book_metadata');
+            } else if (normalizedTabKey === 'unit_preamble') {
+                setInputValue('#unit_id', '');
+                setInputValue('#unit_title', '');
+                setInputValue('#unit_title_translation', '');
+                setInputValue('#unit_text', '');
+                previewRoot = document.getElementById('unit_preamble');
+            } else if (normalizedTabKey === 'preamble') {
+                setInputValue('#lesson_id', '');
+                setInputValue('#lesson_title', '');
+                setInputValue('#lesson_title_translation', '');
+                setInputValue('#lesson_text', '');
+                resetLessonPreambleArraysToSingleEmptyRow();
+                previewRoot = document.getElementById('preamble');
+            } else if (normalizedTabKey === 'basic') {
+                setInputValue('#textbook_page', '');
+                setInputValue('#textbook_pdf_page', '');
+                setInputValue('#guidebook_start_page', '');
+                setInputValue('#guidebook_end_page', '');
+                const pageTypeEl = document.getElementById('page_type');
+                if (pageTypeEl) pageTypeEl.value = 'content';
+                syncBookMetadataRequiredState();
+                previewRoot = document.getElementById('basic');
+            } else if (normalizedTabKey === 'content') {
+                const contentContainer = document.getElementById('content_sections_container');
+                if (contentContainer) contentContainer.innerHTML = '';
+                afterListMutation('content_sections_container');
+                previewRoot = document.getElementById('content');
+                needsQuickJumpRefresh = true;
+            } else if (normalizedTabKey === 'questions') {
+                const questionsContainer = document.getElementById('questions_container');
+                if (questionsContainer) questionsContainer.innerHTML = '';
+                afterListMutation('questions_container');
+                previewRoot = document.getElementById('questions');
+                needsQuickJumpRefresh = true;
+            }
+
+            if (previewRoot && typeof PreviewBox !== 'undefined' && PreviewBox.refreshAll) {
+                PreviewBox.refreshAll(previewRoot);
+            }
+            if (needsQuickJumpRefresh && typeof updateQuickJumpMenu === 'function') {
+                updateQuickJumpMenu();
+            }
+
+            if (!isInternalCall) {
+                const scopeDescriptor = getScopeDescriptorForClearSubtab(normalizedTabKey);
+                markFinalPreviewDirtyFromAction({
+                    type: ACTION_TYPES.CLEAR_FORM,
+                    scopeDescriptor: scopeDescriptor
+                }, 'clearCurrentSubtab');
+                if (isFinalPreviewActive()) {
+                    flushFinalPreviewIfActive('clearCurrentSubtab');
+                }
+                markFormAsChanged();
+                triggerAutoSave();
+            }
+            return true;
+        }
+
+        function confirmClearCurrentSubtab() {
+            const ctx = getClearCurrentSubtabContext();
+            if (!ctx.canClear || !ctx.subTabKey) {
+                updateClearCurrentSubtabButtonState();
+                return;
+            }
+
+            const warningMessage = `Warning: This will clear all fields in ${ctx.subTabLabel} only.\n\nDo you want to continue?`;
+            if (!confirm(warningMessage)) return;
+
+            let savedState = null;
+            try {
+                savedState = collectFormDataWithoutValidation();
+            } catch (e) {
+                console.warn('Could not save form state for undo:', e);
+            }
+
+            const targetTabKey = ctx.subTabKey;
+            const scopeDescriptor = getScopeDescriptorForClearSubtab(targetTabKey);
+
+            recordFormAction({
+                type: ACTION_TYPES.CLEAR_FORM,
+                savedState: savedState,
+                clearFunction: (isRedoInternalCall) => clearSubtabFields(targetTabKey, { isInternalCall: !!isRedoInternalCall }),
+                scopeDescriptor: scopeDescriptor
+            });
+
+            isFormUndoRedoInProgress = true;
+            try {
+                clearSubtabFields(targetTabKey, { isInternalCall: false });
+            } finally {
+                isFormUndoRedoInProgress = false;
+            }
+
+            updateClearCurrentSubtabButtonState();
         }
 
         // Confirm before clearing the form
@@ -26158,6 +26479,7 @@
                     guidebook_pdf_pages: generateGuidebookPageArray(),
                     page_type: document.getElementById('page_type').value || "content",
                     book_title_page: buildBookMetadataPayload(bookMetadata, { allowPartial: true }),
+                    unit_preamble: null,
                     lesson_preamble: null,
                     instructional_content: [],
                     practice_questions: []
@@ -26184,17 +26506,9 @@
                     }
                 });
 
-                // Add lesson preamble if provided
-                const lessonId = document.getElementById('lesson_id').value;
-                if (lessonId) {
-                    jsonData.lesson_preamble = {
-                        id: lessonId.trim(),
-                        title: document.getElementById('lesson_title').value || "",
-                        lesson_standards: Array.from(document.querySelectorAll('#lesson_standards textarea')).map(textarea => textarea.value).filter(v => v),
-                        terminology: Array.from(document.querySelectorAll('#terminology textarea')).map(textarea => textarea.value).filter(v => v),
-                        text: document.getElementById('lesson_text').value || ""
-                    };
-                }
+                // Add unit and lesson preambles if provided
+                jsonData.unit_preamble = buildUnitPreamblePayloadFromForm();
+                jsonData.lesson_preamble = buildLessonPreamblePayloadFromForm();
 
                 // Collect questions (same logic as generateJSON) - only get the main questions (direct children)
                 const questionElements = document.querySelectorAll('#questions_container > .array-item');
@@ -26712,6 +27026,7 @@
             installInputIsolationGuards();
             // Hydrate all static button groups first
             hydrateStaticButtons();
+            updateClearCurrentSubtabButtonState();
             
             // Set up sticky tabs height measurement (runs after hydration so buttons are rendered)
             requestLayoutRefit('init');
@@ -26728,6 +27043,20 @@
             }
             
             // Initialize refactored form controls (using createFormControl factory)
+            // Unit ID
+            const unitIdControl = createFormControl({
+                id: 'unit_id',
+                label: 'Unit ID',
+                type: 'text',
+                placeholder: 'e.g., 2 (For unit 2)',
+                dataset: { ltr: 'true' },
+                attrs: { title: 'Unique identifier for the unit (e.g., 2)' }
+            });
+            const unitIdContainer = document.getElementById('unit_id_container');
+            if (unitIdContainer) {
+                unitIdContainer.appendChild(unitIdControl.rootEl);
+            }
+
             // Lesson ID
             const lessonIdControl = createFormControl({
                 id: 'lesson_id',
@@ -26742,52 +27071,79 @@
                 lessonIdContainer.appendChild(lessonIdControl.rootEl);
             }
             
-            // Lesson Title
-            const lessonTitleControl = createFormControl({
+            // Unit/Lesson preamble title-style single-line markdown inputs.
+            function appendPreambleTitleStyleInput(containerId, config) {
+                const control = createFormControl(config);
+                const container = document.getElementById(containerId);
+                if (!container || !control || !control.rootEl || !control.controlEl) return;
+                const textFieldContainer = document.createElement('div');
+                textFieldContainer.className = 'text-field-container';
+                const input = control.controlEl;
+                if (input.parentElement === control.rootEl) {
+                    control.rootEl.removeChild(input);
+                }
+                textFieldContainer.innerHTML = getTitleMarkdownButtonBarHTML('input');
+                textFieldContainer.insertBefore(input, textFieldContainer.firstChild);
+                container.appendChild(textFieldContainer);
+            }
+
+            appendPreambleTitleStyleInput('unit_title_container', {
+                id: 'unit_title',
+                type: 'text',
+                placeholder: 'e.g., الطاقة الحركية',
+                attrs: { title: 'The title of the unit (supports markdown formatting)' }
+            });
+
+            appendPreambleTitleStyleInput('unit_title_translation_container', {
+                id: 'unit_title_translation',
+                type: 'text',
+                placeholder: 'e.g., Kinetic Energy (leave empty if Arabic only)',
+                dataset: { ltr: 'true' },
+                attrs: { title: 'English translation of the unit title when available (supports markdown formatting)' }
+            });
+
+            appendPreambleTitleStyleInput('lesson_title_container', {
                 id: 'lesson_title',
                 type: 'text',
-                placeholder: 'e.g., Parallel and Perpendicular Lines',
+                placeholder: 'مثال: الأعداد غير النسبية',
                 attrs: { title: 'The title of the lesson (supports markdown formatting)' }
                 // No data-ltr="true" - defaults to RTL for content
             });
-            const lessonTitleContainer = document.getElementById('lesson_title_container');
-            if (lessonTitleContainer) {
-                // Create text-field-container structure with title toolbar
-                const textFieldContainer = document.createElement('div');
-                textFieldContainer.className = 'text-field-container';
-                
-                // Extract just the input element (we already have form-group structure)
-                const input = lessonTitleControl.controlEl;
-                lessonTitleControl.rootEl.removeChild(input);
-                
-                // Build the structure: input + title toolbar
-                textFieldContainer.innerHTML = getTitleMarkdownButtonBarHTML('input');
-                
-                // Insert input before the buttons
-                const temp = document.createElement('div');
-                temp.appendChild(input);
-                textFieldContainer.insertBefore(input, textFieldContainer.firstChild);
-                
-                lessonTitleContainer.appendChild(textFieldContainer);
-            }
+
+            appendPreambleTitleStyleInput('lesson_title_translation_container', {
+                id: 'lesson_title_translation',
+                type: 'text',
+                placeholder: 'e.g., Irrational Numbers (leave empty if Arabic only)',
+                dataset: { ltr: 'true' },
+                attrs: { title: 'English translation of the lesson title when available (supports markdown formatting)' }
+            });
             
-            // Lesson Text
-            const lessonTextContainer = document.getElementById('lesson_text_container');
-            if (lessonTextContainer) {
+            function appendPreambleTextAreaInput(containerId, config) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
                 const textFieldContainer = document.createElement('div');
                 textFieldContainer.className = 'text-field-container';
                 textFieldContainer.innerHTML = `
                     <span class="input-label">Input Markdown</span>
-                    <textarea id="lesson_text" placeholder="Additional lesson text not captured above..." title="Additional lesson text that supports markdown formatting"></textarea>
+                    <textarea id="${config.id}" placeholder="${config.placeholder}" title="${config.title}"></textarea>
                     ${getMarkdownButtonBarHTML()}
                 `;
-                lessonTextContainer.appendChild(textFieldContainer);
-                // Set RTL default direction
+                container.appendChild(textFieldContainer);
                 const textarea = textFieldContainer.querySelector('textarea');
-                if (textarea) {
-                    textarea.setAttribute('dir', 'rtl');
-                }
+                if (textarea) textarea.setAttribute('dir', 'rtl');
             }
+
+            appendPreambleTextAreaInput('unit_text_container', {
+                id: 'unit_text',
+                placeholder: 'Additional unit text not captured above...',
+                title: 'Additional unit text that supports markdown formatting'
+            });
+
+            appendPreambleTextAreaInput('lesson_text_container', {
+                id: 'lesson_text',
+                placeholder: 'Additional lesson text not captured above...',
+                title: 'Additional lesson text that supports markdown formatting'
+            });
             
             // Book Metadata
             function appendBookMetadataTitleStyleInput(containerId, config) {
@@ -26999,9 +27355,6 @@
             // Auto-load PDFs from IndexedDB storage (for both bbox modal and main PDF viewer)
             initializePdfStore();
             
-            // Initialize dark mode
-            initializeDarkMode();
-            
             // Hydrate static action buttons
             hydrateStaticActionButtons();
             
@@ -27165,6 +27518,7 @@
                                       m.target.closest('#lesson_standards') ||
                                       m.target.closest('#terminology') ||
                                       m.target.closest('#book_metadata') ||
+                                      m.target.closest('#unit_preamble') ||
                                       m.target.closest('#basic') ||
                                       m.target.closest('#preamble') ||
                                       (m.target.id === 'content_sections_container' ? m.target : null) ||
@@ -28537,11 +28891,13 @@
             }
             // Override from focused element's tab-content when in input form
             if (focused) {
-                const tabContent = focused.closest('#book_metadata, #basic, #preamble, #content, #questions');
+                const tabContent = focused.closest('#book_metadata, #unit_preamble, #basic, #preamble, #content, #questions');
                 if (tabContent) {
                     const id = tabContent.id;
                     if (id === 'book_metadata') {
                         context.activeTab = 'book metadata';
+                    } else if (id === 'unit_preamble') {
+                        context.activeTab = 'unit preamble';
                     } else {
                         context.activeTab = id === 'preamble' ? 'lesson preamble' : id === 'basic' ? 'basic info' : id;
                     }
@@ -28679,6 +29035,8 @@
             switch(tabName) {
                 case 'book metadata':
                 case 'book_metadata':
+                case 'unit preamble':
+                case 'unit_preamble':
                 case 'basic':
                 case 'preamble':
                     // Get textbook page from PDF Page Number field
@@ -29034,8 +29392,8 @@
             
             // Specific textbook-related field IDs
             const textbookFieldIds = [
-                'textbook_page', 'textbook_pdf_page', 'lesson_id', 'lesson_title', 
-                'lesson_text', 'page_type',
+                'textbook_page', 'textbook_pdf_page', 'lesson_id', 'lesson_title', 'lesson_title_translation',
+                'lesson_text', 'unit_id', 'unit_title', 'unit_title_translation', 'unit_text', 'page_type',
                 'book_title_page_title', 'book_title_page_subtitle', 'book_title_page_version',
                 'book_title_page_grade', 'book_title_page_semester', 'book_title_page_lang', 'book_title_page_subject'
             ];
@@ -29055,6 +29413,9 @@
                         labelText.includes('Question ID') ||
                         labelText.includes('Set-up Text') ||
                         labelText.includes('Question Text') ||
+                        labelText.includes('Unit ID') ||
+                        labelText.includes('Unit Title') ||
+                        labelText.includes('Unit Text') ||
                         labelText.includes('Lesson Standards') ||
                         labelText.includes('Terminology') ||
                         labelText.includes('Lesson Text') ||
@@ -29382,5 +29743,6 @@
 
 </body>
 </html>
+
 
 
