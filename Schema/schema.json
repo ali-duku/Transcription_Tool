@@ -1,208 +1,207 @@
-{
-   "$defs": {
-     "Bbox": {
-       "maxItems": 2, "minItems": 2,
-       "prefixItems": [
-         { "$ref": "#/$defs/Point", "title": "Topright" },
-         { "$ref": "#/$defs/Point", "title": "Bottomleft" }
-       ],
-       "type": "array"
-     },
-     "BookTitlePage": {
-       "description": "Transcription of the book's title/cover page.\n\nExactly one transcript entry per book should carry this, with\npage_type=\"title_page\".",
-       "properties": {
-         "title":    { "title": "Title",    "type": "string" },
-         "subtitle": { "title": "Subtitle", "type": "string" },
-         "version":  { "title": "Version",  "type": "string" },
-         "grade":    { "title": "Grade",    "type": "integer" },
-         "semester": { "title": "Semester", "type": "integer" },
-         "lang":     { "title": "Lang",     "type": "string" },
-         "subject":  { "title": "Subject",  "type": "string" }
-       },
-       "required": ["title","subtitle","version","grade","semester","lang","subject"],
-       "title": "BookTitlePage", "type": "object"
-     },
-     "InstructionalContent": {
-       "properties": {
-         "section_title": { "title": "Section Title", "type": "string" },
-         "text":          { "title": "Text",          "type": "string" },
-         "images": {
-           "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
-           "default": null, "title": "Images"
-         }
-       },
-       "required": ["section_title","text"],
-       "title": "InstructionalContent", "type": "object"
-     },
-     "LessonPreamble": {
-       "properties": {
-         "id":    { "title": "Id",    "type": "string" },
-         "title": { "title": "Title", "type": "string" },
-         "title_translation": {
-           "anyOf": [{ "type": "string" }, { "type": "null" }],
-           "default": null, "title": "Title Translation"
-         },
-         "lesson_standards": { "items": { "type": "string" }, "title": "Lesson Standards", "type": "array" },
-         "terminology":      { "items": { "type": "string" }, "title": "Terminology",      "type": "array" },
-         "text": {
-           "anyOf": [{ "type": "string" }, { "type": "null" }],
-           "default": null, "title": "Text"
-         }
-       },
-       "required": ["id","title","lesson_standards","terminology"],
-       "title": "LessonPreamble", "type": "object"
-     },
-     "PageRange": {
-       "maxItems": 2, "minItems": 2,
-       "prefixItems": [
-         { "title": "Start", "type": "integer" },
-         { "title": "End",   "type": "integer" }
-       ],
-       "type": "array"
-     },
-     "PageType": {
-       "enum": ["content","title_page","table_of_content","unit_table_of_content","vocabulary","project","other"],
-       "title": "PageType", "type": "string"
-     },
-     "PagedBbox": {
-       "properties": {
-         "page":     { "title": "Page", "type": "integer" },
-         "position": { "$ref": "#/$defs/Bbox" }
-       },
-       "required": ["page","position"],
-       "title": "PagedBbox", "type": "object"
-     },
-     "Point": {
-       "maxItems": 2, "minItems": 2,
-       "prefixItems": [
-         { "title": "X", "type": "integer" },
-         { "title": "Y", "type": "integer" }
-       ],
-       "type": "array"
-     },
-     "PracticeQuestion": {
-       "description": "A single practice question.\n\nField names mirror the DB model (TextbookQuestion) so the ingestion\nlayer is a straightforward pass-through.",
-       "properties": {
-         "id": { "title": "Id", "type": "string" },
-         "question_type": {
-           "$ref": "#/$defs/QuestionType",
-           "description": "Determines how options and guide_answer are interpreted. See the QuestionType description for the full per-type contract."
-         },
-         "question": {
-           "description": "The question text. For fill_in_the_blanks, blanks are denoted ___1___, ___2___, etc. (1-indexed).",
-           "title": "Question", "type": "string"
-         },
-         "question_images": {
-           "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
-           "default": null,
-           "description": "Bounding boxes of images that are part of the question.",
-           "title": "Question Images"
-         },
-         "setup_text": {
-           "anyOf": [{ "type": "string" }, { "type": "null" }],
-           "default": null,
-           "description": "Shared introductory text that applies to a group of related questions.",
-           "title": "Setup Text"
-         },
-         "guide_answer": {
-           "description": "The correct answer(s). Interpretation depends on question_type: free_form -> single-element list with the answer text; multiple_choice -> single-element list with the correct option text; checkbox -> list of every correct option text; fill_in_the_blanks -> ordered list of blank values (___1___ -> index 0, etc.); annotate -> single-element list with any textual answer component; matching -> list of \"left_text:right_text\" pairing strings; create_table -> single-element list with the table in markdown syntax.",
-           "items": { "type": "string" },
-           "title": "Guide Answer", "type": "array"
-         },
-         "guide_pdf_page": {
-           "anyOf": [{ "type": "integer" }, { "type": "null" }],
-           "default": null,
-           "description": "PDF page index where the guide/teacher-edition answer is found.",
-           "title": "Guide Pdf Page"
-         },
-         "guide_answer_images": {
-           "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
-           "default": null,
-           "description": "Bounding boxes of images in the guide that show the answer.",
-           "title": "Guide Answer Images"
-         },
-         "options": {
-           "anyOf": [{ "items": { "type": "string" }, "type": "array" }, { "type": "null" }],
-           "default": null,
-           "description": "Answer options when applicable. multiple_choice / checkbox: list of option texts. matching: left-column items, then \"---\" separator, then right-column items. All other types: null.",
-           "title": "Options"
-         },
-         "difficulty": {
-           "anyOf": [{ "$ref": "#/$defs/QuestionDifficultyLevel" }, { "type": "null" }],
-           "default": null,
-           "description": "Difficulty level of the question."
-         }
-       },
-       "required": ["id","question_type","question","guide_answer"],
-       "title": "PracticeQuestion", "type": "object"
-     },
-     "QuestionDifficultyLevel": {
-       "enum": ["easy","medium","hard"],
-       "title": "QuestionDifficultyLevel", "type": "string"
-     },
-     "QuestionType": {
-       "description": "All question types a practice question can have.\n\nEvery type uses the same flat fields on PracticeQuestion; the table\nbelow shows how each type maps to ``options`` and ``guide_answer``.\n\nfree_form\n    Open-ended text answer.\n    options: None\n    guide_answer: single-element list with the answer text.\n\nmultiple_choice\n    Exactly one correct option.\n    options: list of option strings shown to the student.\n    guide_answer: single-element list with the correct option text.\n\ncheckbox\n    One or more correct options.\n    options: list of option strings shown to the student.\n    guide_answer: list of all correct option texts.\n\nfill_in_the_blanks\n    Blanks in the question text are denoted ``___1___``, ``___2___``, etc.\n    options: None\n    guide_answer: list of blank values in order (index-aligned with the\n    blank markers).\n\nannotate\n    Student draws on an image/graph.  The question image bbox is the\n    primary content; any textual answer goes in guide_answer.\n    options: None\n    guide_answer: single-element list (may be empty string if purely visual).\n\nmatching\n    Linking items from two columns.\n    options: left-column items, then the separator ``\"---\"``, then\n    right-column items.  Example for 2 left + 3 right::\n\n        [\"Capital of France\", \"Capital of Germany\", \"---\", \"Berlin\", \"Paris\", \"Madrid\"]\n\n    guide_answer: list of ``\"left_text:right_text\"`` pairs describing\n    the correct mapping.  Example::\n\n        [\"Capital of France:Paris\", \"Capital of Germany:Berlin\"]\n\ncreate_table\n    Student fills in a table.  guide_answer contains the table in\n    markdown syntax.\n    options: None\n    guide_answer: single-element list with the markdown table.",
-       "enum": ["free_form","multiple_choice","checkbox","fill_in_the_blanks","annotate","matching","create_table"],
-       "title": "QuestionType", "type": "string"
-     },
-     "UnitPreamble": {
-       "description": "Transcription of a unit's opening page.\n\nSet this field on the first content page of each unit.  The unit's\npage range is derived automatically: it starts at this page and ends\nat the page before the next unit (or last page of the book).",
-       "properties": {
-         "id":    { "title": "Id",    "type": "string" },
-         "title": { "title": "Title", "type": "string" },
-         "title_translation": {
-           "anyOf": [{ "type": "string" }, { "type": "null" }],
-           "default": null, "title": "Title Translation"
-         },
-         "text": {
-           "anyOf": [{ "type": "string" }, { "type": "null" }],
-           "default": null, "title": "Text"
-         }
-       },
-       "required": ["id","title"],
-       "title": "UnitPreamble", "type": "object"
-     }
-   },
-   "properties": {
-     "textbook_page":     { "title": "Textbook Page",     "type": "integer" },
-     "textbook_pdf_page": { "title": "Textbook Pdf Page",  "type": "integer" },
-     "guidebook_pdf_pages": {
-       "anyOf": [{ "$ref": "#/$defs/PageRange" }, { "type": "null" }],
-       "default": null
-     },
-     "page_type": { "$ref": "#/$defs/PageType" },
-     "book_title_page": {
-       "anyOf": [{ "$ref": "#/$defs/BookTitlePage" }, { "type": "null" }],
-       "default": null,
-       "description": "Present only on the entry with page_type=\"title_page\". Contains book-level metadata."
-     },
-     "unit_preamble": {
-       "anyOf": [{ "$ref": "#/$defs/UnitPreamble" }, { "type": "null" }],
-       "default": null,
-       "description": "Present on the first content page of each unit. Signals the start of a new unit."
-     },
-     "lesson_preamble": {
-       "anyOf": [{ "$ref": "#/$defs/LessonPreamble" }, { "type": "null" }],
-       "default": null,
-       "description": "Present on the first content page of each lesson. Signals the start of a new lesson."
-     },
-     "instructional_content": {
-       "anyOf": [
-         { "items": { "$ref": "#/$defs/InstructionalContent" }, "type": "array" },
-         { "type": "null" }
-       ],
-       "default": null, "title": "Instructional Content"
-     },
-     "practice_questions": {
-       "anyOf": [
-         { "items": { "$ref": "#/$defs/PracticeQuestion" }, "type": "array" },
-         { "type": "null" }
-       ],
-       "default": null, "title": "Practice Questions"
-     }
-   },
-   "required": ["textbook_page","textbook_pdf_page","page_type"],
-   "title": "Transcript",
-   "type": "object"
- }
- 
+﻿{
+  "title": "Transcript",
+  "type": "object",
+  "properties": {
+    "textbook_page": { "title": "Textbook Page", "type": "integer" },
+    "textbook_pdf_page": { "title": "Textbook Pdf Page", "type": "integer" },
+    "guidebook_pdf_pages": {
+      "anyOf": [{ "$ref": "#/$defs/PageRange" }, { "type": "null" }],
+      "default": null
+    },
+    "page_type": { "$ref": "#/$defs/PageType" },
+    "book_title_page": {
+      "anyOf": [{ "$ref": "#/$defs/BookTitlePage" }, { "type": "null" }],
+      "default": null,
+      "description": "Present only on entries where page_type='title_page'. Contains book-level metadata."
+    },
+    "unit_preamble": {
+      "anyOf": [{ "$ref": "#/$defs/UnitPreamble" }, { "type": "null" }],
+      "default": null,
+      "description": "Present on the first page of each unit, signaling the start of a new unit."
+    },
+    "lesson_preamble": {
+      "anyOf": [{ "$ref": "#/$defs/LessonPreamble" }, { "type": "null" }],
+      "default": null,
+      "description": "Present on the first page of each lesson, signaling the start of a new lesson."
+    },
+    "instructional_content": {
+      "anyOf": [
+        { "items": { "$ref": "#/$defs/InstructionalContent" }, "type": "array" },
+        { "type": "null" }
+      ],
+      "default": null, "title": "Instructional Content"
+    },
+    "practice_questions": {
+      "anyOf": [
+        { "items": { "$ref": "#/$defs/PracticeQuestion" }, "type": "array" },
+        { "type": "null" }
+      ],
+      "default": null, "title": "Practice Questions"
+    }
+  },
+  "required": ["textbook_page","textbook_pdf_page","page_type"],
+  "$defs": {
+    "PageRange": {
+      "maxItems": 2, "minItems": 2,
+      "prefixItems": [
+        { "title": "Start", "type": "integer" },
+        { "title": "End", "type": "integer" }
+      ],
+      "type": "array"
+    },
+    "Point": {
+      "maxItems": 2, "minItems": 2,
+      "prefixItems": [
+        { "title": "X", "type": "integer" },
+        { "title": "Y", "type": "integer" }
+      ],
+      "type": "array"
+    },
+    "Bbox": {
+      "maxItems": 2, "minItems": 2,
+      "prefixItems": [
+        { "$ref": "#/$defs/Point", "title": "Topright" },
+        { "$ref": "#/$defs/Point", "title": "Bottomleft" }
+      ],
+      "type": "array"
+    },
+    "PagedBbox": {
+      "properties": {
+        "page": { "title": "Page", "type": "integer" },
+        "position": { "$ref": "#/$defs/Bbox" }
+      },
+      "required": ["page","position"],
+      "title": "PagedBbox", "type": "object"
+    },
+    "PageType": {
+      "enum": ["content","title_page","table_of_content","unit_table_of_content","vocabulary","project","other"],
+      "title": "PageType", "type": "string"
+    },
+    "BookTitlePage": {
+      "description": "Transcription of the book title or cover page.",
+      "properties": {
+        "title": { "title": "Title", "type": "string" },
+        "subtitle": { "title": "Subtitle", "type": "string" },
+        "version": { "title": "Version", "type": "string" },
+        "grade": { "title": "Grade", "type": "integer" },
+        "semester": { "title": "Semester", "type": "integer" },
+        "lang": { "title": "Lang", "type": "string" },
+        "subject": { "title": "Subject", "type": "string" }
+      },
+      "required": ["title","subtitle","version","grade","semester","lang","subject"],
+      "title": "BookTitlePage", "type": "object"
+    },
+    "UnitPreamble": {
+      "description": "Transcription of a unit opening page. Present on the first page of each unit, signaling the start of a new unit.",
+      "properties": {
+        "id": { "title": "Id", "type": "string" },
+        "title": { "title": "Title", "type": "string" },
+        "title_translation": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "default": null, "title": "Title Translation"
+        },
+        "text": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "default": null, "title": "Text"
+        }
+      },
+      "required": ["id","title"],
+      "title": "UnitPreamble", "type": "object"
+    },
+    "LessonPreamble": {
+      "properties": {
+        "id": { "title": "Id", "type": "string" },
+        "title": { "title": "Title", "type": "string" },
+        "title_translation": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "default": null, "title": "Title Translation"
+        },
+        "lesson_standards": { "items": { "type": "string" }, "title": "Lesson Standards", "type": "array" },
+        "terminology": { "items": { "type": "string" }, "title": "Terminology", "type": "array" },
+        "text": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "default": null, "title": "Text"
+        }
+      },
+      "required": ["id","title","lesson_standards","terminology"],
+      "title": "LessonPreamble", "type": "object"
+    },
+    "InstructionalContent": {
+      "properties": {
+        "section_title": { "title": "Section Title", "type": "string" },
+        "text": { "title": "Text", "type": "string" },
+        "images": {
+          "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
+          "default": null, "title": "Images"
+        }
+      },
+      "required": ["section_title","text"],
+      "title": "InstructionalContent", "type": "object"
+    },
+    "QuestionDifficultyLevel": {
+      "enum": ["easy","medium","hard"],
+      "title": "QuestionDifficultyLevel", "type": "string"
+    },
+    "QuestionType": {
+      "description": "All supported practice-question types. Every type uses the same flat fields on PracticeQuestion, but options and guide_answer are interpreted by type: free_form -> options null; guide_answer is a single-element list with answer text. multiple_choice -> options is a list of option texts; guide_answer is a single-element list with the correct option text. checkbox -> options is a list of option texts; guide_answer is a list of all correct option texts. fill_in_the_blanks -> options null; blanks are marked ___1___, ___2___, etc.; guide_answer is the ordered list of blank values. annotate -> options null; guide_answer is a single-element list for the answer content. matching -> options contains left items, then '---', then right items; guide_answer is a list of 'left_text:right_text' pairs. create_table -> options null; guide_answer is a single-element list containing the answer content which can be a markdown table.",
+      "enum": ["free_form","multiple_choice","checkbox","fill_in_the_blanks","annotate","matching","create_table"],
+      "title": "QuestionType", "type": "string"
+    },
+    "PracticeQuestion": {
+      "description": "A single practice question.",
+      "properties": {
+        "id": { "title": "Id", "type": "string" },
+        "difficulty": {
+          "anyOf": [{ "$ref": "#/$defs/QuestionDifficultyLevel" }, { "type": "null" }],
+          "default": null,
+          "description": "Difficulty level of the question. Always null."
+        },
+        "question_type": {
+          "$ref": "#/$defs/QuestionType",
+          "description": "Determines how options and guide_answer are interpreted. See QuestionType for the full per-type contract."
+        },
+        "guide_pdf_page": {
+          "anyOf": [{ "type": "integer" }, { "type": "null" }],
+          "default": null,
+          "description": "PDF page index where the guide or teacher-edition answer appears.",
+          "title": "Guide Pdf Page"
+        },
+        "setup_text": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "default": null,
+          "description": "Shared introductory text that applies to a group of related questions.",
+          "title": "Setup Text"
+        },
+        "question": {
+          "description": "Question text. For fill_in_the_blanks, blanks are denoted ___1___, ___2___, etc. (1-indexed).",
+          "title": "Question", "type": "string"
+        },
+        "options": {
+          "anyOf": [{ "items": { "type": "string" }, "type": "array" }, { "type": "null" }],
+          "default": null,
+          "description": "Answer options when applicable. multiple_choice and checkbox: list of option texts. matching: left-column items, then '---', then right-column items. All other types: null.",
+          "title": "Options"
+        },
+        "question_images": {
+          "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
+          "default": null,
+          "description": "Bounding boxes of images that are part of the question.",
+          "title": "Question Images"
+        },
+        "guide_answer": {
+          "description": "Correct answer values. Interpretation depends on question_type: free_form -> single-element list with answer text; multiple_choice -> single-element list with correct option text; checkbox -> list of all correct option texts; fill_in_the_blanks -> ordered list of blank values ('___1___' maps to index 0); annotate -> single-element list for answer content; matching -> list of 'left_text:right_text' pairs; create_table -> single-element list with the answer content which can be a markdown table.",
+          "items": { "type": "string" },
+          "title": "Guide Answer", "type": "array"
+        },
+        "guide_answer_images": {
+          "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
+          "default": null,
+          "description": "Bounding boxes of guide images that show the answer.",
+          "title": "Guide Answer Images"
+        }
+      },
+      "required": ["id","question_type","question","guide_answer"],
+      "title": "PracticeQuestion", "type": "object"
+    }
+  }
+}

@@ -1,6 +1,7 @@
 # Master -> new_schema Change Summary
 
 This document summarizes everything that changed:
+
 - **Schema:** `transcription_schema.json` -> `schema.json`
 - **Tool UI/logic:** `master:index.html` -> `new_schema:index.html`
 
@@ -9,6 +10,7 @@ The goal is to share one clear, non-technical update with the team.
 ## 1) Schema changes (`transcription_schema.json` -> `schema.json`)
 
 ### A. Top-level model updates
+
 - Added new top-level sections:
   - `book_title_page`
   - `unit_preamble`
@@ -18,6 +20,7 @@ The goal is to share one clear, non-technical update with the team.
   - `title_page`
 
 ### B. New/updated preamble objects
+
 - **Lesson preamble** now includes:
   - `id` (new, required)
   - `title_translation` (new, optional/nullable)
@@ -29,6 +32,7 @@ The goal is to share one clear, non-technical update with the team.
   - all required inside this object
 
 ### C. Question schema redesign (major)
+
 - Old per-type question schemas were replaced by one unified `PracticeQuestion`.
 - Removed old per-type defs:
   - `PracticeQuestionFreeForm`, `PracticeQuestionMultipleChoice`, `PracticeQuestionCheckbox`, `PracticeQuestionFillInTheBlanks`, `PracticeQuestionAnnotate`, `PracticeQuestionMatching`, `PracticeQuestionCreateTable`
@@ -38,6 +42,7 @@ The goal is to share one clear, non-technical update with the team.
   - `QuestionDifficultyLevel` enum
 
 ### D. Question field contract changes
+
 - Canonical text keys are now:
   - `question` (instead of `question_text`)
   - `setup_text` (instead of `set_up_text`)
@@ -51,16 +56,19 @@ The goal is to share one clear, non-technical update with the team.
 - `guide_pdf_page` and `guide_answer_images` remain supported as optional fields.
 
 ### E. Legacy shape removed from schema surface
+
 - Legacy option object (`MultipleChoiceOption` with `id` + `text`) is gone.
 - Choice IDs are no longer part of the canonical question schema contract.
 
 ## 2) Tool changes (`master:index.html` -> current `index.html` on `new_schema`)
 
 ### A. Version and release notes
+
 - Tool version updated from `7.9.3` to `8.0`.
 - 8.0 "What's New" now documents the schema migration changes and workflow updates.
 
 ### B. New tabs and form structure
+
 - Added **Book Metadata** subtab.
 - Added **Unit Preamble** subtab.
 - Subtab flow is now:
@@ -72,17 +80,20 @@ The goal is to share one clear, non-technical update with the team.
   - JSON build/load/save flows
 
 ### C. Title page workflow
+
 - Added `Title Page` in Page Type options.
 - Book Metadata fields are conditionally enforced for `title_page`.
 - Book Metadata appears in output and final preview in canonical order.
 
 ### D. New title translation support
+
 - Added **Lesson Title Translation** field.
 - Added **Unit Title Translation** field.
 - Translation fields are wired to load/save/generate/preview.
 - Translation fields default to LTR input behavior.
 
 ### E. Question engine refactor and migration plumbing
+
 - Introduced centralized adapter:
   - `QuestionSchemaAdapter`
 - Unified question normalization/export/load through this adapter.
@@ -91,6 +102,7 @@ The goal is to share one clear, non-technical update with the team.
 - Deprecated keys are normalized/ignored centrally (not scattered across code).
 
 ### F. Question behavior updates aligned to new schema
+
 - `related_question` removed from active question flow.
 - Choice IDs removed from active MCQ/Checkbox flow:
   - no longer used in UI logic/export
@@ -111,15 +123,18 @@ The goal is to share one clear, non-technical update with the team.
 - `difficulty` is emitted as `null` (UI-hidden).
 
 ### G. Preview, navigation, and editing stability improvements
+
 - Final Preview and Quick Jump navigation behavior was hardened to avoid bad first-load scroll targeting.
 - Auto-size on/off navigation jitter was addressed in tab-switch + scroll timing logic.
 - Reset/undo/final-preview stale-card issues were fixed for Book Metadata and Basic Info areas.
 - Preview-with-answers rendering issues were fixed (height behavior and placeholder fill consistency).
 
 ### H. Matching usability improvement
+
 - Matching relationship dropdown now shows item index + text snippet (or full text when short) to make selection clearer.
 
 ### I. Table insertion behavior update
+
 - Insert Table now adds only table markdown (no image-description line before it).
 - Placeholder format changed to underscore style:
   - `Header_1`, `Header_2`, ...
@@ -127,12 +142,14 @@ The goal is to share one clear, non-technical update with the team.
 - Inserted tables are center-aligned by default.
 
 ### J. Clear-scope utility
+
 - Added new button near Clear Form:
   - **Clear All {Current Subtab} Fields**
 - Works only in Input Form subtabs.
 - Disabled in Final Preview with a note.
 
 ### K. Theme mode policy update
+
 - Light mode was removed completely.
 - Tool is now dark-mode only.
 - Theme toggle runtime/UI and related storage logic were removed.
@@ -150,6 +167,7 @@ The goal is to share one clear, non-technical update with the team.
 
 This migration was not cosmetic: it moved the tool to the new unified schema contract while preserving old-file load compatibility.  
 Main outcomes:
+
 - New page-level structures (`book_title_page`, `unit_preamble`)
 - Unified question model and canonical output order
 - Cleaner question authoring for derived-answer types
