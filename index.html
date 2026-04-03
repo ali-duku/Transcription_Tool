@@ -37,7 +37,8 @@
                         iconColor: '#dc3545',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
-                            '<strong>Image references now support 10+ correctly:</strong> Fixed a validation bug that incorrectly showed a missing closing parenthesis error when image indices reached two digits (for example <code>![description](10)</code>). Multi-digit image numbers now validate correctly.'
+                            '<strong>Image references now support 10+ correctly:</strong> Fixed a validation bug that incorrectly showed a missing closing parenthesis error when image indices reached two digits (for example <code>![description](10)</code>). Multi-digit image numbers now validate correctly.',
+                            '<strong>Structural image controls no longer shift the left column:</strong> Fixed an issue where clicking image structure controls (Before, After, Move Up/Down, Duplicate, Remove, Add Image) could move the Input Form left-column scroll position, especially when Auto-Resize was OFF. These actions now keep the left column viewport stable.'
                         ]
                     }
                 ]
@@ -2227,7 +2228,7 @@
                 
                 // Build button HTML
                 const buttonHTML = `
-                    <button class="${cls}"${onclickAttr} title="${title}"${customStyle ? ` style="${customStyle}"` : ''}>
+                    <button type="button" class="${cls}"${onclickAttr} title="${title}"${customStyle ? ` style="${customStyle}"` : ''}>
                         ${iconHTML}${label ? ` ${label}` : ''}
                     </button>
                 `;
@@ -2241,6 +2242,38 @@
             }
             
             return buttonsHTML;
+        }
+
+        // Structural bbox controls mutate nearby DOM; preventing pointer-focus avoids browser
+        // auto-scrolling the viewport to keep the focused button in view during reflow.
+        function isViewportStableStructureButton(btn) {
+            if (!btn || btn.tagName !== 'BUTTON' || !btn.closest || !btn.closest('#input-form')) return false;
+
+            if (
+                btn.classList.contains('add-bbox-btn') ||
+                btn.classList.contains('reorder-btn') ||
+                btn.classList.contains('duplicate-btn') ||
+                btn.classList.contains('remove-btn')
+            ) {
+                return true;
+            }
+
+            if (!btn.classList.contains('add-btn')) return false;
+            const onClickAttr = btn.getAttribute('onclick') || '';
+            return onClickAttr.includes('addContentImage(') ||
+                   onClickAttr.includes('addQuestionImage(') ||
+                   onClickAttr.includes('addAnswerImage(');
+        }
+
+        function attachStructuralControlFocusGuard() {
+            if (window.__structuralControlFocusGuardAttached) return;
+            window.__structuralControlFocusGuardAttached = true;
+
+            document.addEventListener('pointerdown', function(e) {
+                const btn = e.target && e.target.closest ? e.target.closest('button') : null;
+                if (!isViewportStableStructureButton(btn)) return;
+                e.preventDefault();
+            }, true);
         }
 
         // Helper to get list context for nested lists (choices, matching items)
@@ -6189,15 +6222,15 @@
                                     <div class="js-markdown-toolbar" data-include-image="false" data-include-table="false"></div>
                                 </div>
                                 <div class="row-actions">
-                                    <button class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
+                                    <button type="button" class="add-bbox-btn" onclick="addLessonStandardBefore(this)" title="Add Standard Before">
                                         <i class="fas fa-plus"></i> Before
                                     </button>
-                                    <button class="add-bbox-btn" onclick="addLessonStandardAfter(this)" title="Add Standard After">
+                                    <button type="button" class="add-bbox-btn" onclick="addLessonStandardAfter(this)" title="Add Standard After">
                                         <i class="fas fa-plus"></i> After
                                     </button>
-                                    <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                                    <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                                    <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
+                                    <button type="button" class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
+                                    <button type="button" class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
+                                    <button type="button" class="remove-btn" onclick="removeArrayItem(this)">×</button>
                                 </div>
                             </div>
                         </div>
@@ -6214,15 +6247,15 @@
                                     <div class="js-markdown-toolbar" data-include-image="false" data-include-table="false"></div>
                                 </div>
                                 <div class="row-actions">
-                                    <button class="add-bbox-btn" onclick="addTerminologyBefore(this)" title="Add Term Before">
+                                    <button type="button" class="add-bbox-btn" onclick="addTerminologyBefore(this)" title="Add Term Before">
                                         <i class="fas fa-plus"></i> Before
                                     </button>
-                                    <button class="add-bbox-btn" onclick="addTerminologyAfter(this)" title="Add Term After">
+                                    <button type="button" class="add-bbox-btn" onclick="addTerminologyAfter(this)" title="Add Term After">
                                         <i class="fas fa-plus"></i> After
                                     </button>
-                                    <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                                    <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                                    <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
+                                    <button type="button" class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
+                                    <button type="button" class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
+                                    <button type="button" class="remove-btn" onclick="removeArrayItem(this)">×</button>
                                 </div>
                             </div>
                         </div>
@@ -7721,6 +7754,27 @@
             }
             return scroller;
         }
+
+        // Keep the left input scroller fixed while performing synchronous DOM writes
+        // that can trigger browser scroll anchoring/layout shifts.
+        function runWithPinnedInputFormScroll(work) {
+            if (typeof work !== 'function') return;
+            const scroller = getInputFormScroller();
+            if (!scroller || !scroller.isConnected) {
+                return work();
+            }
+            const pinnedScrollTop = scroller.scrollTop;
+            const prevOverflowAnchor = scroller.style.overflowAnchor;
+            scroller.style.overflowAnchor = 'none';
+            try {
+                return work();
+            } finally {
+                if (scroller.isConnected) {
+                    scroller.scrollTop = pinnedScrollTop;
+                    scroller.style.overflowAnchor = prevOverflowAnchor;
+                }
+            }
+        }
         
         // Save scroll position for the currently active sub-tab
         function saveSubTabScrollPosition() {
@@ -8556,17 +8610,26 @@
             return __fpResizeObserver;
         }
 
+        // Stable signature for one rendered bbox crop (used to skip redundant re-renders).
+        function getBboxRenderToken(bboxRecord) {
+            var rec = normalizeBboxRecord(bboxRecord);
+            if (!rec || !isValidBboxRecord(rec)) return null;
+            var pdfGen = window.__pdfGeneration || 0;
+            return pdfGen + '|' + rec.pageNum + '|' + rec.x0 + '|' + rec.y0 + '|' + rec.x1 + '|' + rec.y1;
+        }
+
         // Render bbox crop into innerBox when it has size. Preserve crop aspect ratio; avoid scaling into fixed box. fpKey selects textbook vs guidebook PDF.
         async function renderBboxIntoBoxWhenSized(innerBox, bboxRecord, fpKey) {
             if (!innerBox || !bboxRecord) return;
             var pdfDoc = getPdfDocForBboxKey(fpKey);
             if (!pdfDoc) return;
+            var bboxToken = getBboxRenderToken(bboxRecord);
             innerBox.__fpRenderToken = (innerBox.__fpRenderToken || 0) + 1;
-            var token = innerBox.__fpRenderToken;
+            var renderToken = innerBox.__fpRenderToken;
             var frame = 0;
             var maxFrames = 10;
             function waitSize() {
-                if (innerBox.__fpRenderToken !== token) return;
+                if (innerBox.__fpRenderToken !== renderToken) return;
                 var rect = innerBox.getBoundingClientRect();
                 if (rect.width > 0 && rect.height > 0) {
                     doRender();
@@ -8576,16 +8639,20 @@
                 if (frame < maxFrames) requestAnimationFrame(waitSize);
             }
             function doRender() {
-                if (innerBox.__fpRenderToken !== token) return;
-                if (innerBox.__fpOriginalHtml == null) innerBox.__fpOriginalHtml = innerBox.innerHTML || __fpDefaultInnerHtml;
-                innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
-                innerBox.innerHTML = '';
+                if (innerBox.__fpRenderToken !== renderToken) return;
+                if (innerBox.__fpOriginalHtml == null) {
+                    var hasExistingCanvas = !!innerBox.querySelector('.fp-bbox-canvas');
+                    innerBox.__fpOriginalHtml = hasExistingCanvas ? __fpDefaultInnerHtml : (innerBox.innerHTML || __fpDefaultInnerHtml);
+                }
                 getBboxCropCanvas(bboxRecord, pdfDoc).then(function (cropCanvas) {
-                    if (innerBox.__fpRenderToken !== token) return;
+                    if (innerBox.__fpRenderToken !== renderToken) return;
                     if (!cropCanvas || !innerBox.parentNode) {
-                        innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
-                        innerBox.style.height = '150px';
-                        innerBox.style.display = 'flex';
+                        runWithPinnedInputFormScroll(function () {
+                            innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
+                            innerBox.style.height = '150px';
+                            innerBox.style.display = 'flex';
+                            innerBox.__lastBboxToken = null;
+                        });
                         if (window.__DEBUG_BBOX_PREVIEW) console.debug('bbox-preview crop result', false);
                         return;
                     }
@@ -8595,9 +8662,21 @@
                     cropCanvas.style.height = 'auto';
                     cropCanvas.style.display = 'block';
                     cropCanvas.style.borderRadius = '4px';
-                    innerBox.style.height = 'auto';
-                    innerBox.style.display = 'block';
-                    innerBox.appendChild(cropCanvas);
+                    runWithPinnedInputFormScroll(function () {
+                        var existingCanvas = innerBox.querySelector('.fp-bbox-canvas');
+                        if (existingCanvas) {
+                            existingCanvas.replaceWith(cropCanvas);
+                        } else {
+                            innerBox.innerHTML = '';
+                            innerBox.appendChild(cropCanvas);
+                        }
+                        innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (canvasEl, index) {
+                            if (index > 0) canvasEl.remove();
+                        });
+                        innerBox.style.height = 'auto';
+                        innerBox.style.display = 'block';
+                        innerBox.__lastBboxToken = bboxToken;
+                    });
                     var ro = getFpResizeObserver();
                     if (ro && __fpBoxResizeMap) {
                         __fpBoxResizeMap.set(innerBox, { bboxRecord: bboxRecord, fpKey: fpKey });
@@ -8649,13 +8728,16 @@
         function restorePlaceholderContainer(container) {
             var innerBox = getPlaceholderInnerBox(container);
             if (!innerBox) return;
-            innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (n) { n.remove(); });
-            innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : (typeof __fpDefaultInnerHtml !== 'undefined' ? __fpDefaultInnerHtml : '<span style="color: #999; font-size: 14px;">📷 Image</span>'));
-            innerBox.style.height = '150px';
-            innerBox.style.display = 'flex';
-            container.classList.remove('has-bbox-preview');
-            var ro = getFpResizeObserver();
-            if (ro && typeof __fpBoxResizeMap !== 'undefined' && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
+            runWithPinnedInputFormScroll(function () {
+                innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (n) { n.remove(); });
+                innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
+                innerBox.style.height = '150px';
+                innerBox.style.display = 'flex';
+                innerBox.__lastBboxToken = null;
+                container.classList.remove('has-bbox-preview');
+                var ro = getFpResizeObserver();
+                if (ro && typeof __fpBoxResizeMap !== 'undefined' && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
+            });
         }
 
         // Shared: render bbox crop into inner box (size-aware, waits for layout). Same crop logic, scaled to box.
@@ -8899,8 +8981,11 @@
                         if (typeof restorePlaceholderContainer === 'function') restorePlaceholderContainer(container);
                     } else {
                         container.classList.add('has-bbox-preview');
-                        innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
-                        renderBboxCropIntoInnerBox(bboxRecord, innerBox, key);
+                        var bboxToken = getBboxRenderToken(bboxRecord);
+                        var hasCanvas = !!innerBox.querySelector('.fp-bbox-canvas');
+                        if (!(bboxToken && innerBox.__lastBboxToken === bboxToken && hasCanvas)) {
+                            renderBboxCropIntoInnerBox(bboxRecord, innerBox, key);
+                        }
                     }
                 }
                 rootEl.__renderVersion = (rootEl.__renderVersion || 0) + 1;
@@ -8985,8 +9070,11 @@
                     restorePlaceholderContainer(container);
                 } else {
                     container.classList.add('has-bbox-preview');
-                    innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
-                    renderBboxCropIntoInnerBox(bboxRecord, innerBox, key);
+                    var bboxToken = getBboxRenderToken(bboxRecord);
+                    var hasCanvas = !!innerBox.querySelector('.fp-bbox-canvas');
+                    if (!(bboxToken && innerBox.__lastBboxToken === bboxToken && hasCanvas)) {
+                        renderBboxCropIntoInnerBox(bboxRecord, innerBox, key);
+                    }
                 }
                 var root = container.closest('.live-preview') || container.closest('#final-preview-content');
                 if (root) rootsToFit.add(root);
@@ -9083,15 +9171,7 @@
             }
             if (FORCE_PLACEHOLDER_IMAGES) {
                 rootEl.querySelectorAll('.image-placeholder-container').forEach(function (container) {
-                    var innerBox = getPlaceholderInnerBox(container);
-                    if (!innerBox) return;
-                    container.classList.remove('has-bbox-preview');
-                    innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
-                    innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
-                    innerBox.style.height = '150px';
-                    innerBox.style.display = 'flex';
-                    var ro = getFpResizeObserver();
-                    if (ro && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
+                    restorePlaceholderContainer(container);
                 });
                 return;
             }
@@ -9126,26 +9206,17 @@
                     if (!pdfDoc || !valid) {
                         if (innerBox.__lastBboxToken != null || innerBox.querySelector('.fp-bbox-canvas')) {
                             didVisualChange = true;
-                            innerBox.__lastBboxToken = null;
                         }
-                        container.classList.remove('has-bbox-preview');
-                        innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
-                        innerBox.innerHTML = (innerBox.__fpOriginalHtml != null ? innerBox.__fpOriginalHtml : __fpDefaultInnerHtml);
-                        innerBox.style.height = '150px';
-                        innerBox.style.display = 'flex';
-                        var ro = getFpResizeObserver();
-                        if (ro && __fpBoxResizeMap) { ro.unobserve(innerBox); __fpBoxResizeMap.delete(innerBox); }
+                        restorePlaceholderContainer(container);
                         continue;
                     }
-                    var pdfGen = window.__pdfGeneration || 0;
-                    var token = pdfGen + '|' + bboxRecord.pageNum + '|' + bboxRecord.x0 + '|' + bboxRecord.y0 + '|' + bboxRecord.x1 + '|' + bboxRecord.y1;
-                    if (innerBox.__lastBboxToken !== token) {
+                    var token = getBboxRenderToken(bboxRecord);
+                    var hasCanvas = !!innerBox.querySelector('.fp-bbox-canvas');
+                    if (innerBox.__lastBboxToken !== token || !hasCanvas) {
                         didVisualChange = true;
-                        innerBox.__lastBboxToken = token;
+                        renderBboxCropIntoInnerBox(bboxRecord, innerBox, key);
                     }
                     container.classList.add('has-bbox-preview');
-                    innerBox.querySelectorAll('.fp-bbox-canvas').forEach(function (el) { el.remove(); });
-                    renderBboxCropIntoInnerBox(bboxRecord, innerBox, key);
                 }
                 if (idx >= placeholders.length) {
                     if (!hadSkippedHidden) rootEl.__needsVisibleBboxApply = false;
@@ -14203,19 +14274,19 @@
                                 <input type="number" placeholder="Y1" class="bbox-y1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Bottom Y coordinate (bottom-left corner)">
                             </div>
                             <div class="row-actions">
-                                <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                                <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                                <button class="add-bbox-btn" onclick="addQuestionImageBefore(this)" title="Add Image Before">
+                                <button type="button" class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
+                                <button type="button" class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
+                                <button type="button" class="add-bbox-btn" onclick="addQuestionImageBefore(this)" title="Add Image Before">
                                     <i class="fas fa-plus"></i> Before
                                 </button>
-                                <button class="add-bbox-btn" onclick="addQuestionImageAfter(this)" title="Add Image After">
+                                <button type="button" class="add-bbox-btn" onclick="addQuestionImageAfter(this)" title="Add Image After">
                                     <i class="fas fa-plus"></i> After
                                 </button>
-                                <button class="add-btn" onclick="openBboxDrawer(this)" title="Open PDF viewer to draw bounding box"><i class="fas fa-pen-square"></i> Draw</button>
-                                <button class="add-btn" onclick="pasteBboxJson(this)" title="Paste bounding box coordinates from clipboard"><i class="fas fa-paste"></i> Paste</button>
-                                <button class="add-btn" onclick="copyBboxJson(this)" title="Copy bounding box coordinates to clipboard"><i class="fas fa-copy"></i> Copy</button>
-                                <button class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate Image"><i class="fas fa-clone"></i></button>
-                                <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
+                                <button type="button" class="add-btn" onclick="openBboxDrawer(this)" title="Open PDF viewer to draw bounding box"><i class="fas fa-pen-square"></i> Draw</button>
+                                <button type="button" class="add-btn" onclick="pasteBboxJson(this)" title="Paste bounding box coordinates from clipboard"><i class="fas fa-paste"></i> Paste</button>
+                                <button type="button" class="add-btn" onclick="copyBboxJson(this)" title="Copy bounding box coordinates to clipboard"><i class="fas fa-copy"></i> Copy</button>
+                                <button type="button" class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate Image"><i class="fas fa-clone"></i></button>
+                                <button type="button" class="remove-btn" onclick="removeArrayItem(this)">×</button>
                             </div>
                         </div>
                     </div>
@@ -14234,19 +14305,19 @@
                                 <input type="number" placeholder="Y1" class="bbox-y1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57" title="Bottom Y coordinate (bottom-left corner)">
                             </div>
                             <div class="row-actions">
-                                <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                                <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                                <button class="add-bbox-btn" onclick="addAnswerImageBefore(this)" title="Add Image Before">
+                                <button type="button" class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
+                                <button type="button" class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
+                                <button type="button" class="add-bbox-btn" onclick="addAnswerImageBefore(this)" title="Add Image Before">
                                     <i class="fas fa-plus"></i> Before
                                 </button>
-                                <button class="add-bbox-btn" onclick="addAnswerImageAfter(this)" title="Add Image After">
+                                <button type="button" class="add-bbox-btn" onclick="addAnswerImageAfter(this)" title="Add Image After">
                                     <i class="fas fa-plus"></i> After
                                 </button>
-                                <button class="add-btn" onclick="openBboxDrawer(this)" title="Open PDF viewer to draw bounding box"><i class="fas fa-pen-square"></i> Draw</button>
-                                <button class="add-btn" onclick="pasteBboxJson(this)" title="Paste bounding box coordinates from clipboard"><i class="fas fa-paste"></i> Paste</button>
-                                <button class="add-btn" onclick="copyBboxJson(this)" title="Copy bounding box coordinates to clipboard"><i class="fas fa-copy"></i> Copy</button>
-                                <button class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate Image"><i class="fas fa-clone"></i></button>
-                                <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
+                                <button type="button" class="add-btn" onclick="openBboxDrawer(this)" title="Open PDF viewer to draw bounding box"><i class="fas fa-pen-square"></i> Draw</button>
+                                <button type="button" class="add-btn" onclick="pasteBboxJson(this)" title="Paste bounding box coordinates from clipboard"><i class="fas fa-paste"></i> Paste</button>
+                                <button type="button" class="add-btn" onclick="copyBboxJson(this)" title="Copy bounding box coordinates to clipboard"><i class="fas fa-copy"></i> Copy</button>
+                                <button type="button" class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate Image"><i class="fas fa-clone"></i></button>
+                                <button type="button" class="remove-btn" onclick="removeArrayItem(this)">×</button>
                             </div>
                         </div>
                     </div>
@@ -24505,19 +24576,19 @@
                         <input type="number" placeholder="Y1" class="bbox-y1" step="1" oninput="validateInteger(this)" onkeypress="return event.charCode >= 48 && event.charCode <= 57">
                     </div>
                     <div class="row-actions">
-                        <button class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
-                        <button class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
-                        <button class="add-bbox-btn" onclick="${beforeFunc}(this)" title="${beforeTitle}">
+                        <button type="button" class="reorder-btn" onclick="moveItemUp(this)" title="Move Up"><i class="fas fa-arrow-up"></i></button>
+                        <button type="button" class="reorder-btn" onclick="moveItemDown(this)" title="Move Down"><i class="fas fa-arrow-down"></i></button>
+                        <button type="button" class="add-bbox-btn" onclick="${beforeFunc}(this)" title="${beforeTitle}">
                             <i class="fas fa-plus"></i> Before
                         </button>
-                        <button class="add-bbox-btn" onclick="${afterFunc}(this)" title="${afterTitle}">
+                        <button type="button" class="add-bbox-btn" onclick="${afterFunc}(this)" title="${afterTitle}">
                             <i class="fas fa-plus"></i> After
                         </button>
-                        <button class="add-btn" onclick="openBboxDrawer(this)"><i class="fas fa-pen-square"></i> Draw</button>
-                        <button class="add-btn" onclick="pasteBboxJson(this)"><i class="fas fa-paste"></i> Paste</button>
-                        <button class="add-btn" onclick="copyBboxJson(this)"><i class="fas fa-copy"></i> Copy</button>
-                        <button class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate"><i class="fas fa-clone"></i></button>
-                        <button class="remove-btn" onclick="removeArrayItem(this)">×</button>
+                        <button type="button" class="add-btn" onclick="openBboxDrawer(this)"><i class="fas fa-pen-square"></i> Draw</button>
+                        <button type="button" class="add-btn" onclick="pasteBboxJson(this)"><i class="fas fa-paste"></i> Paste</button>
+                        <button type="button" class="add-btn" onclick="copyBboxJson(this)"><i class="fas fa-copy"></i> Copy</button>
+                        <button type="button" class="duplicate-btn" onclick="duplicateBbox(this)" title="Duplicate"><i class="fas fa-clone"></i></button>
+                        <button type="button" class="remove-btn" onclick="removeArrayItem(this)">×</button>
                     </div>
                 </div>`;
             for (let i = 0; i < rowsToCreate; i++) {
@@ -27498,6 +27569,9 @@
             
             // Attach change tracking (lightweight)
             attachChangeTrackers();
+
+            // Prevent pointer-focus on structural bbox controls to keep viewport stable on click.
+            attachStructuralControlFocusGuard();
             
             // Attach unload warning for unsaved changes
             attachUnloadWarning();
@@ -29758,6 +29832,7 @@
 
 </body>
 </html>
+
 
 
 
