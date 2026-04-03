@@ -38,7 +38,8 @@
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Image references now support 10+ correctly:</strong> Fixed a validation bug that incorrectly showed a missing closing parenthesis error when image indices reached two digits (for example <code>![description](10)</code>). Multi-digit image numbers now validate correctly.',
-                            '<strong>Structural image controls no longer shift the left column:</strong> Fixed an issue where clicking image structure controls (Before, After, Move Up/Down, Duplicate, Remove, Add Image) could move the Input Form left-column scroll position, especially when Auto-Resize was OFF. These actions now keep the left column viewport stable.'
+                            '<strong>Structural image controls no longer shift the left column:</strong> Fixed an issue where clicking image structure controls (Before, After, Move Up/Down, Duplicate, Remove, Add Image) could move the Input Form left-column scroll position, especially when Auto-Resize was OFF. These actions now keep the left column viewport stable.',
+                            '<strong>Numbered markdown lists now render correctly with inline formatting:</strong> Fixed an ordered-list rendering issue where inline markdown inside numbered items (such as <code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, links, and inline LaTeX) could render incorrectly. Numbered lists now follow standard markdown behavior in preview/output.'
                         ]
                     }
                 ]
@@ -14925,9 +14926,6 @@
                     return `@@BLANK_PLACEHOLDER_${idx}@@`;
                 });
 
-                // Keep ordered markers exactly as authored (numeric/alphabetic/Arabic)
-                md = convertOrderedListLinesToLiteralHtml(md);
-
                 if (shouldEscapeHtmlLists) {
                     md = escapeHtmlListTags(md);
                 }
@@ -16476,52 +16474,6 @@
         // Check if a line is a markdown list item (bullet or ordered) with valid indentation
         function isMarkdownListLine(line) {
             return !!splitListIndentAndBody(line);
-        }
-
-        // Render ordered list markers literally as written in input (e.g., 123., abc., أبت.)
-        function convertOrderedListLinesToLiteralHtml(md) {
-            if (!md || typeof md !== 'string') return md;
-            const lines = md.split('\n');
-            const out = [];
-            let inCodeFence = false;
-
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const trimmed = line.trim();
-                if (isFenceLine(trimmed)) {
-                    inCodeFence = !inCodeFence;
-                    out.push(line);
-                    continue;
-                }
-                if (inCodeFence) {
-                    out.push(line);
-                    continue;
-                }
-
-                const parts = splitOrderedListIndentAndBody(line);
-                if (!parts) {
-                    out.push(line);
-                    continue;
-                }
-
-                const indentRaw = parts.indentRaw || '';
-                const level = indentRaw.includes('\t')
-                    ? Math.floor(indentRaw.length / 2)
-                    : Math.floor(indentRaw.length / 4);
-                const marker = parts.markerRaw || '';
-                const bodyRaw = parts.bodyRaw || '';
-                const bodyWithoutZeroWidth = bodyRaw.replace(/\u200B/g, '');
-                const hasMeaningfulBody = bodyWithoutZeroWidth.trim().length > 0;
-                const hasNormalizedPlaceholder = bodyRaw.includes('\u200B');
-                if (!hasMeaningfulBody && !hasNormalizedPlaceholder) {
-                    out.push(line);
-                    continue;
-                }
-                const body = hasMeaningfulBody ? bodyRaw : '\u200B';
-                out.push(`<div class="ordered-literal-item" style="padding-inline-start: ${level * 24}px;"><span class="ordered-literal-marker">${marker}</span> ${body}</div>`);
-            }
-
-            return out.join('\n');
         }
 
         // Mark spaces inside table cell content without modifying table syntax characters
