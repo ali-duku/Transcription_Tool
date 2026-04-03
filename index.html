@@ -17,7 +17,7 @@
         //   - Header/UI display
         //   - What's New modal auto-open checks
         //   - Version reload checks
-        const APP_VERSION = '8.0';
+        const APP_VERSION = '8.1';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         // Question schema migration phase switch.
         // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -26,6 +26,22 @@
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
+
+            {
+                version: '8.1',
+                sections: [
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: '#dc3545',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Image references now support 10+ correctly:</strong> Fixed a validation bug that incorrectly showed a missing closing parenthesis error when image indices reached two digits (for example <code>![description](10)</code>). Multi-digit image numbers now validate correctly.'
+                        ]
+                    }
+                ]
+            },
 
             {
                 version: '8.0',
@@ -14450,7 +14466,7 @@
                         // This pattern caused false positives when descriptions contained patterns like "f(0)" or "g(1)"
                         { regex: /!([a-zA-Z][^\[\]\n]{0,100})\]\(\d+\)/g, message: 'Missing opening [ bracket' },
                         { regex: /!\[([^\]]*?)\]\d+\)/g, message: 'Missing opening ( parenthesis' },
-                        { regex: /!\[([^\]]*?)\]\(\d+[^\)\s]/g, message: 'Missing closing ) or extra characters' },
+                        { regex: /!\[([^\]]*?)\]\(\d+[^\d)\s]/g, message: 'Missing closing ) or extra characters' },
                         { regex: /!\[([^\]]*?)\]\(\d+$/gm, message: 'Missing closing ) parenthesis' },
                         { regex: /(?<![!\w])\[([^\]]{1,100})\]\(\d+\)/g, message: 'Missing ! at the beginning' }
                     ];
@@ -23001,7 +23017,7 @@
                 { regex: /!\[([^\]\n]{1,100})\(\d+\)/g, message: 'Missing closing ] bracket in image description' },  // ![desc(0) - no ] before (
                 { regex: /!([a-zA-Z][^\[\]\n]{0,100})\]\(\d+\)/g, message: 'Missing opening [ bracket in image description' },  // !desc](0) - starts with letter, no [ after !
                 { regex: /!\[([^\]]*?)\]\d+\)/g, message: 'Missing opening ( parenthesis in image index' },  // ![desc]0) - digit directly after ]
-                { regex: /!\[([^\]]*?)\]\(\d+[^\)\s]/g, message: 'Missing closing ) parenthesis in image index or extra characters' },  // ![desc](0X - digit followed by non-) non-space
+                { regex: /!\[([^\]]*?)\]\(\d+[^\d)\s]/g, message: 'Missing closing ) parenthesis in image index or extra characters' },  // ![desc](0X - number followed by invalid non-digit/non-) character
                 { regex: /!\[([^\]]*?)\]\(\d+$/gm, message: 'Missing closing ) parenthesis in image index' },  // ![desc](0 - ends without )
                 // Missing ! at the beginning - matches [desc](digit) that looks like it should be an image
                 { regex: /(?<![!\w])\[([^\]]{1,100})\]\(\d+\)/g, message: 'Missing ! at the beginning of image syntax' }  // [desc](0) - no ! before [
