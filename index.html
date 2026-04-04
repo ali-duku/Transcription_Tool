@@ -17,15 +17,66 @@
         //   - Header/UI display
         //   - What's New modal auto-open checks
         //   - Version reload checks
-        const APP_VERSION = '8.1';
+        const APP_VERSION = '8.2';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         // Question schema migration phase switch.
         // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
         const QUESTION_SCHEMA_MIGRATION_PHASE = 'canonical_output';
+        const THEME_STORAGE_KEY = 'transcription_tool_theme';
+        const DEFAULT_THEME = 'dark';
+
+        function normalizeThemePreference(theme) {
+            return theme === 'light' ? 'light' : 'dark';
+        }
+
+        function readStoredThemePreference() {
+            try {
+                const stored = localStorage.getItem(THEME_STORAGE_KEY);
+                if (stored === 'light' || stored === 'dark') return stored;
+                return null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function getSystemThemePreference() {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                return 'light';
+            }
+            return DEFAULT_THEME;
+        }
+
+        function resolveInitialThemePreference() {
+            const stored = readStoredThemePreference();
+            if (stored === 'light' || stored === 'dark') return stored;
+            return getSystemThemePreference();
+        }
+
+        (function applyInitialThemePreference() {
+            const initialTheme = resolveInitialThemePreference();
+            document.documentElement.setAttribute('data-theme', initialTheme);
+            document.documentElement.style.colorScheme = initialTheme;
+        })();
         
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
+
+            {
+                version: '8.2',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: 'var(--state-success)',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>New app theme toggle with full Light Mode support:</strong> Added complete dual-theme support (Dark + subtle Light) across the app, plus a new top-bar theme button to switch themes instantly. Your selected theme now persists after reload.'
+                        ]
+                    }
+                ]
+            },
 
             {
                 version: '8.1',
@@ -34,7 +85,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Image references now support 10+ correctly:</strong> Fixed a validation bug that incorrectly showed a missing closing parenthesis error when image indices reached two digits (for example <code>![description](10)</code>). Multi-digit image numbers now validate correctly.',
@@ -52,7 +103,7 @@
                         key: 'changes',
                         title: 'Changes',
                         iconClass: 'fas fa-exchange-alt',
-                        iconColor: '#17a2b8',
+                        iconColor: 'var(--button-info-bg)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Question format update:</strong> We removed the <code>Related Question</code> field as part of the schema update, so generated question JSON is now cleaner and more consistent.',
@@ -69,7 +120,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Clearer matching relationship menus:</strong> In Matching questions, relationship dropdown options now show each item label with a text snippet (or full text when short), so it is easier to pick the correct pair.',
@@ -80,7 +131,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Clear Form now refreshes Final Preview correctly:</strong> Clearing the form while you are on Final Preview now removes old values and empty boxes right away, so Book Metadata and Basic Info no longer show stale output.',
@@ -98,7 +149,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Double quotes are now easier to use:</strong> You can now write text with an odd number of double quotes without output issues.'
@@ -114,7 +165,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Cleaner matching preview:</strong> In Final Preview, matching question items now appear as clear left and right lists with labels (L1, R1, etc.), so they are easier to scan.',
@@ -126,7 +177,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Matching relationships now show right away after load:</strong> Final Preview now shows saved matching relationships immediately after loading your file, without needing to open the Questions tab first.'
@@ -142,7 +193,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Period typing fix:</strong> Adding a period at the end of your text no longer makes the preview suddenly look bold.'
@@ -157,7 +208,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Editing is smoother with Auto-Resize ON:</strong> Typing, switching tabs, duplicating sections, and loading big files should feel faster with fewer freezes. If your device is still slow, you can turn Auto-Resize OFF anytime.',
@@ -174,7 +225,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Guide answer wiring fixed across question types:</strong> Fixed an issue where optional-answer question types could write/read guide answers from hidden fields, causing wrong or missing <code>guide_answer</code> in generated JSON. Guide answer now always uses the active type-specific field during generate, load/restore, search, and preview.'
@@ -189,7 +240,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Guidebook/Guide page conditional validation on Generate JSON:</strong> Added blocking rules so Guidebook PDF Pages (Start - End) must be both filled or both empty, Guide Page is required for each question when the guidebook range is filled, and Guide Page must be empty when the guidebook range is empty.'
@@ -199,7 +250,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Clean JSON placeholder on startup:</strong> Fixed an issue where the JSON output box showed leading blank spaces/lines before any generation. The empty-state placeholder now renders cleanly from the first load, matching the loaded/reset state.',
@@ -215,7 +266,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Nested list indentation rules + examples:</strong> Markdown preview now supports nested lists with type-specific indentation rules in the shared renderer.<div style="margin-top: 8px;"><strong>Bullets:</strong> use <code>2 spaces</code> or <code>1 tab</code> per level.<div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;"><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Input</div><code style="display:block; white-space:pre-wrap;">* hi\n  * hihi\n    * hihihi</code></div><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div><code style="display:block; white-space:pre-wrap;">&bull; hi\n  &deg; hihi\n    &#9642; hihihi</code></div></div></div><div style="margin-top: 8px;"><strong>Ordered:</strong> use <code>4 spaces</code> or <code>2 tabs</code> per level.<div style="display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap;"><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Input</div><code style="display:block; white-space:pre-wrap;">1. one\n    1. one-one\n        1. one-one-one</code></div><div style="flex: 1; min-width: 220px;"><div style="font-weight: 600; margin-bottom: 4px;">Rendered Output</div><code style="display:block; white-space:pre-wrap;">1. one\n    1. one-one\n        1. one-one-one</code></div></div></div>'
@@ -225,7 +276,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Trailing Spaces Indicator no longer breaks markdown tables:</strong> Fixed an issue where enabling the Trailing Spaces Indicator could break table rendering when rows had extra spaces (especially separator rows). Tables now render correctly in both live preview and final preview.',
@@ -241,7 +292,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Auto-navigation prefers Guide Page:</strong> When focusing on the Guide Page field or other guide-related fields (Guide Answer, choices, blanks, relationships) in the Questions tab, the PDF viewer now navigates to the page specified in that question\'s Guide Page field when available, instead of defaulting to the Guidebook PDF Pages (Start - End) range. Falls back to the guidebook range when the field is empty or not available.'
@@ -251,7 +302,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Dark mode highlight for pen edit button:</strong> Fixed the highlight shown when clicking the edit pen in the Final Preview tab, it now uses a clear accent color instead of yellowish in dark mode.',
@@ -270,7 +321,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Question Text Requirement (warning only):</strong> Some questions have no question text, so the question text field is not required anymore in the tool. This is your responsibility to check and fill in the question text if it is missing. The tool will only give you a warning if the question text is empty.',
@@ -283,7 +334,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Output preview overflow with Auto-Resize:</strong> Changing font size or line height no longer leaves image/bbox preview boxes stuck at the old height; typography changes now trigger correct re-measure and resize.',
@@ -294,7 +345,7 @@
                         key: 'we_need_your_help',
                         title: 'We need your help',
                         iconClass: 'fas fa-info-circle',
-                        iconColor: '#17a2b8',
+                        iconColor: 'var(--button-info-bg)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             'We are currently looking into reported lagging issues. If you experience lag, please send <strong>videos of the issue happening</strong> in addition to your JSON files so we can investigate. For now, you can disable the auto resize feature from the top right corner of the page to minimize the lag.'
@@ -309,7 +360,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Save and auto-save always persist:</strong> Manual save and auto-save now always write your draft to storage, even when there are validation errors or warnings. No alerts or warnings are shown during save. Validation still runs when you use "Generate JSON"—only generation is blocked by errors.',
@@ -325,7 +376,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Layout refresh after font changes:</strong> When you change fonts, input fields and preview boxes automatically re-measure and resize to fit their content correctly.',
@@ -338,7 +389,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Font settings as UI preferences:</strong> Changing font size, line height, or text direction (RTL/LTR) no longer triggers autosave, "unsaved changes," or undo/redo.',
@@ -355,7 +406,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffd700',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Image placeholders:</strong> Instead of image placeholders, we now use the actual boxed images in the preview.'
@@ -365,7 +416,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Performance:</strong> Editing stays smooth even with a large number of content sections and questions.'
@@ -375,7 +426,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Search dropdown overlay:</strong> Search results now appear below the search field as an overlay instead of being trapped inside the header.',
@@ -392,7 +443,7 @@
                         key: 'updates',
                         title: 'Updates',
                         iconClass: 'fas fa-info-circle',
-                        iconColor: '#17a2b8',
+                        iconColor: 'var(--button-info-bg)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             'A lot of improvements have been made.'
@@ -407,7 +458,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffd700',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Extra Spaces and Empty Lines Indicator:</strong> A toggle in the header helps you spot leading spaces, trailing spaces, consecutive spaces, and empty lines. When enabled, preview boxes show a warning badge and highlight where problems are. Extra spaces at the very beginning or end of your whole text are automatically removed when generating the final output.',
@@ -418,7 +469,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Fixed LaTeX Array Alignment:</strong> Fixed an issue where LaTeX arrays were always center-aligned regardless of the alignment specifier (like <code>\\\\begin{array}{r}</code> for right alignment or <code>\\\\begin{array}{l}</code> for left alignment). Arrays now correctly respect their alignment settings (<code>r</code>, <code>l</code>, or <code>c</code>) in all preview outputs.',
@@ -435,7 +486,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Increased Maximum Zoom:</strong> The maximum zoom level has been increased to 8x (800%) for both the bounding box drawing modal and the PDF viewer. This allows for much more detailed work when drawing bounding boxes or examining PDF pages at high magnification.',
@@ -449,7 +500,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Fixed Collapsed Section Navigation:</strong> Fixed an issue where clicking an edit button in the Final Preview tab to navigate to a collapsed section would not automatically expand that section. Now, when you click an edit button, the target section will automatically uncollapse so you can see and edit the field immediately.'
@@ -464,7 +515,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffd700',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Final Preview Tab:</strong> A new "Final Preview" tab provides a comprehensive preview of all your content sections and questions in one place. This consolidated view shows everything exactly as it will appear in the final output, making it easy to review your work. Each preview box includes an edit button that takes you directly to the corresponding input field for quick editing.',
@@ -481,7 +532,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffd700',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Smart Bbox Zoom & Centering:</strong> When you press the Draw button for a bounding box that already has coordinates, the PDF viewer now automatically zooms to show the entire bounding box clearly and centers it in the middle of the screen. The zoom level is calculated to fit the bbox with optimal padding, making it easy to see and edit existing bounding boxes. This saves time when reviewing or adjusting previously drawn boxes.',
@@ -498,7 +549,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffd700',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Auto-Save:</strong> Your work is now automatically saved as you edit! The form saves your changes automatically after you finish editing a field, so you won\'t lose your progress. You\'ll see "Saving..." and "All saved" indicators to track the save status.',
@@ -518,7 +569,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Smarter Table Validation:</strong> Table validation now correctly handles LaTeX expressions inside table cells. Pipes inside LaTeX formulas (like <code>$\\\\cancel{||||}$</code>) are no longer counted as table delimiters, preventing false validation errors.',
@@ -535,7 +586,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffc107',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Multi-Line Table Cells:</strong> You can now press Enter inside table cells to create line breaks. The preview will show your content on multiple lines within the same cell.',
@@ -547,7 +598,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Better Table Validation:</strong> Table validation is now smarter and won\'t show errors when you use line breaks inside cells.',
@@ -564,7 +615,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Simplified PDF Upload:</strong> The two separate buttons "Upload Textbook PDF" and "Upload Guide PDF" in the JSON Preview tab have been combined into a single "Upload PDFs" button for a cleaner interface. You can still upload both types of PDFs from the modal.',
@@ -581,7 +632,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffc107',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Markdown Toolbar:</strong> New formatting buttons (Bold, Italic, Bullet List, Numbered List, Inline LaTeX $, Block LaTeX $$) in all text fields let you quickly format text without typing markdown syntax. Select text and click a button, or click to insert formatting placeholders. Undo and Redo buttons let you reverse or reapply your last formatting operations.',
@@ -595,7 +646,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Button Improvements:</strong> All buttons now have the same size for a cleaner look.'
@@ -610,7 +661,7 @@
                         key: 'fixes_improvements',
                         title: 'Fixes & Improvements',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>LaTeX in Image Descriptions:</strong> Fixed an issue where using math formulas in image descriptions (like <code>$\\\\sqrt[3]{16}$</code>) was incorrectly flagged as an error. The tool now correctly recognizes LaTeX syntax in image descriptions.'
@@ -625,7 +676,7 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffc107',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Extended Auto-Navigation:</strong> Auto-navigation now works for more fields including choices, blank answers, and relationships. The PDF automatically jumps to the correct page when you click these fields.',
@@ -636,7 +687,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Smart Guidebook Navigation:</strong> The guidebook can now navigate to any page in the range, not just the start page. It stays on your current page if you\'re already in range.',
@@ -653,7 +704,7 @@
                         key: 'fixes_improvements',
                         title: 'Fixes & Improvements',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Fill-in-the-Blanks Formatting:</strong> Fixed an issue where spaces between blanks were incorrectly flagged as errors.',
@@ -671,11 +722,11 @@
                         key: 'new_features',
                         title: 'New Features',
                         iconClass: 'fas fa-star',
-                        iconColor: '#ffc107',
+                        iconColor: 'var(--state-warning)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>What\'s New Modal:</strong> Stay informed about the latest updates and improvements with the new "What\'s New" button in the header. Click it anytime to see what\'s changed!',
-                            '<strong>One-Click Duplicate:</strong> Quickly duplicate any content section, question, or image box by clicking the purple duplicate icon <i class="fas fa-clone" style="color: #6f42c1;"></i>. The duplicated section appears right below the original with all data intact.',
+                            '<strong>One-Click Duplicate:</strong> Quickly duplicate any content section, question, or image box by clicking the purple duplicate icon <i class="fas fa-clone" style="color: var(--button-duplicate-bg);"></i>. The duplicated section appears right below the original with all data intact.',
                             '<strong>Question ID Validation:</strong> The tool now checks for duplicate question IDs and warns you if you use the same ID twice.'
                         ]
                     },
@@ -683,7 +734,7 @@
                         key: 'enhancements',
                         title: 'Enhancements',
                         iconClass: 'fas fa-arrow-up',
-                        iconColor: '#28a745',
+                        iconColor: 'var(--state-success)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Persistent Guide Answer:</strong> Your guide answer is now saved when you switch between question types.'
@@ -693,7 +744,7 @@
                         key: 'bug_fixes',
                         title: 'Bug Fixes',
                         iconClass: 'fas fa-bug',
-                        iconColor: '#dc3545',
+                        iconColor: 'var(--state-danger)',
                         wrapStyle: 'margin-bottom: 25px;',
                         items: [
                             '<strong>Improved Table Detection:</strong> Fixed an issue where single pipe symbols or math notation were incorrectly flagged as table errors.'
@@ -2002,6 +2053,7 @@
                 { id: 'saveBtn', className: 'header-action-btn', onClick: 'saveProgress()', title: 'Save Progress (Ctrl+S)', iconClass: 'fa-save' },
                 { className: 'header-action-btn', onClick: 'location.reload()', title: 'Reload Page', iconClass: 'fa-sync-alt' },
                 { className: 'header-action-btn', onClick: 'scrollToTop()', title: 'Scroll to Top', iconClass: 'fa-arrow-up' },
+                { id: 'themeToggle', className: 'header-action-btn', onClick: 'toggleTheme()', title: 'Switch to light mode', iconClass: 'fa-moon', attrs: { 'aria-label': 'Switch theme', 'aria-pressed': 'false' } },
                 { id: 'autoResizeToggle', className: 'header-action-btn', onClick: 'toggleAutoResize()', title: 'Toggle Auto-Resize Textareas', iconClass: 'fa-arrows-alt-v' },
                 { id: 'trailingSpacesToggle', className: 'header-action-btn', onClick: 'toggleTrailingSpacesIndicator()', title: 'Show trailing spaces indicator in preview boxes', iconClass: 'fa-exclamation-triangle' }
             ],
@@ -3030,8 +3082,8 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
+            background: var(--header-bg);
+            color: var(--header-fg);
             padding: 4px 15px;
             text-align: center;
             flex: 0 0 auto; /* non-scrolling top area */
@@ -3126,12 +3178,12 @@
 
         /* CSS variables for top-bar icon buttons */
         :root {
-            --icon-btn-border: 1px solid rgba(255, 255, 255, 0.3);
-            --icon-btn-bg: rgba(255, 255, 255, 0.1);
-            --icon-btn-fg: white;
-            --icon-btn-hover-bg: rgba(255, 255, 255, 0.2);
-            --icon-btn-hover-border: rgba(255, 255, 255, 0.5);
-            --icon-btn-focus-outline: 2px solid rgba(255, 255, 255, 0.5);
+            --icon-btn-border: 1px solid var(--header-control-border);
+            --icon-btn-bg: var(--header-control-bg);
+            --icon-btn-fg: var(--header-control-fg);
+            --icon-btn-hover-bg: var(--header-control-hover-bg);
+            --icon-btn-hover-border: var(--header-control-hover-border);
+            --icon-btn-focus-outline: 2px solid var(--focus-ring);
         }
         
         .header-action-btn {
@@ -3174,9 +3226,9 @@
         }
 
         .auto-save-indicator {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
+            background: var(--status-pill-bg);
+            border: 1px solid var(--status-pill-border);
+            color: var(--status-pill-fg);
             padding: 4px 10px;
             border-radius: 12px;
             font-size: 0.7rem;
@@ -3188,17 +3240,17 @@
         }
 
         .auto-save-indicator.saving {
-            background: rgba(255, 193, 7, 0.2);
-            border-color: rgba(255, 193, 7, 0.5);
-            color: #ffc107;
+            background: var(--status-warning-bg);
+            border-color: var(--status-warning-border);
+            color: var(--status-warning-fg);
             font-weight: 600;
             animation: pulse 2s infinite;
         }
 
         .auto-save-indicator.saved {
-            background: rgba(40, 167, 69, 0.2);
-            border-color: rgba(40, 167, 69, 0.5);
-            color: #28a745;
+            background: var(--status-success-bg);
+            border-color: var(--status-success-border);
+            color: var(--status-success-fg);
             font-weight: 600;
         }
 
@@ -3411,7 +3463,7 @@
             width: 18px;
             margin: 0;
             cursor: pointer;
-            accent-color: #667eea;
+            accent-color: var(--accent);
         }
 
         .form-group.checkbox-group {
@@ -3431,8 +3483,8 @@
 
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--focus-ring);
         }
         
         /* Default RTL direction for content textareas (Arabic content) */
@@ -3476,7 +3528,7 @@
         .row-actions { display: inline-flex; gap: 8px; align-items: center; margin-top: 8px; }
 
         .remove-btn {
-            background: #dc3545;
+            background: var(--button-danger-bg);
             color: white;
             border: none;
             border-radius: 50%;
@@ -3490,7 +3542,7 @@
         }
 
         .reorder-btn {
-            background: #6c757d;
+            background: var(--button-neutral-bg);
             color: white;
             border: none;
             border-radius: 50%;
@@ -3505,11 +3557,11 @@
         }
 
         .reorder-btn:hover {
-            background: #5a6268;
+            background: var(--button-neutral-hover);
         }
 
         .reorder-btn:disabled {
-            background: #adb5bd;
+            background: var(--button-neutral-disabled);
             cursor: not-allowed;
             opacity: 0.5;
         }
@@ -3521,7 +3573,7 @@
         }
 
         .collapse-btn {
-            background: #6c757d;
+            background: var(--button-neutral-bg);
             color: white;
             border: none;
             border-radius: 50%;
@@ -3536,7 +3588,7 @@
         }
 
         .collapse-btn:hover {
-            background: #5a6268;
+            background: var(--button-neutral-hover);
         }
 
         .array-item.collapsed .section-content {
@@ -3548,7 +3600,7 @@
         }
 
         .copy-section-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
             color: white;
             border: none;
             border-radius: 50%;
@@ -3563,27 +3615,27 @@
         }
 
         .copy-section-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .paste-section-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
         }
 
         .paste-section-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .paste-replace-btn {
-            background: #ffc107;
+            background: var(--button-warning-bg);
         }
 
         .paste-replace-btn:hover {
-            background: #e0a800;
+            background: var(--button-warning-hover);
         }
 
         .duplicate-btn {
-            background: #6f42c1;
+            background: var(--button-duplicate-bg);
             color: white;
             border: none;
             border-radius: 50%;
@@ -3598,11 +3650,11 @@
         }
 
         .duplicate-btn:hover {
-            background: #5a32a3;
+            background: var(--button-duplicate-hover);
         }
 
         .add-btn {
-            background: #28a745;
+            background: var(--button-success-bg);
             color: white;
             border: none;
             border-radius: 4px;
@@ -3625,23 +3677,23 @@
         }
 
         .add-btn:hover {
-            background: #218838;
+            background: var(--button-success-hover);
         }
 
         .add-btn:disabled {
-            background: #6c757d;
+            background: var(--button-neutral-bg);
             opacity: 0.55;
             cursor: not-allowed;
         }
 
         .add-btn:disabled:hover {
-            background: #6c757d;
+            background: var(--button-neutral-bg);
         }
 
         /* Add-bbox-btn and add-section-btn inherit from add-btn but can be customized */
         .add-bbox-btn,
         .add-section-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
             color: white;
             border: none;
             border-radius: 4px;
@@ -3657,7 +3709,7 @@
 
         .add-bbox-btn:hover,
         .add-section-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .bbox-inputs {
@@ -3708,9 +3760,9 @@
         
         /* Trailing spaces indicator */
         .live-preview.has-trailing-spaces {
-            border: 2px solid #ffc107;
-            border-left: 4px solid #ffc107;
-            background: #fffbf0;
+            border: 2px solid var(--trailing-alert-border);
+            border-left: 4px solid var(--trailing-alert-border);
+            background: var(--trailing-alert-bg);
         }
         
         .live-preview.has-trailing-spaces::before {
@@ -3720,8 +3772,8 @@
             right: 8px;
             font-size: 10px;
             font-weight: 600;
-            color: #856404;
-            background: #ffc107;
+            color: var(--trailing-alert-text);
+            background: var(--trailing-alert-border);
             padding: 2px 6px;
             border-radius: 4px;
             z-index: 10;
@@ -3735,25 +3787,25 @@
         
         /* Highlighted trailing spaces */
         .leading-space {
-            background-color: rgba(255, 0, 0, 0.25);
-            border-top: 2px dotted rgba(255, 0, 0, 0.6);
+            background-color: var(--space-highlight-bg);
+            border-top: 2px dotted var(--space-highlight-border);
             position: relative;
             display: inline;
             padding: 0 1px;
         }
         
         .trailing-space {
-            background-color: rgba(255, 0, 0, 0.25);
-            border-bottom: 2px dotted rgba(255, 0, 0, 0.6);
+            background-color: var(--space-highlight-bg);
+            border-bottom: 2px dotted var(--space-highlight-border);
             position: relative;
             display: inline;
             padding: 0 1px;
         }
         
         .consecutive-space {
-            background-color: rgba(255, 0, 0, 0.25);
-            border-top: 1px dotted rgba(255, 0, 0, 0.6);
-            border-bottom: 1px dotted rgba(255, 0, 0, 0.6);
+            background-color: var(--space-highlight-bg);
+            border-top: 1px dotted var(--space-highlight-border);
+            border-bottom: 1px dotted var(--space-highlight-border);
             position: relative;
             display: inline;
             padding: 0 1px;
@@ -3763,8 +3815,8 @@
         .trailing-empty-line {
             display: block;
             min-height: 1.5em;
-            background-color: rgba(255, 193, 7, 0.15);
-            border-left: 3px solid #ffc107;
+            background-color: var(--trailing-alert-chip-bg);
+            border-left: 3px solid var(--trailing-alert-border);
             margin: 4px 0;
             position: relative;
         }
@@ -3776,9 +3828,9 @@
             top: 50%;
             transform: translateY(-50%);
             font-size: 10px;
-            color: #856404;
+            color: var(--trailing-alert-text);
             font-weight: 600;
-            background: rgba(255, 193, 7, 0.3);
+            background: var(--trailing-alert-chip-bg);
             padding: 2px 4px;
             border-radius: 3px;
         }
@@ -3786,7 +3838,7 @@
         .preview-label {
             font-size: 11px;
             font-weight: 600;
-            color: #667eea !important;
+            color: var(--accent) !important;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 6px;
@@ -3802,7 +3854,7 @@
         .input-label {
             font-size: 11px;
             font-weight: 600;
-            color: #667eea;
+            color: var(--accent);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 6px;
@@ -3820,11 +3872,11 @@
             line-height: var(--app-line-height);
         }
         .live-preview table { border-collapse: collapse; width: 100%; margin: 8px 0; }
-        .live-preview th, .live-preview td { border: 1px solid #ccc; padding: 6px 8px; }
+        .live-preview th, .live-preview td { border: 1px solid var(--border-color); padding: 6px 8px; }
         /* Respect markdown alignment; provide a default only when none specified */
         .live-preview th:not([align]), .live-preview td:not([align]) { text-align: start; }
         /* Default direction will be set dynamically based on content type */
-        .live-preview blockquote { border-left: 4px solid #667eea; margin: 8px 0; padding: 6px 10px; color: var(--text-secondary); background: var(--bg-secondary); }
+        .live-preview blockquote { border-left: 4px solid var(--accent); margin: 8px 0; padding: 6px 10px; color: var(--text-secondary); background: var(--bg-secondary); }
         /* List styling to ensure proper visibility */
         .live-preview ul, .live-preview ol { margin: 8px 0; padding-left: 30px; }
         .live-preview ul { list-style-type: disc; }
@@ -3907,9 +3959,9 @@
         }
         /* Math block error styling */
         .live-preview .__math_block_error {
-            color: #d32f2f !important;
-            background-color: #ffebee !important;
-            border: 2px solid #f44336 !important;
+            color: var(--validation-panel-text) !important;
+            background-color: var(--validation-panel-bg) !important;
+            border: 2px solid var(--validation-panel-border) !important;
             padding: 12px !important;
             margin: 10px 0 !important;
             border-radius: 6px !important;
@@ -3919,14 +3971,14 @@
             text-align: left !important;
         }
         .live-preview .__math_block_error strong {
-            color: #b71c1c !important;
+            color: var(--validation-panel-text) !important;
         }
         .live-preview .__math_block_error code {
-            background-color: #f5f5f5 !important;
+            background-color: var(--validation-code-bg) !important;
             padding: 2px 4px !important;
             border-radius: 3px !important;
             font-family: 'Courier New', monospace !important;
-            color: #d32f2f !important;
+            color: var(--validation-panel-text) !important;
         }
         .live-preview .katex-display {
             width: 100% !important;
@@ -3961,7 +4013,7 @@
             transform: scale(0.95);
         }
         .table-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
             color: white;
             border: none;
             border-radius: 4px;
@@ -3979,11 +4031,11 @@
         }
 
         .table-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .image-btn {
-            background: #28a745;
+            background: var(--button-success-bg);
             color: white;
             border: none;
             border-radius: 4px;
@@ -4023,11 +4075,11 @@
         }
 
         .image-btn:hover {
-            background: #1e7e34;
+            background: var(--button-success-hover);
         }
 
         .blank-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
             color: white;
             border: none;
             padding: 4px 12px;
@@ -4042,11 +4094,11 @@
         }
 
         .blank-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .dir-btn {
-            background: #6c757d;
+            background: var(--button-neutral-bg);
             color: white;
             border: none;
             border-radius: 4px;
@@ -4062,7 +4114,7 @@
             height: auto;
             min-height: auto;
         }
-        .dir-btn:hover { background: #5a6268; }
+        .dir-btn:hover { background: var(--button-neutral-hover); }
 
         .json-controls {
             display: flex;
@@ -4072,8 +4124,8 @@
 
 
         .json-preview {
-            background: #2d3748;
-            color: #e2e8f0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             border-radius: 15px;
             padding: 25px;
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -4081,8 +4133,8 @@
             line-height: 1.6;
             overflow-x: auto; /* inside right column only */
             overflow-y: auto;
-            border: 1px solid #4a5568;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            box-shadow: inset 0 2px 4px var(--shadow);
             white-space: pre-wrap;
             word-wrap: break-word;
             text-align: left;
@@ -4093,43 +4145,43 @@
         }
 
         .json-key {
-            color: #81e6d9;
+            color: var(--json-key);
         }
 
         .json-string {
-            color: #feb2b2;
+            color: var(--json-string);
         }
 
         .json-number {
-            color: #90cdf4;
+            color: var(--json-number);
         }
 
         .json-boolean {
-            color: #fbb6ce;
+            color: var(--json-boolean);
         }
 
         .json-null {
-            color: #a0aec0;
+            color: var(--json-null);
         }
 
         .json-preview-content {
-            color: #e2e8f0;
+            color: var(--text-primary);
             line-height: 1.6;
         }
         
         /* Enhanced JSON formatting styles */
         .json-bracket {
-            color: #e2e8f0;
+            color: var(--text-primary);
             font-weight: bold;
         }
         
         .json-colon {
-            color: #e2e8f0;
+            color: var(--text-primary);
             margin: 0 2px;
         }
         
         .json-comma {
-            color: #e2e8f0;
+            color: var(--text-primary);
             margin-right: 4px;
         }
         
@@ -4141,41 +4193,41 @@
         
         /* JSON syntax highlighting improvements */
         .json-key {
-            color: #81e6d9;
+            color: var(--json-key);
             font-weight: 600;
         }
         
         .json-string {
-            color: #feb2b2;
+            color: var(--json-string);
         }
         
         .json-number {
-            color: #90cdf4;
+            color: var(--json-number);
             font-weight: 600;
         }
         
         .json-boolean {
-            color: #fbb6ce;
+            color: var(--json-boolean);
             font-weight: 600;
         }
         
         .json-null {
-            color: #a0aec0;
+            color: var(--json-null);
             font-style: italic;
         }
         
         /* Hover effects for better interaction */
         .json-preview:hover {
-            border-color: #4a5568;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+            border-color: var(--border-strong);
+            box-shadow: inset 0 2px 4px var(--shadow);
         }
 
         .preview-section {
             margin-bottom: 15px;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--bg-secondary);
             border-radius: 6px;
-            border-left: 3px solid #667eea;
+            border-left: 3px solid var(--accent);
         }
 
         .preview-indent {
@@ -4188,34 +4240,34 @@
             margin-left: 40px;
             margin-bottom: 8px;
             padding: 5px 0;
-            color: #cbd5e0;
+            color: var(--text-secondary);
             font-style: italic;
         }
 
         .validation-error {
-            border-color: #dc3545 !important;
-            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+            border-color: var(--state-danger) !important;
+            box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--state-danger) 26%, transparent);
         }
 
         /* Validation success styling removed per user request - green checkmark indicator removed */
 
         .required-field {
-            border-left: 3px solid #dc3545;
+            border-left: 3px solid var(--state-danger);
         }
 
         .required-field label::after {
             content: " *";
-            color: #dc3545;
+            color: var(--state-danger);
             font-weight: bold;
         }
 
         .tabs {
             display: flex;
             margin-bottom: 20px;
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid var(--tabs-divider);
         }
         .tabs.main-tabs {
-            border-bottom: 3px solid #667eea;
+            border-bottom: 3px solid var(--accent);
             margin-bottom: 20px;
         }
 
@@ -4226,14 +4278,14 @@
             cursor: pointer;
             font-size: 0.85rem;
             font-weight: 600;
-            color: #6c757d;
+            color: var(--text-secondary);
             border-bottom: 2px solid transparent;
             transition: all 0.3s ease;
         }
 
         .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
+            color: var(--accent);
+            border-bottom-color: var(--accent);
         }
 
         /* ============================================================
@@ -4282,7 +4334,7 @@
             /* Controlled gap between main tabs and sub tabs */
             margin-bottom: var(--main-to-subtabs-gap);
             padding-bottom: 0;
-            border-bottom: 3px solid #667eea; /* Keep main tab border */
+            border-bottom: 3px solid var(--accent); /* Keep main tab border */
         }
         
         /* Sticky tabs stack - sub-tabs only, scoped to Input Form */
@@ -4323,16 +4375,13 @@
             padding-top: 0;
             padding-bottom: 0;
             border-top: none; /* No border between bars */
-            border-bottom: 2px solid #e9ecef; /* Keep sub tab border */
-            box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            border-bottom: 2px solid var(--tabs-divider); /* Keep sub tab border */
+            box-shadow: var(--tabs-shadow);
         }
         
         /* Sticky tab stack background variable */
         :root {
             --tabs-bg: var(--bg-secondary, #2d3748);
-        }
-        .sticky-tab-bar--sub {
-            box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.3);
         }
         
         /* Responsive adjustments for main tab bar */
@@ -4468,13 +4517,8 @@
             padding: 20px;
             background: var(--bg-secondary);
             border-radius: 8px;
-            border: 2px solid var(--border-color);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .final-preview-section {
-            border: 2px solid #4a5568;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            background: #2d3748;
+            border: 2px solid var(--border-strong);
+            box-shadow: 0 2px 8px var(--shadow);
         }
         .final-preview-section h3 {
             margin-top: 0;
@@ -4639,13 +4683,13 @@
         .final-preview-question .choice-item:not(.preview-choice-row) {
             padding: 8px 12px;
             margin: 8px 0;
-            background: #f8f9fa;
+            background: var(--preview-choice-bg);
             border-radius: 4px;
-            border-left: 3px solid #dee2e6;
+            border-left: 3px solid var(--preview-choice-border);
         }
         .final-preview-question .choice-item.correct:not(.preview-choice-row) {
-            background: #d4edda;
-            border-left-color: #28a745;
+            background: var(--preview-choice-correct-bg);
+            border-left-color: var(--state-success);
         }
         .final-preview-question .blanks-container {
             margin: 0;
@@ -4656,13 +4700,13 @@
         .final-preview-question .blank-answer {
             padding: 8px 12px;
             margin: 8px 0;
-            background: #fff3cd;
+            background: var(--preview-blank-bg);
             border-radius: 4px;
-            border-left: 3px solid #ffc107;
+            border-left: 3px solid var(--state-warning);
         }
         .final-preview-question .blank-answer .blank-number {
             font-weight: 600;
-            color: #856404;
+            color: var(--warning-text);
             margin-right: 8px;
         }
         .final-preview-question .blank-answer {
@@ -4699,29 +4743,29 @@
             letter-spacing: 0.5px;
         }
         .final-preview-question {
-            background: #2d3748;
+            background: var(--bg-primary);
             color: var(--text-primary);
-            border: 2px solid #4a5568;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--border-strong);
+            box-shadow: 0 2px 6px var(--shadow);
         }
         .final-preview-question .setup-text {
             background: none;
             border: none;
         }
         .final-preview-question .preview-section-label {
-            color: #a0aec0;
+            color: var(--text-secondary);
         }
         .final-preview-question .choice-item {
-            background: #2d3238;
-            border-left-color: #6c757d;
+            background: var(--preview-choice-bg);
+            border-left-color: var(--preview-choice-border);
         }
         .final-preview-question .choice-item.correct {
-            background: #1e4620;
-            border-left-color: #28a745;
+            background: var(--preview-choice-correct-bg);
+            border-left-color: var(--state-success);
         }
         .final-preview-question .blank-answer {
-            background: #3d3520;
-            border-left-color: #ffc107;
+            background: var(--preview-blank-bg);
+            border-left-color: var(--state-warning);
         }
         .final-preview-question .guide-answer {
             background: none;
@@ -4729,25 +4773,25 @@
         }
 
         .highlight {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
+            background: var(--highlight-bg);
+            border: 1px solid var(--highlight-border);
             border-radius: 8px;
             padding: 15px;
             margin: 15px 0;
         }
 
         .highlight h4 {
-            color: #856404;
+            color: var(--highlight-text);
             margin-bottom: 10px;
         }
 
         .highlight p {
-            color: #856404;
+            color: var(--highlight-text);
             margin: 0;
         }
 
         .generate-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
             color: white;
             border: none;
             border-radius: 6px;
@@ -4765,19 +4809,19 @@
         }
 
         /* Embedded BBox Drawer Modal */
-        .bbox-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 9999; }
+        .bbox-modal { position: fixed; inset: 0; background: var(--modal-overlay); display: none; align-items: center; justify-content: center; z-index: 9999; }
         .bbox-modal.show { display: flex; }
-        .bbox-dialog { width: 90vw; height: 88vh; background: var(--bg-primary); color: var(--text-primary); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color); }
+        .bbox-dialog { width: 90vw; height: 88vh; background: var(--bg-primary); color: var(--text-primary); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color); }
         .bbox-toolbar { padding: 10px; background: var(--bg-secondary); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-bottom: 1px solid var(--border-color); }
         .bbox-toolbar .group { display:flex; align-items:center; gap:8px; padding-right: 10px; border-right: 1px solid var(--border-color); }
         .bbox-toolbar .group:last-child { border-right: none; }
         .bbox-btn { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
         .bbox-btn.primary { background: var(--accent); border-color: var(--accent); }
-        .bbox-btn.danger { background: #dc2626; border-color: #dc2626; }
+        .bbox-btn.danger { background: var(--button-danger-bg); border-color: var(--button-danger-bg); }
         .bbox-content { flex: 1; display: grid; grid-template-columns: 1fr 340px; gap: 10px; padding: 10px; }
         .bbox-canvas-wrap { position: relative; overflow:auto; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 10px; }
         .bbox-canvas-wrap canvas { display:block; }
-        #em-pdf { background: #ffffff; }
+        #em-pdf { background: var(--pdf-paper-bg); }
         #em-draw { position:absolute; top:0; left:0; pointer-events:auto; }
         .bbox-sidebar { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .bbox-bbox-list { flex:1; overflow:auto; display:flex; flex-direction:column; gap:6px; }
@@ -4802,28 +4846,225 @@
             }
         }
 
-        /* App Theme Styles (dark-only) */
-        :root {
-            --bg-primary: #1a1a1a;
-            --bg-secondary: #2d2d2d;
-            --bg-tertiary: #3d3d3d;
-            --text-primary: #ffffff;
-            --text-secondary: #b0b0b0;
-            --border-color: #4a4a4a;
-            --shadow: rgba(0,0,0,0.3);
+        /* App Theme Styles */
+        :root,
+        :root[data-theme="dark"] {
+            --bg-primary: #151b24;
+            --bg-secondary: #1f2733;
+            --bg-tertiary: #2a3444;
+            --text-primary: #edf2fb;
+            --text-secondary: #b6c0d2;
+            --border-color: #3b475b;
+            --border-strong: #4c5a73;
+            --shadow: rgba(8, 12, 20, 0.45);
+            --elevation-soft: 0 2px 8px rgba(6, 10, 18, 0.45);
             --accent: #667eea;
-            --accent-dark: #764ba2;
+            --accent-dark: #5a6fd8;
+            --focus-ring: rgba(135, 157, 255, 0.55);
+            --header-bg: linear-gradient(135deg, #1d2a3a 0%, #24354a 100%);
+            --header-fg: #f8fbff;
+            --header-control-bg: rgba(255, 255, 255, 0.1);
+            --header-control-border: rgba(255, 255, 255, 0.34);
+            --header-control-fg: #f8fbff;
+            --header-control-hover-bg: rgba(255, 255, 255, 0.2);
+            --header-control-hover-border: rgba(255, 255, 255, 0.62);
+            --font-settings-bg: rgba(255, 255, 255, 0.12);
+            --font-settings-border: rgba(255, 255, 255, 0.26);
+            --status-pill-bg: rgba(255, 255, 255, 0.08);
+            --status-pill-border: rgba(255, 255, 255, 0.28);
+            --status-pill-fg: #e8eefb;
+            --status-warning-bg: rgba(255, 193, 7, 0.18);
+            --status-warning-border: rgba(255, 193, 7, 0.42);
+            --status-warning-fg: #f8d04f;
+            --status-success-bg: rgba(40, 167, 69, 0.18);
+            --status-success-border: rgba(40, 167, 69, 0.4);
+            --status-success-fg: #6bd88c;
+            --tabs-divider: #354153;
+            --tabs-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.35);
+            --modal-overlay: rgba(0, 0, 0, 0.68);
+            --surface-app: #0b1017;
+            --text-inverse: #ffffff;
+            --state-success: #28a745;
+            --state-warning: #ffc107;
+            --state-danger: #dc3545;
+            --success-chip-bg: var(--state-success);
+            --success-chip-soft-bg: color-mix(in srgb, var(--state-success) 15%, transparent);
+            --success-chip-border: var(--state-success);
+            --success-gradient-start: #28a745;
+            --success-gradient-end: #20c997;
+            --button-success-bg: #28a745;
+            --button-success-hover: #218838;
+            --button-info-bg: #17a2b8;
+            --button-info-hover: #138496;
+            --button-neutral-bg: #6c757d;
+            --button-neutral-hover: #5a6268;
+            --button-neutral-disabled: #adb5bd;
+            --button-warning-bg: #ffc107;
+            --button-warning-hover: #e0a800;
+            --button-danger-bg: #dc3545;
+            --button-danger-hover: #c82333;
+            --button-duplicate-bg: #6f42c1;
+            --button-duplicate-hover: #5a32a3;
+            --preview-choice-bg: #27303d;
+            --preview-choice-border: #5d697e;
+            --preview-choice-correct-bg: #1f442a;
+            --preview-blank-bg: #3a3420;
+            --highlight-bg: #3b3420;
+            --highlight-border: #7b6d3a;
+            --highlight-text: #f1dea2;
+            --warning-text: #f0cb6e;
+            --trailing-alert-bg: #fffbf0;
+            --trailing-alert-border: #ffc107;
+            --trailing-alert-text: #856404;
+            --trailing-alert-chip-bg: rgba(255, 193, 7, 0.2);
+            --space-highlight-bg: rgba(255, 0, 0, 0.2);
+            --space-highlight-border: rgba(255, 0, 0, 0.5);
+            --validation-panel-bg: #ffe6e6;
+            --validation-panel-border: #ff4d4d;
+            --validation-panel-text: #cc0000;
+            --validation-card-bg: var(--bg-primary);
+            --validation-card-border: #ff4d4d;
+            --validation-muted-text: #666666;
+            --validation-code-bg: #f5f5f5;
+            --image-placeholder-bg: #2d3646;
+            --image-placeholder-border: #4f5d76;
+            --image-placeholder-text: #9ea9bc;
+            --blank-chip-gradient-start: var(--accent);
+            --blank-chip-gradient-end: var(--accent-dark);
+            --bbox-preview-stroke: #cc0000;
+            --bbox-draw-preview-stroke: #a78bfa;
+            --bbox-draw-final-stroke: #22c55e;
+            --bbox-draw-final-fill: #22c55e33;
+            --pdf-paper-bg: #ffffff;
+            --toggle-enabled-bg: rgba(40, 167, 69, 0.8);
+            --toggle-enabled-border: rgba(121, 220, 151, 0.95);
+            --toggle-enabled-fg: #ffffff;
+            --toggle-disabled-bg: rgba(220, 53, 69, 0.8);
+            --toggle-disabled-border: rgba(245, 143, 156, 0.95);
+            --toggle-disabled-fg: #ffffff;
             --app-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             --app-font-size: 14px;
             --app-line-height: 1.5;
+            --scrollbar-track: #202938;
+            --scrollbar-thumb: #55637b;
+            --scrollbar-thumb-hover: #657693;
+            --json-key: #81e6d9;
+            --json-string: #feb2b2;
+            --json-number: #90cdf4;
+            --json-boolean: #fbb6ce;
+            --json-null: #a0aec0;
+        }
+
+        :root[data-theme="light"] {
+            --bg-primary: #f7f9fd;
+            --bg-secondary: #edf2f8;
+            --bg-tertiary: #e3eaf4;
+            --text-primary: #1f2937;
+            --text-secondary: #4f5d70;
+            --border-color: #c9d3e2;
+            --border-strong: #b5c2d6;
+            --shadow: rgba(28, 45, 74, 0.12);
+            --elevation-soft: 0 2px 8px rgba(60, 80, 110, 0.12);
+            --accent: #4f67d8;
+            --accent-dark: #3f53b8;
+            --focus-ring: rgba(79, 103, 216, 0.42);
+            --header-bg: linear-gradient(135deg, #dbe5f3 0%, #d1dced 100%);
+            --header-fg: #203047;
+            --header-control-bg: rgba(255, 255, 255, 0.72);
+            --header-control-border: rgba(113, 130, 158, 0.45);
+            --header-control-fg: #22324a;
+            --header-control-hover-bg: rgba(255, 255, 255, 0.95);
+            --header-control-hover-border: rgba(84, 103, 137, 0.65);
+            --font-settings-bg: rgba(255, 255, 255, 0.66);
+            --font-settings-border: rgba(110, 128, 158, 0.3);
+            --status-pill-bg: rgba(255, 255, 255, 0.74);
+            --status-pill-border: rgba(113, 130, 158, 0.32);
+            --status-pill-fg: #2a3b54;
+            --status-warning-bg: rgba(255, 193, 7, 0.2);
+            --status-warning-border: rgba(184, 134, 11, 0.45);
+            --status-warning-fg: #855f07;
+            --status-success-bg: rgba(40, 167, 69, 0.16);
+            --status-success-border: rgba(31, 157, 85, 0.42);
+            --status-success-fg: #136f3f;
+            --tabs-divider: #c9d5e8;
+            --tabs-shadow: 0 2px 4px -2px rgba(80, 98, 127, 0.26);
+            --modal-overlay: rgba(17, 26, 42, 0.42);
+            --surface-app: #ecf1f8;
+            --text-inverse: #ffffff;
+            --state-success: #1f9d55;
+            --state-warning: #b8860b;
+            --state-danger: #c0392b;
+            --success-chip-bg: var(--state-success);
+            --success-chip-soft-bg: color-mix(in srgb, var(--state-success) 14%, transparent);
+            --success-chip-border: var(--state-success);
+            --success-gradient-start: #1f9d55;
+            --success-gradient-end: #0e9472;
+            --button-success-bg: #1f9d55;
+            --button-success-hover: #198a49;
+            --button-info-bg: #14889a;
+            --button-info-hover: #117a8b;
+            --button-neutral-bg: #64748b;
+            --button-neutral-hover: #55657b;
+            --button-neutral-disabled: #9aa7b9;
+            --button-warning-bg: #cc9a11;
+            --button-warning-hover: #b4870d;
+            --button-danger-bg: #c0392b;
+            --button-danger-hover: #a93226;
+            --button-duplicate-bg: #7050c3;
+            --button-duplicate-hover: #5f40ab;
+            --preview-choice-bg: #f1f4f9;
+            --preview-choice-border: #d2dae7;
+            --preview-choice-correct-bg: #e4f5e8;
+            --preview-blank-bg: #fdf4dd;
+            --highlight-bg: #f5edd8;
+            --highlight-border: #e4d2a9;
+            --highlight-text: #715a2e;
+            --warning-text: #715a2e;
+            --trailing-alert-bg: #fcf6e7;
+            --trailing-alert-border: #cc9a11;
+            --trailing-alert-text: #855f07;
+            --trailing-alert-chip-bg: rgba(204, 154, 17, 0.2);
+            --space-highlight-bg: rgba(192, 57, 43, 0.16);
+            --space-highlight-border: rgba(192, 57, 43, 0.55);
+            --validation-panel-bg: #fff0ee;
+            --validation-panel-border: #d56a61;
+            --validation-panel-text: #982f24;
+            --validation-card-bg: #ffffff;
+            --validation-card-border: #d56a61;
+            --validation-muted-text: #5f6b7a;
+            --validation-code-bg: #f2f5fb;
+            --image-placeholder-bg: #eef2f9;
+            --image-placeholder-border: #bdc8d8;
+            --image-placeholder-text: #6f7f95;
+            --blank-chip-gradient-start: var(--accent);
+            --blank-chip-gradient-end: var(--accent-dark);
+            --bbox-preview-stroke: #b63f31;
+            --bbox-draw-preview-stroke: #7c6ee8;
+            --bbox-draw-final-stroke: #1f9d55;
+            --bbox-draw-final-fill: #1f9d5533;
+            --pdf-paper-bg: #ffffff;
+            --toggle-enabled-bg: rgba(31, 157, 85, 0.85);
+            --toggle-enabled-border: rgba(20, 120, 66, 0.95);
+            --toggle-enabled-fg: #ffffff;
+            --toggle-disabled-bg: rgba(192, 57, 43, 0.85);
+            --toggle-disabled-border: rgba(160, 44, 32, 0.95);
+            --toggle-disabled-fg: #ffffff;
+            --scrollbar-track: #e3e8f2;
+            --scrollbar-thumb: #b9c4d6;
+            --scrollbar-thumb-hover: #9fadc5;
+            --json-key: #7c3aed;
+            --json-string: #0f766e;
+            --json-number: #0369a1;
+            --json-boolean: #c2410c;
+            --json-null: #6b7280;
         }
 
         body {
-            background: #000000;
+            background: var(--surface-app);
         }
 
         .container {
-            background: #000000;
+            background: var(--surface-app);
             color: var(--text-primary);
         }
 
@@ -4845,7 +5086,7 @@
         .form-group textarea:focus,
         .form-group select:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 0 0 3px var(--focus-ring);
         }
 
         .form-group.checkbox-group label {
@@ -4860,12 +5101,12 @@
 
         .btn:hover {
             background: var(--accent);
-            color: white;
+            color: var(--text-inverse);
         }
 
         .btn.primary {
             background: var(--accent);
-            color: white;
+            color: var(--text-inverse);
         }
 
         .btn.primary:hover {
@@ -4897,7 +5138,7 @@
         }
 
         .reorder-btn:hover {
-            background: #5a6268;
+            background: var(--button-neutral-hover);
         }
 
         .reorder-btn:disabled {
@@ -4906,37 +5147,37 @@
         }
 
         .copy-section-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
             border: 1px solid var(--border-color);
         }
 
         .copy-section-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .paste-section-btn {
-            background: #17a2b8;
+            background: var(--button-info-bg);
         }
 
         .paste-section-btn:hover {
-            background: #138496;
+            background: var(--button-info-hover);
         }
 
         .paste-replace-btn {
-            background: #ffc107;
+            background: var(--button-warning-bg);
         }
 
         .paste-replace-btn:hover {
-            background: #e0a800;
+            background: var(--button-warning-hover);
         }
 
         .duplicate-btn {
-            background: #6f42c1;
+            background: var(--button-duplicate-bg);
             border: 1px solid var(--border-color);
         }
 
         .duplicate-btn:hover {
-            background: #5a32a3;
+            background: var(--button-duplicate-hover);
         }
 
         .preview-content {
@@ -4955,23 +5196,23 @@
         }
 
         .json-key {
-            color: #ff79c6;
+            color: var(--json-key);
         }
 
         .json-string {
-            color: #f1fa8c;
+            color: var(--json-string);
         }
 
         .json-number {
-            color: #bd93f9;
+            color: var(--json-number);
         }
 
         .json-boolean {
-            color: #8be9fd;
+            color: var(--json-boolean);
         }
 
         .json-null {
-            color: #6272a4;
+            color: var(--json-null);
         }
 
         .preview-indent {
@@ -4986,7 +5227,7 @@
 
         /* BBox Modal Dark Mode */
         .bbox-modal {
-            background: rgba(0, 0, 0, 0.8);
+            background: var(--modal-overlay);
         }
 
         .bbox-dialog {
@@ -5012,7 +5253,7 @@
 
         .bbox-btn:hover {
             background: var(--accent);
-            color: white;
+            color: var(--text-inverse);
         }
 
         .bbox-btn.primary {
@@ -5025,12 +5266,12 @@
         }
 
         .bbox-btn.danger {
-            background: #dc2626;
-            border-color: #dc2626;
+            background: var(--button-danger-bg);
+            border-color: var(--button-danger-bg);
         }
 
         .bbox-btn.danger:hover {
-            background: #b91c1c;
+            background: var(--button-danger-hover);
         }
 
         .bbox-content {
@@ -5041,58 +5282,134 @@
             background: var(--bg-secondary);
         }
 
-        /* Improved Title Contrast for Dark Mode */
+        /* Heading Contrast */
         h1,
         h2,
         h3,
         h4,
         h5,
         h6 {
-            color: #ffffff;
+            color: var(--text-primary);
             font-weight: 600;
         }
 
         .header h1 {
-            color: #ffffff;
+            color: var(--header-fg);
             font-weight: 700;
         }
 
         .header p {
-            color: #e5e7eb;
+            color: var(--header-fg);
+            opacity: 0.9;
         }
         
         /* What's New Button Styles */
-        #whats-new-btn {
-            display: flex !important;
+        #whats-new-btn,
+        .header-chip-btn {
+            display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
             text-align: center !important;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text-inverse);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+            transition: all 0.3s ease;
             padding-left: 8px !important;
             padding-right: 12px !important;
         }
         
-        #whats-new-btn:hover {
+        #whats-new-btn:hover,
+        .header-chip-btn:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 50%, transparent);
         }
         
-        #whats-new-btn:active {
+        #whats-new-btn:active,
+        .header-chip-btn:active {
             transform: translateY(0);
         }
-        
+
+        .whats-new-modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--modal-overlay);
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .whats-new-modal-header-bar {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            color: var(--text-inverse);
+            padding: 24px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .whats-new-close-btn {
+            background: var(--header-control-bg);
+            border: none;
+            color: var(--text-inverse);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s ease;
+            padding: 0;
+        }
+
+        .whats-new-close-btn:hover {
+            background: var(--header-control-hover-bg);
+            transform: scale(1.06);
+        }
+
         /* What's New Modal Styles */
         .whats-new-modal-content {
             background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             max-width: 800px;
             width: 100%;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 40px var(--shadow);
         }
         
         .whats-new-modal-body {
             padding: 30px;
+        }
+
+        .whats-new-modal-title {
+            margin: 0;
+            font-size: 1.8rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .whats-new-modal-subtitle {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 0.95rem;
         }
         
         .whats-new-modal-header {
@@ -5103,44 +5420,52 @@
             margin: 0;
             padding-left: 25px;
             line-height: 1.8;
-            color: var(--text-primary);
+            color: var(--text-secondary);
         }
         
         .whats-new-version-badge {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 0.9rem;
+        }
+
+        .whats-new-release-block {
+            margin-bottom: 40px;
+        }
+
+        .whats-new-release-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .whats-new-version-pill {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+            color: var(--text-inverse);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .whats-new-section-title {
+            margin: 0 0 12px 0;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .whats-new-modal-footer {
-            border-top: 2px solid #e9ecef;
+            border-top: 2px solid var(--border-color);
             padding-top: 20px;
             text-align: center;
-            color: #6c757d;
+            color: var(--text-secondary);
             font-size: 0.9rem;
         }
-        
-        /* What's New Modal Dark Mode */
-        .whats-new-modal-content {
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            border: 1px solid var(--border-color);
-        }
-        
-        .whats-new-modal-header {
-            color: var(--text-primary);
-        }
-        
-        .whats-new-modal-list {
-            color: var(--text-secondary);
-        }
-        
-        .whats-new-version-badge {
-            color: var(--text-secondary);
-        }
-        
-        .whats-new-modal-footer {
-            border-top-color: var(--border-color);
-            color: var(--text-secondary);
+
+        .whats-new-modal-footer-text {
+            margin: 0;
         }
         
         .whats-new-modal-footer a {
@@ -5151,33 +5476,45 @@
             color: var(--accent-dark);
         }
 
+        .whats-new-feedback-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .whats-new-close-icon {
+            line-height: 1;
+            display: block;
+            transform: translateY(2px);
+        }
+
         .form-section h3 {
-            color: #ffffff;
+            color: var(--text-primary);
             font-weight: 600;
         }
 
         .form-section h4 {
-            color: #f3f4f6;
+            color: var(--text-primary);
             font-weight: 600;
         }
 
         .form-section label {
-            color: #f9fafb;
+            color: var(--text-primary);
             font-weight: 500;
         }
 
         .tab-button {
-            color: #d1d5db;
+            color: var(--text-secondary);
             font-weight: 500;
         }
 
         .tab-button.active {
-            color: #ffffff;
+            color: var(--text-primary);
             font-weight: 600;
         }
 
         .tab-button:hover {
-            color: #ffffff;
+            color: var(--text-primary);
         }
 
         /* Live Preview Dark Mode */
@@ -5194,44 +5531,44 @@
         
         /* Trailing spaces indicator in dark mode */
         .live-preview.has-trailing-spaces {
-            border: 2px solid #ffc107;
-            border-left: 4px solid #ffc107;
-            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid var(--trailing-alert-border);
+            border-left: 4px solid var(--trailing-alert-border);
+            background: var(--trailing-alert-bg);
         }
         
         .live-preview.has-trailing-spaces::before {
-            color: #ffc107;
-            background: rgba(255, 193, 7, 0.2);
+            color: var(--trailing-alert-text);
+            background: var(--trailing-alert-chip-bg);
         }
         
         .leading-space {
-            background-color: rgba(255, 0, 0, 0.2);
-            border-top-color: rgba(255, 0, 0, 0.5);
+            background-color: var(--space-highlight-bg);
+            border-top-color: var(--space-highlight-border);
         }
         
         .trailing-space {
-            background-color: rgba(255, 0, 0, 0.2);
-            border-bottom-color: rgba(255, 0, 0, 0.5);
+            background-color: var(--space-highlight-bg);
+            border-bottom-color: var(--space-highlight-border);
         }
         
         .consecutive-space {
-            background-color: rgba(255, 0, 0, 0.2);
-            border-top-color: rgba(255, 0, 0, 0.5);
-            border-bottom-color: rgba(255, 0, 0, 0.5);
+            background-color: var(--space-highlight-bg);
+            border-top-color: var(--space-highlight-border);
+            border-bottom-color: var(--space-highlight-border);
         }
         
         .trailing-empty-line {
-            background-color: rgba(255, 193, 7, 0.1);
-            border-left-color: #ffc107;
+            background-color: var(--trailing-alert-chip-bg);
+            border-left-color: var(--trailing-alert-border);
         }
         
         .trailing-empty-line::before {
-            color: #ffc107;
-            background: rgba(255, 193, 7, 0.25);
+            color: var(--trailing-alert-text);
+            background: var(--trailing-alert-chip-bg);
         }
         
         .preview-label {
-            color: #818cf8 !important;
+            color: var(--accent) !important;
             opacity: 0.9;
         }
         
@@ -5241,7 +5578,7 @@
         }
         
         .input-label {
-            color: #818cf8;
+            color: var(--accent);
         }
 
         .live-preview table {
@@ -5291,23 +5628,23 @@
         .live-preview[dir="rtl"] ul ul,
         .live-preview[dir="rtl"] ol ol { padding-left: 0; padding-right: 30px; }
 
-        /* Save indicator dark mode */
+        /* Save indicator */
         .auto-save-indicator {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(255, 255, 255, 0.2);
+            background: var(--header-control-bg);
+            border-color: var(--header-control-border);
         }
 
         .auto-save-indicator.saving {
-            background: rgba(255, 193, 7, 0.15);
-            border-color: rgba(255, 193, 7, 0.4);
-            color: #ffc107;
+            background: color-mix(in srgb, var(--state-warning) 18%, transparent);
+            border-color: color-mix(in srgb, var(--state-warning) 45%, transparent);
+            color: var(--state-warning);
             font-weight: 600;
         }
 
         .auto-save-indicator.saved {
-            background: rgba(40, 167, 69, 0.15);
-            border-color: rgba(40, 167, 69, 0.4);
-            color: #4caf50;
+            background: color-mix(in srgb, var(--state-success) 18%, transparent);
+            border-color: color-mix(in srgb, var(--state-success) 45%, transparent);
+            color: var(--state-success);
             font-weight: 600;
         }
 
@@ -5317,8 +5654,8 @@
         }
 
         #saveBtn:hover {
-            background: rgba(102, 126, 234, 0.3);
-            border-color: rgba(102, 126, 234, 0.5);
+            background: var(--header-control-hover-bg);
+            border-color: var(--header-control-hover-border);
         }
 
         #saveBtn:active {
@@ -5334,14 +5671,110 @@
         
         #undo-btn:not(:disabled):hover,
         #redo-btn:not(:disabled):hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.5);
+            background: var(--header-control-hover-bg);
+            border-color: var(--header-control-hover-border);
             transform: scale(1.1);
         }
         
         #undo-btn:not(:disabled):active,
         #redo-btn:not(:disabled):active {
             transform: scale(0.95);
+        }
+
+        .header-action-btn.is-enabled {
+            background: var(--toggle-enabled-bg);
+            border-color: var(--toggle-enabled-border);
+            color: var(--toggle-enabled-fg);
+        }
+
+        .header-action-btn.is-disabled {
+            background: var(--toggle-disabled-bg);
+            border-color: var(--toggle-disabled-border);
+            color: var(--toggle-disabled-fg);
+        }
+
+        .header-action-btn.theme-light {
+            background: color-mix(in srgb, var(--accent) 28%, var(--header-control-bg));
+            border-color: color-mix(in srgb, var(--accent) 55%, var(--header-control-border));
+            color: var(--header-control-fg);
+        }
+
+        .header-action-btn.theme-dark {
+            background: var(--header-control-bg);
+            border-color: var(--header-control-border);
+            color: var(--header-control-fg);
+        }
+
+        .bbox-btn.is-enabled {
+            background: var(--toggle-enabled-bg);
+            border-color: var(--toggle-enabled-border);
+            color: var(--toggle-enabled-fg);
+        }
+
+        .font-settings {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            background: var(--font-settings-bg);
+            border: 1px solid var(--font-settings-border);
+            padding: 4px 8px;
+            border-radius: 6px;
+            color: var(--header-fg);
+            backdrop-filter: blur(8px);
+        }
+
+        .font-settings label {
+            color: var(--header-fg);
+        }
+
+        .font-settings-label {
+            font-size: 0.7rem;
+            opacity: 0.95;
+        }
+
+        .font-settings-label.line-label {
+            margin-left: 4px;
+        }
+
+        .font-settings-select {
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .header-select {
+            background: var(--header-control-bg) !important;
+            border: 1px solid var(--header-control-border) !important;
+            color: var(--header-control-fg) !important;
+        }
+
+        .header-select option {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        * {
+            scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+        }
+
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 10px;
+            border: 2px solid var(--scrollbar-track);
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover);
         }
 
         /* Form Header and Navigation Styles */
@@ -5399,7 +5832,7 @@
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 12px var(--shadow);
             max-height: 400px;
             overflow-y: auto;
             z-index: 10000;
@@ -5448,8 +5881,8 @@
         }
         
         .search-result-preview .highlight {
-            background-color: #ffd700;
-            color: #000;
+            background-color: var(--highlight-bg);
+            color: var(--highlight-text);
             padding: 2px 4px;
             border-radius: 3px;
             font-weight: 600;
@@ -5463,8 +5896,8 @@
         }
         
         .search-result-preview .highlight {
-            background-color: #ffd700;
-            color: #000;
+            background-color: var(--highlight-bg);
+            color: var(--highlight-text);
         }
         
         .quick-jump select {
@@ -5486,54 +5919,18 @@
         }
 
         .quick-jump select:hover {
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         .quick-jump select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--focus-ring);
         }
 
         /* Header select styling (font size and line height) */
         .header-select {
-            background: rgba(255, 255, 255, 0.2) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
             border-radius: 4px;
-            color: white !important;
-        }
-        
-        .header-select option {
-            background: #2c3e50;
-            color: white;
-        }
-
-        /* Dark mode navigation styles */
-        .quick-jump select {
-            background: #2d3748 !important;
-            border-color: #4a5568 !important;
-            color: #e2e8f0 !important;
-        }
-
-        .quick-jump select:hover {
-            border-color: #667eea !important;
-        }
-        
-        .quick-jump select option {
-            background: #2d3748;
-            color: #e2e8f0;
-        }
-
-        /* Dark mode header select styling */
-        .header-select {
-            background: rgba(255, 255, 255, 0.15) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
-            color: white !important;
-        }
-        
-        .header-select option {
-            background: #2d3748;
-            color: #e2e8f0;
         }
 
         /* Responsive navigation */
@@ -5570,8 +5967,8 @@
         .form-group.invalid input,
         .form-group.invalid textarea,
         .form-group.invalid select {
-            border-color: #dc3545;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.5 5.5 1 1m0-1-1 1'/%3e%3c/svg%3e");
+            border-color: var(--state-danger);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23c0392b'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.5 5.5 1 1m0-1-1 1'/%3e%3c/svg%3e");
             background-repeat: no-repeat;
             background-position: right 12px center;
             background-size: 16px;
@@ -5580,14 +5977,14 @@
 
         .form-group.required label::after {
             content: " *";
-            color: #dc3545;
+            color: var(--state-danger);
             font-weight: bold;
         }
 
         .form-group.required:not(.valid):not(.invalid) input,
         .form-group.required:not(.valid):not(.invalid) textarea,
         .form-group.required:not(.valid):not(.invalid) select {
-            border-left: 4px solid #ffc107;
+            border-left: 4px solid var(--state-warning);
         }
 
         /* Validation message */
@@ -5603,28 +6000,28 @@
         .form-group.valid input,
         .form-group.valid textarea,
         .form-group.valid select {
-            border-color: #28a745;
-            background-color: #2d3748;
+            border-color: var(--state-success);
+            background-color: var(--bg-primary);
         }
 
         .form-group.invalid input,
         .form-group.invalid textarea,
         .form-group.invalid select {
-            border-color: #dc3545;
-            background-color: #2d3748;
+            border-color: var(--state-danger);
+            background-color: var(--bg-primary);
         }
 
         .validation-message.error {
-            background: #2d3748;
-            color: #feb2b2;
-            border-color: #4a5568;
+            background: var(--bg-primary);
+            color: var(--validation-panel-text);
+            border-color: var(--border-color);
             display: block;
         }
 
         .validation-message.success {
-            background: #2d3748;
-            color: #68d391;
-            border-color: #4a5568;
+            background: var(--bg-primary);
+            color: var(--state-success);
+            border-color: var(--border-color);
             display: block;
         }
 
@@ -5650,14 +6047,14 @@
             align-items: center;
             justify-content: center;
             font-size: 0.9rem;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 3px 8px var(--shadow);
             transition: all 0.3s ease;
             position: relative;
         }
 
         .fab:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 6px 20px var(--shadow);
         }
 
         .fab:active {
@@ -5665,12 +6062,12 @@
         }
 
         .fab-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
             color: white;
         }
 
         .fab-primary:hover {
-            background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+            background: linear-gradient(135deg, var(--accent-dark) 0%, color-mix(in srgb, var(--accent-dark) 75%, #221b43) 100%);
         }
 
         /* FAB animations */
@@ -5691,14 +6088,14 @@
 
         /* FAB secondary styling */
         .fab-secondary {
-            background: #2d3748;
-            color: #e2e8f0;
-            border-color: #4a5568;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border-color: var(--border-color);
         }
 
         .fab-secondary:hover {
-            background: #4a5568;
-            border-color: #718096;
+            background: var(--bg-tertiary);
+            border-color: var(--border-strong);
         }
 
         /* Responsive FABs */
@@ -5739,7 +6136,7 @@
             margin-bottom: 4px;
             padding-top: min(15px, 1.5vw);
             padding-bottom: 4px;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid var(--border-color);
         }
         
         /* Responsive padding-top for view-toggle-header */
@@ -5776,14 +6173,14 @@
         }
 
         .view-toggle-btn:hover {
-            border-color: #667eea;
+            border-color: var(--accent);
             background: var(--bg-secondary);
         }
 
         .view-toggle-btn.active {
-            background: #667eea;
+            background: var(--accent);
             color: white;
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         .view-panel {
@@ -5858,14 +6255,23 @@
         }
 
         .pdf-source-btn:hover {
-            border-color: #667eea;
+            border-color: var(--accent);
             background: var(--bg-secondary);
         }
 
         .pdf-source-btn.active {
-            background: #667eea;
+            background: var(--accent);
             color: white;
-            border-color: #667eea;
+            border-color: var(--accent);
+        }
+
+        .pdf-goto-input {
+            width: 60px;
+            padding: 4px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
 
         .pdf-canvas-container {
@@ -5888,8 +6294,8 @@
 
         #main-pdf-canvas {
             display: block;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            background: white;
+            box-shadow: 0 4px 12px var(--shadow);
+            background: var(--pdf-paper-bg);
             flex-shrink: 0; /* Prevent canvas from shrinking */
             margin: 0 auto; /* Center when smaller than container */
         }
@@ -5903,11 +6309,11 @@
 
         .view-toggle-btn:hover {
             background: var(--bg-secondary);
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         .view-toggle-btn.active {
-            background: #667eea;
+            background: var(--accent);
             color: white;
         }
 
@@ -5928,11 +6334,11 @@
 
         .pdf-source-btn:hover {
             background: var(--bg-secondary);
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         .pdf-source-btn.active {
-            background: #667eea;
+            background: var(--accent);
             color: white;
         }
 
@@ -6019,7 +6425,7 @@
                         <div class="header-meta">
                             <span id="version-display">v<span id="version-number"></span></span>
                             <span>•</span>
-                            <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-size: 0.65rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                            <button id="whats-new-btn" onclick="openWhatsNew()" title="View latest updates and improvements">
                                 <i class="fas fa-sparkles"></i> What's New
                             </button>
                             <span>•</span>
@@ -6030,9 +6436,9 @@
                         <!-- Undo/Redo Buttons -->
                         <div id="topbar-undo-redo" style="display: flex; gap: 8px;"></div>
                         <!-- Font Settings -->
-                        <div class="font-settings" data-ignore-autosave="true" style="display: flex; gap: 6px; align-items: center; background: rgba(255, 255, 255, 0.1); padding: 4px 8px; border-radius: 6px;">
-                            <label style="font-size: 0.7rem; opacity: 0.9;">Font:</label>
-                            <select id="fontSizeSelect" onchange="changeFontSize(this.value)" title="Change font size" class="header-select" style="padding: 2px 6px; font-size: 0.7rem; cursor: pointer; outline: none;">
+                        <div class="font-settings" data-ignore-autosave="true">
+                            <label class="font-settings-label">Font:</label>
+                            <select id="fontSizeSelect" onchange="changeFontSize(this.value)" title="Change font size" class="header-select font-settings-select">
                                 <option value="14" selected>14px</option>
                                 <option value="16">16px</option>
                                 <option value="18">18px</option>
@@ -6048,8 +6454,8 @@
                                 <option value="44">44px</option>
                                 <option value="48">48px</option>
                             </select>
-                            <label style="font-size: 0.7rem; opacity: 0.9; margin-left: 4px;">Line:</label>
-                            <select id="lineHeightSelect" onchange="changeLineHeight(this.value)" title="Change line height" class="header-select" style="padding: 2px 6px; font-size: 0.7rem; cursor: pointer; outline: none;">
+                            <label class="font-settings-label line-label">Line:</label>
+                            <select id="lineHeightSelect" onchange="changeLineHeight(this.value)" title="Change line height" class="header-select font-settings-select">
                                 <option value="1.5" selected>1.5</option>
                                 <option value="1.8">1.8</option>
                                 <option value="2.0">2.0</option>
@@ -6150,7 +6556,7 @@
                             <div id="guidebook_start_page_container"></div>
                             <div id="guidebook_end_page_container"></div>
                          </div>
-                         <small style="color: #6c757d; font-size: 12px;">Will generate array from start to end page (inclusive)</small>
+                        <small style="color: var(--text-secondary); font-size: 12px;">Will generate array from start to end page (inclusive)</small>
                      </div>
                     
                     <!-- Page Type - Refactored to use createFormControl -->
@@ -7477,7 +7883,7 @@
             if (!element) return;
             const originalBg = element.style.backgroundColor;
             const originalTransition = element.style.transition;
-            element.style.backgroundColor = 'rgba(102, 126, 234, 0.4)';
+            element.style.backgroundColor = 'color-mix(in srgb, var(--accent) 40%, transparent)';
             element.style.transition = 'background-color 0.3s ease';
             setTimeout(function() {
                 element.style.backgroundColor = originalBg;
@@ -8576,7 +8982,7 @@
                 outCtx.drawImage(full, cropL, cropT, cropW, cropH, 0, 0, cropW, cropH);
                 var rx = left - cropL;
                 var ry = top - cropT;
-                outCtx.strokeStyle = '#cc0000';
+                outCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--bbox-preview-stroke').trim() || '#cc0000';
                 outCtx.lineWidth = 2;
                 outCtx.strokeRect(rx, ry, bboxW, bboxH);
                 return out;
@@ -8587,7 +8993,7 @@
         }
 
         // Default inner box content when no bbox (dashed box + icon).
-        var __fpDefaultInnerHtml = '<span style="color: #999; font-size: 14px;">📷 Image</span>';
+        var __fpDefaultInnerHtml = '<span style="color: var(--image-placeholder-text); font-size: 14px;">📷 Image</span>';
 
         // ResizeObserver: one global, WeakMap innerBox -> { bboxRecord }. Debounced re-render on resize.
         var __fpBoxResizeMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -9526,7 +9932,7 @@
             
             // If neither title nor content exists
             if (!title && !text) {
-                html += '<p style="color: #6c757d; font-style: italic;">(No content)</p>';
+                html += '<p style="color: var(--text-secondary); font-style: italic;">(No content)</p>';
             }
             
             html += `</div>`;
@@ -10093,7 +10499,7 @@
             
             // If no content, show message
             if (!bookMetadataHtml && !unitPreambleHtml && !basicHtml && !preambleHtml && contentSections.length === 0 && questions.length === 0) {
-                html = '<div class="final-preview-section"><p style="color: #6c757d; font-style: italic;">No content sections or questions to preview. Add some content in the Input Form tab.</p></div>';
+                html = '<div class="final-preview-section"><p style="color: var(--text-secondary); font-style: italic;">No content sections or questions to preview. Add some content in the Input Form tab.</p></div>';
             }
             
             previewContainer.innerHTML = html;
@@ -10265,7 +10671,7 @@
             } = config || {};
             
             if (!items || items.length === 0) {
-                return '<div style="color: #6c757d; font-style: italic; padding: 8px;">(No items)</div>';
+                return '<div style="color: var(--text-secondary); font-style: italic; padding: 8px;">(No items)</div>';
             }
             
             let html = `<div class="preview-array-list">`;
@@ -10312,7 +10718,7 @@
             });
             
             if (renderedCount === 0) {
-                return '<div style="color: #6c757d; font-style: italic; padding: 8px;">(No items)</div>';
+                return '<div style="color: var(--text-secondary); font-style: italic; padding: 8px;">(No items)</div>';
             }
             
             html += `</div>`;
@@ -10457,11 +10863,11 @@
             
             // Build choice item with distinct marker based on type
             const markerIcon = isMCQ 
-                ? (isCorrect ? '<i class="fas fa-dot-circle" style="color: #28a745;"></i>' : '<i class="far fa-circle" style="color: var(--text-secondary);"></i>')
-                : (isCorrect ? '<i class="fas fa-check-square" style="color: #28a745;"></i>' : '<i class="far fa-square" style="color: var(--text-secondary);"></i>');
+                ? (isCorrect ? '<i class="fas fa-dot-circle" style="color: var(--state-success);"></i>' : '<i class="far fa-circle" style="color: var(--text-secondary);"></i>')
+                : (isCorrect ? '<i class="fas fa-check-square" style="color: var(--state-success);"></i>' : '<i class="far fa-square" style="color: var(--text-secondary);"></i>');
             
             const correctBadge = isCorrect 
-                ? `<span style="display: inline-block; background: #28a745; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 3px; margin-left: 8px; font-weight: 600;">${isMCQ ? '✓ Correct Answer' : '✓ Correct'}</span>`
+                ? `<span style="display: inline-block; background: var(--success-chip-bg); color: var(--text-inverse); font-size: 0.7rem; padding: 2px 6px; border-radius: 3px; margin-left: 8px; font-weight: 600;">${isMCQ ? '✓ Correct Answer' : '✓ Correct'}</span>`
                 : '';
             
             // Build edit pen - ALWAYS present for all choices
@@ -10470,7 +10876,7 @@
             const editPenHTML = `<div class="preview-choice-actions" onclick="${editTarget}" onmouseover="this.style.opacity='1'; this.style.background='var(--bg-tertiary)';" onmouseout="this.style.opacity='0.7'; this.style.background='transparent';" title="Click to edit"><i class="fas fa-edit"></i></div>`;
             
             // Use flex layout with dedicated actions column to prevent overlap
-            let html = `<div class="preview-choice-row choice-item ${isCorrect ? 'correct' : ''}" style="${isCorrect ? 'background: rgba(40, 167, 69, 0.08); border-left: 3px solid #28a745; border-radius: 4px;' : ''}">`;
+            let html = `<div class="preview-choice-row choice-item ${isCorrect ? 'correct' : ''}" style="${isCorrect ? 'background: var(--success-chip-soft-bg); border-left: 3px solid var(--success-chip-border); border-radius: 4px;' : ''}">`;
             
             // Marker icon
             html += `<span class="preview-choice-marker">${markerIcon}</span>`;
@@ -10487,7 +10893,7 @@
                 renderLivePreviewToElement(choiceTextarea, choicePreview);
                 html += `<div class="live-preview" dir="rtl" style="text-align: right; margin-top: 4px;">${choicePreview.innerHTML}</div>`;
             } else {
-                html += '<div style="color: #6c757d; font-style: italic; margin-top: 4px;">(No choice text)</div>';
+                html += '<div style="color: var(--text-secondary); font-style: italic; margin-top: 4px;">(No choice text)</div>';
             }
             
             html += `</div>`;
@@ -10580,7 +10986,7 @@
                         renderLivePreviewToElement(blankTextarea, blankPreview);
                         html += `<div class="live-preview" dir="rtl" style="text-align: right; margin-top: 4px;">${blankPreview.innerHTML}</div>`;
                     } else {
-                        html += '<span style="color: #6c757d; font-style: italic;">(No answer)</span>';
+                        html += '<span style="color: var(--text-secondary); font-style: italic;">(No answer)</span>';
                     }
                     
                     html += `</div>`;
@@ -10615,7 +11021,7 @@
                         const regex = new RegExp(`___${num}___`, 'g');
                         // Use the same styling as the input form preview
                         // Don't escape here - renderLivePreviewToElement will handle it properly
-                        filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">${answer}</span>`);
+                        filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, var(--success-gradient-start) 0%, var(--success-gradient-end) 100%); color: var(--text-inverse); border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px var(--shadow);">${answer}</span>`);
                     });
                     
                     const filledPreview = document.createElement('div');
@@ -10798,11 +11204,11 @@
                         relationshipsBodyHTML += renderMatchingCompactItemPreviewBox(questionIndex, 'left', rel.leftIdx, leftItem.text, leftItem.textarea);
                         relationshipsBodyHTML += `</td>`;
                     } else {
-                        relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: #dc3545; font-style: italic;">(missing item)</td>';
+                        relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: var(--state-danger); font-style: italic;">(missing item)</td>';
                     }
                     
                     // Arrow
-                    relationshipsBodyHTML += `<td style="padding: 8px 12px; text-align: center; border-bottom: 1px solid var(--border-color); color: ${rel.isMissing ? 'var(--text-secondary)' : '#28a745'}; font-weight: bold;">→</td>`;
+                    relationshipsBodyHTML += `<td style="padding: 8px 12px; text-align: center; border-bottom: 1px solid var(--border-color); color: ${rel.isMissing ? 'var(--text-secondary)' : 'var(--state-success)'}; font-weight: bold;">→</td>`;
                     
                     // Right cell - embedded preview box (compact mode)
                     if (rel.rightIdx !== null) {
@@ -10812,10 +11218,10 @@
                             relationshipsBodyHTML += renderMatchingCompactItemPreviewBox(questionIndex, 'right', rel.rightIdx, rightItem.text, rightItem.textarea);
                             relationshipsBodyHTML += `</td>`;
                         } else {
-                            relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: #dc3545; font-style: italic;">(missing item)</td>';
+                            relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: var(--state-danger); font-style: italic;">(missing item)</td>';
                         }
                     } else {
-                        relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: #dc3545; font-style: italic;">(missing item)</td>';
+                        relationshipsBodyHTML += '<td style="padding: 8px 12px; border-bottom: 1px solid var(--border-color); color: var(--state-danger); font-style: italic;">(missing item)</td>';
                     }
                     
                     relationshipsBodyHTML += '</tr>';
@@ -11006,7 +11412,7 @@
                 element.style.border = '3px solid var(--accent)';
                 element.style.borderRadius = '8px';
                 element.style.padding = '15px';
-                element.style.backgroundColor = 'rgba(102, 126, 234, 0.1)';
+                element.style.backgroundColor = 'color-mix(in srgb, var(--accent) 16%, transparent)';
                 element.style.transition = 'all 0.3s';
                 
                 setTimeout(() => {
@@ -11800,10 +12206,10 @@
                 inputs[4].value = normalized.y1;
                 
                 // Provide visual feedback
-                inputs[1].style.background = '#fff3cd';
-                inputs[2].style.background = '#fff3cd';
-                inputs[3].style.background = '#fff3cd';
-                inputs[4].style.background = '#fff3cd';
+                inputs[1].style.background = 'var(--highlight-bg)';
+                inputs[2].style.background = 'var(--highlight-bg)';
+                inputs[3].style.background = 'var(--highlight-bg)';
+                inputs[4].style.background = 'var(--highlight-bg)';
                 
                 // Clear the highlight after 1 second
                 setTimeout(() => {
@@ -11957,7 +12363,7 @@
                                     // Add correct answer checkbox field for checkbox type
                                     const checkedFieldHTML = `
                                         <div class="form-group checkbox-group" style="align-items: center; margin-top: 10px;">
-                                            <label for="choice-correct-${Date.now()}-${Math.random()}" style="font-weight: 600; color: #28a745;">✓ Correct Answer</label>
+                                            <label for="choice-correct-${Date.now()}-${Math.random()}" style="font-weight: 600; color: var(--state-success);">✓ Correct Answer</label>
                                             <input type="checkbox" class="choice-correct" id="choice-correct-${Date.now()}-${Math.random()}" title="Mark this choice as a correct answer">
                                         </div>
                                     `;
@@ -12046,7 +12452,7 @@
             // Add correct checkbox field for checkbox type
             const checkedField = questionType === 'checkbox' ? `
                 <div class="form-group checkbox-group" style="align-items: center; margin-top: 10px;">
-                    <label for="choice-correct-${Date.now()}" style="font-weight: 600; color: #28a745;">✓ Correct Answer</label>
+                    <label for="choice-correct-${Date.now()}" style="font-weight: 600; color: var(--state-success);">✓ Correct Answer</label>
                     <input type="checkbox" class="choice-correct" id="choice-correct-${Date.now()}" title="Mark this choice as a correct answer">
                 </div>
             ` : '';
@@ -12436,7 +12842,7 @@
             if (correctChoices.length === 0) {
                 summaryContainer.innerHTML = '<span style="opacity: 0.7; color: var(--text-secondary);">Check the "✓ Correct Answer" boxes above to mark correct choices</span>';
             } else {
-                summaryContainer.innerHTML = `<strong style="color: #28a745;">${correctChoices.length} of ${choices.length} marked correct:</strong> <span style="color: var(--text-primary);">${correctChoices.join(', ')}</span>`;
+                summaryContainer.innerHTML = `<strong style="color: var(--state-success);">${correctChoices.length} of ${choices.length} marked correct:</strong> <span style="color: var(--text-primary);">${correctChoices.join(', ')}</span>`;
                             }
         }
 
@@ -12843,7 +13249,7 @@
                 const copyBtn = button;
                 const originalIcon = copyBtn.innerHTML;
                 copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                copyBtn.style.background = '#28a745';
+                copyBtn.style.background = 'var(--button-success-bg)';
                 setTimeout(() => {
                     copyBtn.innerHTML = originalIcon;
                     copyBtn.style.background = '';
@@ -12926,7 +13332,7 @@
                 const duplicateBtn = button;
                 const originalIcon = duplicateBtn.innerHTML;
                 duplicateBtn.innerHTML = '<i class="fas fa-check"></i>';
-                duplicateBtn.style.background = '#28a745';
+                duplicateBtn.style.background = 'var(--button-success-bg)';
                 setTimeout(() => {
                     duplicateBtn.innerHTML = originalIcon;
                     duplicateBtn.style.background = '';
@@ -13028,7 +13434,7 @@
                 const originalIcon = pasteBtn.innerHTML;
                 pasteBtn.innerHTML = '<i class="fas fa-check"></i>';
                 pasteBtn.classList.remove('paste-replace-btn');
-                pasteBtn.style.background = '#28a745';
+                pasteBtn.style.background = 'var(--button-success-bg)';
                 setTimeout(() => {
                     pasteBtn.innerHTML = originalIcon;
                     pasteBtn.classList.add('paste-replace-btn');
@@ -14017,7 +14423,7 @@
             const isCheckbox = questionType === 'checkbox';
             const checkedField = isCheckbox ? `
                 <div class="form-group checkbox-group" style="align-items: center; margin-top: 10px;">
-                    <label for="choice-correct-${Date.now()}" style="font-weight: 600; color: #28a745;">✓ Correct Answer</label>
+                    <label for="choice-correct-${Date.now()}" style="font-weight: 600; color: var(--state-success);">✓ Correct Answer</label>
                     <input type="checkbox" class="choice-correct" id="choice-correct-${Date.now()}" title="Mark this choice as a correct answer">
                 </div>
             ` : '';
@@ -14197,7 +14603,7 @@
                         </div>
                     </div>
                     <div class="form-group" style="margin-top: 15px; display: none;" id="checkbox-summary">
-                        <label style="font-weight: 600; color: #28a745;">Correct Answers Summary</label>
+                        <label style="font-weight: 600; color: var(--state-success);">Correct Answers Summary</label>
                         <div id="checkbox-summary-text" style="padding: 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.9em;">
                             <span style="opacity: 0.7; color: var(--text-secondary);">Check the "✓ Correct Answer" boxes above to mark correct choices</span>
                         </div>
@@ -14983,7 +15389,7 @@
                 // Restore fill-in-the-blank placeholders with styled HTML
                 html = html.replace(/@@BLANK_PLACEHOLDER_(\d+)@@/g, (match, idx) => {
                     const blankNum = blankPlaceholders[parseInt(idx)];
-                    return `<span style="display: inline-block; padding: 2px 8px; margin: 0 2px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 4px; font-weight: 600; font-size: 0.9em; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">Blank #${blankNum}</span>`;
+                    return `<span style="display: inline-block; padding: 2px 8px; margin: 0 2px; background: linear-gradient(135deg, var(--blank-chip-gradient-start) 0%, var(--blank-chip-gradient-end) 100%); color: var(--text-inverse); border-radius: 4px; font-weight: 600; font-size: 0.9em; box-shadow: 0 2px 4px var(--shadow);">Blank #${blankNum}</span>`;
                 });
                 
                 // Don't add label here - it's already outside the preview box
@@ -15063,14 +15469,14 @@
                     placeholder.className = 'image-placeholder-box';
                     placeholder.style.width = '200px';
                     placeholder.style.height = '150px';
-                    placeholder.style.backgroundColor = '#f0f0f0';
-                    placeholder.style.border = '2px dashed #ccc';
+                    placeholder.style.backgroundColor = 'var(--image-placeholder-bg)';
+                    placeholder.style.border = '2px dashed var(--image-placeholder-border)';
                     placeholder.style.borderRadius = '4px';
                     placeholder.style.display = 'flex';
                     placeholder.style.alignItems = 'center';
                     placeholder.style.justifyContent = 'center';
                     placeholder.style.margin = '0 auto';
-                    placeholder.innerHTML = '<span style="color: #999; font-size: 14px;">📷 Image</span>';
+                    placeholder.innerHTML = '<span style="color: var(--image-placeholder-text); font-size: 14px;">📷 Image</span>';
                     
                     // Process the alt text
                     if (description) {
@@ -16044,24 +16450,25 @@
             }, true);
         }
         
+        function setHeaderToggleState(toggle, enabled, onTitle, offTitle) {
+            if (!toggle) return;
+            toggle.title = enabled ? onTitle : offTitle;
+            toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+            toggle.classList.toggle('is-enabled', !!enabled);
+            toggle.classList.toggle('is-disabled', !enabled);
+        }
+
         // Toggle auto-resize feature
         function toggleAutoResize() {
             autoResizeEnabled = !autoResizeEnabled;
             const toggle = document.getElementById('autoResizeToggle');
-            const icon = toggle.querySelector('i');
-            
-            // Keep original icon, just change background color
-            if (autoResizeEnabled) {
-                // ON state: Green background
-                toggle.title = 'Auto-Resize: ON (Click to disable)';
-                toggle.style.background = 'rgba(40, 167, 69, 0.8)'; // Green background
-                toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-            } else {
-                // OFF state: Red background
-                toggle.title = 'Auto-Resize: OFF (Click to enable)';
-                toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
-                toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-            }
+
+            setHeaderToggleState(
+                toggle,
+                autoResizeEnabled,
+                'Auto-Resize: ON (Click to disable)',
+                'Auto-Resize: OFF (Click to enable)'
+            );
             
             // Save preference to localStorage
             localStorage.setItem('autoResizeEnabled', autoResizeEnabled ? 'true' : 'false');
@@ -16093,21 +16500,16 @@
             
             const toggle = document.getElementById('autoResizeToggle');
             if (toggle) {
-                const icon = toggle.querySelector('i');
-                // Keep original icon, just change background color
-                if (autoResizeEnabled) {
-                    // ON state: Green background
-                    toggle.title = 'Auto-Resize: ON (Click to disable)';
-                    toggle.style.background = 'rgba(40, 167, 69, 0.8)'; // Green background
-                    toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-                } else {
-                    // OFF state: Red background
-                    toggle.title = 'Auto-Resize: OFF (Click to enable)';
-                    toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
-                    toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-                    // Ensure previews grow with content (height: auto)
-                    document.querySelectorAll('.live-preview').forEach(pv => { pv.style.height = 'auto'; });
-                }
+                setHeaderToggleState(
+                    toggle,
+                    autoResizeEnabled,
+                    'Auto-Resize: ON (Click to disable)',
+                    'Auto-Resize: OFF (Click to enable)'
+                );
+            }
+            if (!autoResizeEnabled) {
+                // Ensure previews grow with content (height: auto)
+                document.querySelectorAll('.live-preview').forEach(pv => { pv.style.height = 'auto'; });
             }
         }
 
@@ -16741,16 +17143,16 @@
         // Toggle trailing spaces indicator
         function toggleTrailingSpacesIndicator() {
             const toggle = document.getElementById('trailingSpacesToggle');
-            const icon = toggle.querySelector('i');
             const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
-            
-            // Keep original icon, just change background color
+
             if (isEnabled) {
                 localStorage.setItem('trailingSpacesIndicator', 'false');
-                // OFF state: Red background
-                toggle.title = 'Trailing Spaces Indicator: OFF (Click to enable)';
-                toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
-                toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                setHeaderToggleState(
+                    toggle,
+                    false,
+                    'Trailing Spaces Indicator: ON (Click to disable)',
+                    'Trailing Spaces Indicator: OFF (Click to enable)'
+                );
                 // Remove indicators from all previews and re-render them to remove marker HTML
                 document.querySelectorAll('textarea, input[type="text"]').forEach(textarea => {
                     // Skip search bar and JSON input
@@ -16769,10 +17171,12 @@
                 }
             } else {
                 localStorage.setItem('trailingSpacesIndicator', 'true');
-                // ON state: Green background
-                toggle.title = 'Trailing Spaces Indicator: ON (Click to disable)';
-                toggle.style.background = 'rgba(40, 167, 69, 0.8)'; // Green background
-                toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
+                setHeaderToggleState(
+                    toggle,
+                    true,
+                    'Trailing Spaces Indicator: ON (Click to disable)',
+                    'Trailing Spaces Indicator: OFF (Click to enable)'
+                );
                 // Re-render all previews to add markers
                 document.querySelectorAll('textarea, input[type="text"]').forEach(textarea => {
                     // Skip search bar and JSON input
@@ -16838,19 +17242,12 @@
             const isEnabled = localStorage.getItem('trailingSpacesIndicator') === 'true';
             const toggle = document.getElementById('trailingSpacesToggle');
             if (toggle) {
-                const icon = toggle.querySelector('i');
-                // Keep original icon, just change background color
-                if (isEnabled) {
-                    // ON state: Green background
-                    toggle.title = 'Trailing Spaces Indicator: ON (Click to disable)';
-                    toggle.style.background = 'rgba(40, 167, 69, 0.8)'; // Green background
-                    toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-                } else {
-                    // OFF state: Red background
-                    toggle.title = 'Trailing Spaces Indicator: OFF (Click to enable)';
-                    toggle.style.background = 'rgba(220, 53, 69, 0.8)'; // Red background
-                    toggle.style.borderColor = 'rgba(255, 255, 255, 0.9)';
-                }
+                setHeaderToggleState(
+                    toggle,
+                    isEnabled,
+                    'Trailing Spaces Indicator: ON (Click to disable)',
+                    'Trailing Spaces Indicator: OFF (Click to enable)'
+                );
             }
             if (isEnabled) {
                 // Update all previews after a short delay to ensure DOM is ready
@@ -16858,6 +17255,55 @@
                     updateAllTrailingSpacesIndicators();
                 }, 100);
             }
+        }
+
+        function getCurrentTheme() {
+            return normalizeThemePreference(document.documentElement.getAttribute('data-theme'));
+        }
+
+        function updateThemeToggleButton(theme = getCurrentTheme()) {
+            const toggle = document.getElementById('themeToggle');
+            if (!toggle) return;
+            const icon = toggle.querySelector('i');
+            const isLight = theme === 'light';
+            const title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+            toggle.title = title;
+            toggle.setAttribute('aria-label', title);
+            toggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+            if (icon) {
+                icon.classList.remove('fa-sun', 'fa-moon');
+                icon.classList.add(isLight ? 'fa-sun' : 'fa-moon');
+            }
+            toggle.classList.remove('is-enabled', 'is-disabled');
+            toggle.classList.toggle('theme-light', isLight);
+            toggle.classList.toggle('theme-dark', !isLight);
+        }
+
+        function applyTheme(theme, options = {}) {
+            const normalized = normalizeThemePreference(theme);
+            document.documentElement.setAttribute('data-theme', normalized);
+            document.documentElement.style.colorScheme = normalized;
+            if (options.persist !== false) {
+                try {
+                    localStorage.setItem(THEME_STORAGE_KEY, normalized);
+                } catch (e) {
+                    // ignore storage failures
+                }
+            }
+            updateThemeToggleButton(normalized);
+            if (typeof requestLayoutRefit === 'function') {
+                requestLayoutRefit('theme-change');
+            }
+        }
+
+        function toggleTheme() {
+            const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
+            applyTheme(nextTheme);
+        }
+
+        function initializeTheme() {
+            const theme = resolveInitialThemePreference();
+            applyTheme(theme, { persist: false });
         }
 
         // Ensure preview updates after helper insertions
@@ -17003,7 +17449,7 @@
                 const copyBtn = button;
                 const original = copyBtn.innerHTML;
                 copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                copyBtn.style.background = '#28a745';
+                copyBtn.style.background = 'var(--button-success-bg)';
                 setTimeout(() => { copyBtn.innerHTML = original; copyBtn.style.background = ''; }, 1200);
             } catch (e) {
                 alert('Failed to copy.');
@@ -17091,7 +17537,7 @@
                 const duplicateBtn = button;
                 const originalIcon = duplicateBtn.innerHTML;
                 duplicateBtn.innerHTML = '<i class="fas fa-check"></i>';
-                duplicateBtn.style.background = '#28a745';
+                duplicateBtn.style.background = 'var(--button-success-bg)';
                 setTimeout(() => {
                     duplicateBtn.innerHTML = originalIcon;
                     duplicateBtn.style.background = '';
@@ -17929,7 +18375,7 @@
                     paintTemp(lastDrawn);
                     return;
                 }
-                if (!isDrawing || !dragStart) return; const {x,y}=getCanvasPoint(e); const dims = getCanvasCssDimensions(); drawCtx.clearRect(0,0,dims.width, dims.height); const n=normalizeToTRBL(dragStart.x,dragStart.y,x,y); const left=n.left, top=n.top, right=n.right, bottom=n.bottom; drawCtx.setLineDash([6,4]); drawCtx.strokeStyle='#a78bfa'; drawCtx.lineWidth=2; drawCtx.strokeRect(left,top,right-left,bottom-top); drawCtx.setLineDash([]);
+                if (!isDrawing || !dragStart) return; const {x,y}=getCanvasPoint(e); const dims = getCanvasCssDimensions(); drawCtx.clearRect(0,0,dims.width, dims.height); const n=normalizeToTRBL(dragStart.x,dragStart.y,x,y); const left=n.left, top=n.top, right=n.right, bottom=n.bottom; drawCtx.setLineDash([6,4]); drawCtx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--bbox-draw-preview-stroke').trim() || '#a78bfa'; drawCtx.lineWidth=2; drawCtx.strokeRect(left,top,right-left,bottom-top); drawCtx.setLineDash([]);
             }
             function endDrawing(e){ 
                 if (isEditing){ 
@@ -17975,14 +18421,14 @@
                 const right = Math.round(bbox.position[0][0] * sx);
                 const bottom = Math.round(bbox.position[1][1] * sx);
                 // Main rect
-                drawCtx.strokeStyle = '#22c55e';
+                drawCtx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--bbox-draw-final-stroke').trim() || '#22c55e';
                 drawCtx.lineWidth = 2;
                 drawCtx.strokeRect(left, top, right-left, bottom-top);
-                drawCtx.fillStyle = '#22c55e33';
+                drawCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bbox-draw-final-fill').trim() || '#22c55e33';
                 drawCtx.fillRect(left, top, right-left, bottom-top);
                 // Corner handles
                 const size=10, half=size/2;
-                drawCtx.fillStyle = '#22c55e';
+                drawCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bbox-draw-final-stroke').trim() || '#22c55e';
                 const corners=[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}];
                 corners.forEach(c=> drawCtx.fillRect(c.x-half, c.y-half, size, size));
                 // list
@@ -20781,18 +21227,18 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ Table Markdown Errors:</strong>
                         ${result.errors.map(err => {
                             const errorMsg = typeof err === 'string' ? err : err.message;
                             const errorContent = typeof err === 'object' && err.content ? err.content : '';
                             if (errorContent) {
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">${errorMsg}</div>
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>Your Code:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
                                         </div>
                                     </div>
                                 `;
@@ -21053,9 +21499,9 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ List Markdown Errors:</strong>
-                        <div style="margin: 8px 0 10px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px; color: #666;">
+                        <div style="margin: 8px 0 10px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px; color: var(--validation-muted-text);">
                             <div style="margin-bottom: 4px;"><strong>How to Fix:</strong></div>
                             <div>- Bullet nesting: use exactly <strong>2 spaces</strong> or <strong>1 tab</strong> per level.</div>
                             <div>- Ordered nesting: use exactly <strong>4 spaces</strong> or <strong>2 tabs</strong> per level.</div>
@@ -21066,11 +21512,11 @@
                             const errorContent = typeof err === 'object' && err.content ? err.content : '';
                             if (errorContent) {
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">${errorMsg}</div>
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>Your Code:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
                                         </div>
                                     </div>
                                 `;
@@ -21237,18 +21683,18 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ Blockquote Markdown Errors:</strong>
                         ${result.errors.map(err => {
                             const errorMsg = typeof err === 'string' ? err : err.message;
                             const errorContent = typeof err === 'object' && err.content ? err.content : '';
                             if (errorContent) {
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">${errorMsg}</div>
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>Your Code:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorContent)}</code>
                                         </div>
                                     </div>
                                 `;
@@ -21307,7 +21753,7 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ LaTeX Errors:</strong>
                         ${allErrors.map(error => {
                             let errorMessage = '';
@@ -21368,13 +21814,13 @@
                             }
                             
                             return `
-                                <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                     <div style="margin-bottom: 6px;">🔴 <strong>LaTeX Problem:</strong> ${errorMessage}</div>
                                     <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMessage}</div>
                                     ${codeDisplay ? `
-                                    <div style="font-size: 0.9em; color: #666;">
+                                    <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                         <strong>Your Code:</strong>
-                                        <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${codeDisplay}</code>
+                                        <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${codeDisplay}</code>
                                     </div>
                                     ` : ''}
                                 </div>
@@ -21430,7 +21876,7 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ Image Description Errors:</strong>
                         ${imageDescErrors.map(error => {
                             if (error.type === 'malformed_image_syntax' || error.type === 'malformed_syntax') {
@@ -21488,13 +21934,13 @@
                                 const errorMatch = error.match || '';
                                 
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> ${problemMsg}</div>
                                         <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${fixMsg}</div>
                                         ${errorMatch ? `
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>What You Wrote:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorMatch)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(errorMatch)}</code>
                                         </div>
                                         ` : ''}
                                     </div>
@@ -21505,12 +21951,12 @@
                                     .replace(/\r/g, '\\r');
                                 const errorIndex = error.index || '?';
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> Your image description cannot have line breaks (newlines) in it</div>
                                         <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Keep the description on one line, no Enter/Return keys pressed</div>
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>Image #${errorIndex} Description:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
                                         </div>
                                     </div>
                                 `;
@@ -21518,24 +21964,24 @@
                                 const escapedDesc = escapeHtml(error.description || '');
                                 const errorIndex = error.index || '?';
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> Block LaTeX ($$\\n...\\n$$) is not allowed in image descriptions</div>
                                         <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Use inline LaTeX ($...$) instead. Change <code>$$\\nformula\\n$$</code> to <code>$formula$</code></div>
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>Image #${errorIndex} Description:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(`![${escapedDesc}](${errorIndex})`)}</code>
                                         </div>
                                     </div>
                                 `;
                             } else {
                                 // Fallback for any other error types
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">🔴 <strong>Image Problem:</strong> ${error.message || 'Image syntax error'}</div>
                                         ${error.match ? `
-                                        <div style="font-size: 0.9em; color: #666;">
+                                        <div style="font-size: 0.9em; color: var(--validation-muted-text);">
                                             <strong>What You Wrote:</strong>
-                                            <code style="display: block; margin-top: 4px; padding: 6px; background: #f5f5f5; border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(error.match)}</code>
+                                            <code style="display: block; margin-top: 4px; padding: 6px; background: var(--validation-code-bg); border-radius: 3px; white-space: pre-wrap; font-family: monospace; font-size: 0.85em;">${escapeHtml(error.match)}</code>
                                         </div>
                                         ` : ''}
                                     </div>
@@ -21603,10 +22049,10 @@
                 validationDiv.style.display = 'block';
                 validationDiv.setAttribute('data-has-errors', hasDollarErrors ? 'true' : 'false');
                 validationDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>Dollar Sign Errors:</strong>
                         ${dollarErrors.map(error => `
-                            <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px; color: #cc0000;">
+                            <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px; color: var(--validation-panel-text);">
                                 <div style="margin-bottom: 6px;"><strong>Dollar Sign Error:</strong> ${error.message}</div>
                                 <div style="margin-bottom: 6px;"><strong>How to Fix:</strong> Each $ should have a matching pair for LaTeX math.</div>
                                 <div><strong>Important:</strong> This will block JSON generation.</div>
@@ -21677,12 +22123,12 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ HTML Tag Errors:</strong>
                         ${brRelatedErrors.map(error => {
                             if (error.type === 'forbidden_latex_command') {
                                 return `
-                                    <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                    <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                         <div style="margin-bottom: 6px;">🔴 <strong>LaTeX Command Error:</strong> Problem: ${error.problem}</div>
                                         <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> ${error.fix}</div>
                                         <div>⚠️ <strong>Important:</strong> This command is not supported in this platform.</div>
@@ -21690,7 +22136,7 @@
                                 `;
                             }
                             return `
-                                <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                                <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                     <div style="margin-bottom: 6px;">🔴 <strong>HTML Tag Error:</strong> ${error.message}</div>
                                     <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Remove all &lt;br&gt; tags from your content. Use markdown line breaks or proper formatting instead.</div>
                                     <div>⚠️ <strong>Important:</strong> This tag is not supported in this platform.</div>
@@ -21744,10 +22190,10 @@
                 
                 errorDiv.style.display = 'block';
                 errorDiv.innerHTML = `
-                    <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                    <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                         <strong>⚠️ HTML Tag Errors:</strong>
                         ${listErrors.map(error => `
-                            <div style="margin: 8px 0; padding: 8px; background: #fff; border-left: 3px solid #ff4d4d; border-radius: 4px;">
+                            <div style="margin: 8px 0; padding: 8px; background: var(--validation-card-bg); border-left: 3px solid var(--validation-card-border); border-radius: 4px;">
                                 <div style="margin-bottom: 6px;">🔴 <strong>HTML Tag Error:</strong> ${error.message}</div>
                                 <div style="margin-bottom: 6px;">➡️ <strong>How to Fix:</strong> Remove all &lt;ul&gt; and &lt;li&gt; tags. Use markdown bullets (- ) instead.</div>
                             </div>
@@ -21896,7 +22342,7 @@
                 if (errors.length > 0) {
                     errorContainer.style.display = 'block';
                     errorContainer.innerHTML = `
-                        <div style="padding: 10px; background: #ffe6e6; border: 1px solid #ff4d4d; border-radius: 6px; color: #cc0000;">
+                        <div style="padding: 10px; background: var(--validation-panel-bg); border: 1px solid var(--validation-panel-border); border-radius: 6px; color: var(--validation-panel-text);">
                             <strong>⚠️ Blank Format Errors:</strong>
                             <ul style="margin: 5px 0 0 20px; padding: 0;">
                                 ${errors.map(err => `<li>${err}</li>`).join('')}
@@ -22045,7 +22491,7 @@
                 const answer = blankAnswers[num] || '';
                 // Replace ___num___ with the answer wrapped in a styled span
                 const regex = new RegExp(`___${num}___`, 'g');
-                filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">${answer}</span>`);
+                filledText = filledText.replace(regex, `<span style="display: inline-block; padding: 2px 6px; background: linear-gradient(135deg, var(--success-gradient-start) 0%, var(--success-gradient-end) 100%); color: var(--text-inverse); border-radius: 3px; font-weight: 600; box-shadow: 0 1px 3px var(--shadow);">${answer}</span>`);
             });
             
             const shouldEscapeHtmlLists = hasRawHtmlListTags(questionText || '');
@@ -26153,7 +26599,7 @@
             const copyBtn = event.target.closest('button');
             const originalText = copyBtn.innerHTML;
             copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            copyBtn.style.background = '#28a745';
+            copyBtn.style.background = 'var(--button-success-bg)';
             
             setTimeout(() => {
                 copyBtn.innerHTML = originalText;
@@ -26590,7 +27036,7 @@
                 if (saveBtn) {
                     const originalIcon = saveBtn.innerHTML;
                     saveBtn.innerHTML = '<i class="fas fa-check"></i>';
-                    saveBtn.style.background = 'rgba(40, 167, 69, 0.3)';
+                    saveBtn.style.background = 'color-mix(in srgb, var(--state-success) 28%, transparent)';
                     
                     setTimeout(() => {
                         saveBtn.innerHTML = originalIcon;
@@ -26889,7 +27335,7 @@
                     const qid = questionIdInput.value.trim();
                     if (duplicates.has(qid)) {
                         // Highlight as error
-                        questionIdInput.style.borderColor = '#dc3545';
+                        questionIdInput.style.borderColor = 'var(--state-danger)';
                         questionIdInput.style.borderWidth = '2px';
                         questionIdInput.title = `Duplicate Question ID: "${qid}" appears multiple times`;
                     } else {
@@ -27065,6 +27511,7 @@
             installInputIsolationGuards();
             // Hydrate all static button groups first
             hydrateStaticButtons();
+            initializeTheme();
             updateClearCurrentSubtabButtonState();
             
             // Set up sticky tabs height measurement (runs after hydration so buttons are rendered)
@@ -27913,7 +28360,7 @@
                         <div id="main-pdf-nav-prev-button" style="display: flex; gap: 6px; align-items: center;"></div>
                         <span id="main-pdf-page-display">Page 1/0</span>
                         <div id="main-pdf-nav-next-button" style="display: flex; gap: 6px; align-items: center;"></div>
-                        <input type="number" id="main-pdf-goto" min="1" placeholder="#" style="width: 60px; padding: 4px; border: 1px solid #dee2e6; border-radius: 4px;" title="Enter page number to jump to">
+                        <input type="number" id="main-pdf-goto" min="1" placeholder="#" class="pdf-goto-input" title="Enter page number to jump to">
                         <div id="main-pdf-goto-button"></div>
                     </div>
                 </div>
@@ -28068,7 +28515,7 @@
                     statusEl.textContent = autoNavEnabled ? 'Auto Nav: ON' : 'Auto Nav: OFF';
                 }
                 if (toggleBtn) {
-                    toggleBtn.style.backgroundColor = autoNavEnabled ? '#28a745' : '';
+                    toggleBtn.style.backgroundColor = autoNavEnabled ? 'var(--button-success-bg)' : '';
                     toggleBtn.style.color = autoNavEnabled ? 'white' : '';
                 }
                 
@@ -28871,7 +29318,7 @@
                 const uploadBtnId = isTextbook ? 'pdf-upload-textbook-btn' : 'pdf-upload-guide-btn';
                 
                 canvasContainer.innerHTML = `
-                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6c757d; padding: 20px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); padding: 20px;">
                         <i class="fas fa-file-pdf" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                         <p style="font-size: 16px; margin-bottom: 8px;">No ${isTextbook ? 'Textbook' : 'Guide'} PDF loaded</p>
                         <p style="font-size: 14px; margin-bottom: 16px;">Upload a ${isTextbook ? 'Textbook' : 'Guide'} PDF to view it here</p>
@@ -28903,7 +29350,7 @@
             
             if (canvasContainer) {
                 canvasContainer.innerHTML = `
-                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #dc3545; padding: 20px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--state-danger); padding: 20px;">
                         <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
                         <p style="font-size: 16px; text-align: center;">${message}</p>
                     </div>
@@ -29148,7 +29595,7 @@
                 statusEl.textContent = state.autoSyncEnabled ? 'Auto Nav: ON' : 'Auto Nav: OFF';
             }
             if (toggleBtn) {
-                toggleBtn.style.backgroundColor = state.autoSyncEnabled ? '#28a745' : '';
+                toggleBtn.style.backgroundColor = state.autoSyncEnabled ? 'var(--button-success-bg)' : '';
                 toggleBtn.style.color = state.autoSyncEnabled ? 'white' : '';
             }
             
@@ -29662,16 +30109,16 @@
 
         function renderWhatsNewReleaseBlock(release, isCurrent) {
             const versionBadgeHtml = isCurrent
-                ? `<span id="whats-new-current-version" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version <span id="whats-new-version-number">${release.version || ''}</span></span><span class="whats-new-version-badge">Current Version</span>`
-                : `<span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 600; font-size: 0.9rem;">Version ${release.version || ''}</span>`;
+                ? `<span id="whats-new-current-version" class="whats-new-version-pill">Version <span id="whats-new-version-number">${release.version || ''}</span></span><span class="whats-new-version-badge">Current Version</span>`
+                : `<span class="whats-new-version-pill">Version ${release.version || ''}</span>`;
 
             const sectionsHtml = (release.sections || []).map((section) => {
                 const wrapStyleAttr = section.wrapStyle ? ` style="${section.wrapStyle}"` : '';
                 const itemsHtml = (section.items || []).map((item) => `<li>${item}</li>`).join('');
-                return `<div${wrapStyleAttr}><h3 class="whats-new-modal-header" style="margin: 0 0 12px 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;"><i class="${section.iconClass}" style="color: ${section.iconColor};"></i> ${section.title}</h3><ul class="whats-new-modal-list">${itemsHtml}</ul></div>`;
+                return `<div${wrapStyleAttr}><h3 class="whats-new-section-title"><i class="${section.iconClass}" style="color: ${section.iconColor};"></i> ${section.title}</h3><ul class="whats-new-modal-list">${itemsHtml}</ul></div>`;
             }).join('');
 
-            return `<div style="margin-bottom: 40px;"><div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">${versionBadgeHtml}</div>${sectionsHtml}</div>`;
+            return `<div class="whats-new-release-block"><div class="whats-new-release-row">${versionBadgeHtml}</div>${sectionsHtml}</div>`;
         }
 
         function renderWhatsNewModalBody(releases) {
@@ -29754,18 +30201,18 @@
     </script>
     
     <!-- What's New Modal -->
-    <div id="whats-new-modal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center; padding: 20px;">
+    <div id="whats-new-modal" class="whats-new-modal">
         <div class="whats-new-modal-content">
             <!-- Header -->
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center;">
+            <div class="whats-new-modal-header-bar">
                 <div>
-                    <h2 style="margin: 0; font-size: 1.8rem; display: flex; align-items: center; gap: 10px;">
+                    <h2 class="whats-new-modal-title">
                         <i class="fas fa-sparkles"></i> What's New
                     </h2>
-                    <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 0.95rem;">Latest updates and improvements</p>
+                    <p class="whats-new-modal-subtitle">Latest updates and improvements</p>
                 </div>
-                <button onclick="closeWhatsNew()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.3s; padding: 0;">
-                    <i class="fas fa-times" style="line-height: 1; display: block; transform: translateY(2px);"></i>
+                <button onclick="closeWhatsNew()" class="whats-new-close-btn">
+                    <i class="fas fa-times whats-new-close-icon"></i>
                 </button>
             </div>
             
@@ -29776,7 +30223,7 @@
                 
                 <!-- Footer -->
                 <div class="whats-new-modal-footer">
-                    <p style="margin: 0;">Have questions or suggestions? <a href="https://forms.gle/UJKozfjrWP7sfxTC8" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: none; font-weight: 600;">Share your feedback</a> - We're always improving!</p>
+                    <p class="whats-new-modal-footer-text">Have questions or suggestions? <a href="https://forms.gle/UJKozfjrWP7sfxTC8" target="_blank" rel="noopener noreferrer" class="whats-new-feedback-link">Share your feedback</a> - We're always improving!</p>
                 </div>
             </div>
         </div>
@@ -29784,6 +30231,7 @@
 
 </body>
 </html>
+
 
 
 
