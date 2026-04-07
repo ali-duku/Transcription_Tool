@@ -1,0 +1,35 @@
+.content-validation-summary {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-primary) 90%, #000);
+  padding: 8px 10px;
+}
+
+.content-validation-summary strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.content-validation-summary ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.content-validation-errors strong {
+  color: #d14646;
+}
+
+.content-validation-warnings {
+  margin-top: 6px;
+}
+
+.content-validation-warnings strong {
+  color: #ad7a1f;
+}
+
+.content-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

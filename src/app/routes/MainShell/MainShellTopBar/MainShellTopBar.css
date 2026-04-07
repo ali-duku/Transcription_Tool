@@ -1,0 +1,44 @@
+.topbar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header-title-block h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.header-meta {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.topbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-label {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.save-indicator-text {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  min-width: 95px;
+  text-align: right;
+}
+
+.control-select {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  min-width: 180px;
+}

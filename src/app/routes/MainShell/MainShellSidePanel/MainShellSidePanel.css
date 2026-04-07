@@ -1,0 +1,31 @@
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.panel-body {
+  padding: 12px;
+}
+
+.panel-content {
+  min-height: 0;
+}
+
+.panel-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.placeholder-box {
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  padding: 12px;
+}
+
+.placeholder-box p {
+  margin: 0;
+  color: var(--text-secondary);
+}

@@ -1,0 +1,35 @@
+.question-validation-summary {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-primary) 90%, #000);
+  padding: 8px 10px;
+}
+
+.question-validation-summary strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.question-validation-summary ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.question-validation-errors strong {
+  color: #d14646;
+}
+
+.question-validation-warnings {
+  margin-top: 6px;
+}
+
+.question-validation-warnings strong {
+  color: #ad7a1f;
+}
+
+.question-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

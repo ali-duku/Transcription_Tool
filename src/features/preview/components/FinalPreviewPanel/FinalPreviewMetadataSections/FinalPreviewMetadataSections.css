@@ -1,0 +1,19 @@
+.metadata-field-heading {
+  margin: 8px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metadata-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.metadata-card-header h3 {
+  margin: 0;
+}

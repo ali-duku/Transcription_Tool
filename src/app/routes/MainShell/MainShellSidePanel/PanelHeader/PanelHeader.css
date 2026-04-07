@@ -1,0 +1,13 @@
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  gap: 8px;
+}
+
+.panel-toggle-group {
+  display: flex;
+  gap: 6px;
+}

@@ -1,0 +1,142 @@
+.final-preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.final-preview-header h2 {
+  margin: 0 0 6px;
+}
+
+.final-preview-header p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.preview-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  padding: 10px;
+}
+
+.preview-card h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.preview-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.preview-card-header h3 {
+  margin: 0;
+}
+
+.preview-card ul,
+.preview-card ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.preview-card li {
+  margin-bottom: 8px;
+}
+
+.preview-card li:last-child {
+  margin-bottom: 0;
+}
+
+.preview-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.preview-item-header strong {
+  display: block;
+}
+
+.preview-card li p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+}
+
+.preview-question-meta {
+  margin-top: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  background: color-mix(in srgb, var(--bg-primary) 92%, #000);
+}
+
+.preview-question-meta strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.preview-question-meta p {
+  margin: 0;
+}
+
+.preview-question-meta ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.preview-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preview-meta-grid span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+
+.preview-muted {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.preview-json {
+  margin: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-primary) 90%, #000);
+  color: var(--text-primary);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px;
+}
+
+.preview-jump-button {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  background: color-mix(in srgb, var(--bg-primary) 88%, var(--accent) 12%);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.preview-jump-button:hover {
+  background: color-mix(in srgb, var(--bg-primary) 82%, var(--accent) 18%);
+}
+
+@media (max-width: 1050px) {
+  .preview-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}

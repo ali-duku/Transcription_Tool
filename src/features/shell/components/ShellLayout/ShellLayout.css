@@ -1,0 +1,37 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.topbar {
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  padding: 12px 18px;
+}
+
+.workflow-container {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(330px, 1fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.form-section {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+  min-height: 70vh;
+  overflow: hidden;
+}
+
+@media (max-width: 1050px) {
+  .workflow-container {
+    grid-template-columns: 1fr;
+  }
+
+  .form-section {
+    min-height: auto;
+  }
+}

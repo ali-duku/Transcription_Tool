@@ -1,0 +1,12 @@
+.manual-answer-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.manual-answer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

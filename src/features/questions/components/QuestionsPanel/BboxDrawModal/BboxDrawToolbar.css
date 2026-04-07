@@ -1,0 +1,40 @@
+.bbox-draw-group span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.bbox-draw-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.bbox-draw-page-input {
+  width: 76px;
+  padding: 4px 6px;
+}
+
+.bbox-draw-coordinates {
+  flex-wrap: wrap;
+}
+
+.bbox-draw-coordinate-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.bbox-draw-coordinate-field input {
+  width: 72px;
+  padding: 4px 6px;
+}
+
+.bbox-draw-shortcuts {
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
