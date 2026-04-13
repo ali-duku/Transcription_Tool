@@ -1,1 +1,5 @@
-/* ChoiceEditor uses shared nested editor and choice-row classes from MainShell.css. */
+.choice-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

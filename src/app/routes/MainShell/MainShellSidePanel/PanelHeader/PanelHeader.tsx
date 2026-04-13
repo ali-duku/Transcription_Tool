@@ -17,17 +17,17 @@ export function PanelHeader({
       <div className="panel-toggle-group">
         <button
           type="button"
-          className={`tab-button${activeSidePanel === "json-preview" ? " active" : ""}`}
-          onClick={() => onSidePanelChange("json-preview")}
-        >
-          JSON Preview
-        </button>
-        <button
-          type="button"
           className={`tab-button${activeSidePanel === "pdf-viewer" ? " active" : ""}`}
           onClick={() => onSidePanelChange("pdf-viewer")}
         >
           PDF Viewer
+        </button>
+        <button
+          type="button"
+          className={`tab-button${activeSidePanel === "json-preview" ? " active" : ""}`}
+          onClick={() => onSidePanelChange("json-preview")}
+        >
+          JSON Preview
         </button>
       </div>
       <button className="primary-button" type="button" onClick={onGenerateJson}>

@@ -1,9 +1,13 @@
+import { useState } from "react";
+import { LiveFieldPreview } from "../../../preview/components/LiveFieldPreview";
 import { useDocumentStore } from "../../../shell/state/documentStore";
 import { appendImageReferenceToken } from "../../../../shared/utils/imageReference";
 import { PagedBboxListEditor } from "../../../questions/components/QuestionsPanel/PagedBboxListEditor";
 import { contentScopedMessages } from "../../../validation/utils/messageScopes";
 import type { ContentSectionState } from "../../state/contentSectionsReducer";
 import "./ContentSectionsPanel.css";
+
+type CopiedContentSection = Omit<ContentSectionState, "uid">;
 
 function updateContentRow(
   row: ContentSectionState,
@@ -19,6 +23,7 @@ function updateContentRow(
 export function ContentSectionsPanel() {
   const { history, persistence, applyDocumentAction } = useDocumentStore();
   const rows = history.present.instructional_content;
+  const [copiedSection, setCopiedSection] = useState<CopiedContentSection | null>(null);
 
   function imageCount(row: ContentSectionState): number {
     return Array.isArray(row.images) ? row.images.length : 0;
@@ -28,13 +33,29 @@ export function ContentSectionsPanel() {
     <div className="subtab-form">
       <div className="subtab-header-row">
         <h2>Content Sections</h2>
-        <button
-          type="button"
-          className="tab-button"
-          onClick={() => applyDocumentAction({ type: "add_content_section" })}
-        >
-          Add Section
-        </button>
+        <div className="array-card-actions">
+          <button
+            type="button"
+            className="tab-button"
+            onClick={() => applyDocumentAction({ type: "add_content_section" })}
+          >
+            Add Section
+          </button>
+          <button
+            type="button"
+            className="tab-button"
+            disabled={!copiedSection}
+            onClick={() =>
+              copiedSection &&
+              applyDocumentAction({
+                type: "add_content_section",
+                payload: copiedSection
+              })
+            }
+          >
+            Paste Section
+          </button>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -80,6 +101,20 @@ export function ContentSectionsPanel() {
                 <button
                   type="button"
                   className="tab-button"
+                  onClick={() => applyDocumentAction({ type: "add_content_section", index })}
+                >
+                  Before
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() => applyDocumentAction({ type: "add_content_section", index: index + 1 })}
+                >
+                  After
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
                   onClick={() => applyDocumentAction({ type: "move_content_section", index, direction: "up" })}
                 >
                   Up
@@ -92,6 +127,52 @@ export function ContentSectionsPanel() {
                   }
                 >
                   Down
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() =>
+                    setCopiedSection({
+                      section_title: row.section_title,
+                      text: row.text,
+                      images: row.images,
+                      collapsed: row.collapsed
+                    })
+                  }
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  disabled={!copiedSection}
+                  onClick={() =>
+                    copiedSection &&
+                    applyDocumentAction({
+                      type: "paste_content_section",
+                      index,
+                      mode: "replace",
+                      payload: copiedSection
+                    })
+                  }
+                >
+                  Paste Replace
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  disabled={!copiedSection}
+                  onClick={() =>
+                    copiedSection &&
+                    applyDocumentAction({
+                      type: "paste_content_section",
+                      index,
+                      mode: "insert_after",
+                      payload: copiedSection
+                    })
+                  }
+                >
+                  Paste After
                 </button>
                 <button
                   type="button"
@@ -127,6 +208,7 @@ export function ContentSectionsPanel() {
                   })
                 }
               />
+              <LiveFieldPreview text={row.section_title} />
             </label>
 
             <label className="form-field">
@@ -166,6 +248,7 @@ export function ContentSectionsPanel() {
                   })
                 }
               />
+              <LiveFieldPreview text={row.text} images={row.images} />
             </label>
 
             <PagedBboxListEditor

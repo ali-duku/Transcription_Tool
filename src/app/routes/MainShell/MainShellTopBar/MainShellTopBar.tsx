@@ -1,7 +1,11 @@
 import type { InputSubTabKey } from "../../../../shared/types/navigation";
 import "./MainShellTopBar.css";
 
-export type QuickJumpKey = InputSubTabKey | "final-preview";
+export type QuickJumpKey =
+  | InputSubTabKey
+  | "final-preview"
+  | `content-${number}`
+  | `question-${number}`;
 
 export interface QuickJumpOption {
   key: QuickJumpKey;
@@ -10,29 +14,88 @@ export interface QuickJumpOption {
 
 interface MainShellTopBarProps {
   appVersion: string;
-  contentCount: number;
-  questionCount: number;
+  themeMode: "light" | "dark";
+  autoResizeEnabled: boolean;
+  trailingSpacesEnabled: boolean;
+  fontSize: string;
+  lineHeight: string;
   canUndo: boolean;
   canRedo: boolean;
   quickJumpOptions: QuickJumpOption[];
   onUndo: () => void;
   onRedo: () => void;
+  onFontSizeChange: (value: string) => void;
+  onLineHeightChange: (value: string) => void;
   onQuickJump: (key: QuickJumpKey) => void;
   onSave: () => void;
+  onReload: () => void;
+  onScrollToTop: () => void;
+  onToggleTheme: () => void;
+  onToggleAutoResize: () => void;
+  onToggleTrailingSpaces: () => void;
+  onOpenWhatsNew: () => void;
   saveIndicatorLabel: string;
+}
+
+const FONT_SIZE_OPTIONS = ["14", "16", "18", "20", "22", "24", "26", "28", "30", "32", "36", "40", "44", "48"];
+const LINE_HEIGHT_OPTIONS = ["1.5", "1.8", "2.0", "2.2", "2.5"];
+
+function renderGroupedQuickJumpOptions(options: QuickJumpOption[]) {
+  const formSections = options.filter(
+    (option) => !option.key.startsWith("content-") && !option.key.startsWith("question-")
+  );
+  const contentSections = options.filter((option) => option.key.startsWith("content-"));
+  const questions = options.filter((option) => option.key.startsWith("question-"));
+
+  return (
+    <>
+      <optgroup label="Form Sections">
+        {formSections.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Content Sections">
+        {contentSections.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Questions">
+        {questions.map((option) => (
+          <option key={option.key} value={option.key}>
+            {option.label}
+          </option>
+        ))}
+      </optgroup>
+    </>
+  );
 }
 
 export function MainShellTopBar({
   appVersion,
-  contentCount,
-  questionCount,
+  themeMode,
+  autoResizeEnabled,
+  trailingSpacesEnabled,
+  fontSize,
+  lineHeight,
   canUndo,
   canRedo,
   quickJumpOptions,
   onUndo,
   onRedo,
+  onFontSizeChange,
+  onLineHeightChange,
   onQuickJump,
   onSave,
+  onReload,
+  onScrollToTop,
+  onToggleTheme,
+  onToggleAutoResize,
+  onToggleTrailingSpaces,
+  onOpenWhatsNew,
   saveIndicatorLabel
 }: MainShellTopBarProps) {
   return (
@@ -40,21 +103,57 @@ export function MainShellTopBar({
       <div className="header-title-block">
         <h1>Math Textbook Transcription</h1>
         <div className="header-meta">
-          v{appVersion} | Content: {contentCount} | Questions: {questionCount}
+          <span>v{appVersion}</span>
+          <span>&bull;</span>
+          <button type="button" className="meta-link-button" onClick={onOpenWhatsNew}>
+            What's New
+          </button>
+          <span>&bull;</span>
+          <span>DUKU</span>
         </div>
       </div>
 
       <div className="topbar-controls">
-        <button type="button" className="tab-button" onClick={onUndo} disabled={!canUndo} title="Undo">
-          Undo
-        </button>
-        <button type="button" className="tab-button" onClick={onRedo} disabled={!canRedo} title="Redo">
-          Redo
-        </button>
+        <div className="topbar-group">
+          <button type="button" className="topbar-icon-button" onClick={onUndo} disabled={!canUndo} title="Undo">
+            &#8630;
+          </button>
+          <button type="button" className="topbar-icon-button" onClick={onRedo} disabled={!canRedo} title="Redo">
+            &#8631;
+          </button>
+        </div>
 
-        <label className="field-label" htmlFor="quick-jump-select">
-          Quick Jump
-        </label>
+        <div className="topbar-group font-controls">
+          <label htmlFor="font-size-select">Font</label>
+          <select
+            id="font-size-select"
+            className="control-select compact"
+            value={fontSize}
+            onChange={(event) => onFontSizeChange(event.target.value)}
+          >
+            {FONT_SIZE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}px
+              </option>
+            ))}
+          </select>
+          <label htmlFor="line-height-select">Line</label>
+          <select
+            id="line-height-select"
+            className="control-select compact"
+            value={lineHeight}
+            onChange={(event) => onLineHeightChange(event.target.value)}
+          >
+            {LINE_HEIGHT_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <span className="save-indicator-text">{saveIndicatorLabel}</span>
+
         <select
           id="quick-jump-select"
           className="control-select"
@@ -65,18 +164,45 @@ export function MainShellTopBar({
           }}
           defaultValue=""
         >
-          <option value="">Jump to...</option>
-          {quickJumpOptions.map((option) => (
-            <option key={option.key} value={option.key}>
-              {option.label}
-            </option>
-          ))}
+          <option value="">Quick Jump...</option>
+          {renderGroupedQuickJumpOptions(quickJumpOptions)}
         </select>
 
-        <button type="button" className="tab-button" onClick={onSave}>
-          Save
-        </button>
-        <span className="save-indicator-text">{saveIndicatorLabel}</span>
+        <div className="topbar-group">
+          <button type="button" className="topbar-icon-button" onClick={onSave} title="Save Progress (Ctrl+S)">
+            &#128190;
+          </button>
+          <button type="button" className="topbar-icon-button" onClick={onReload} title="Reload Page">
+            &#8635;
+          </button>
+          <button type="button" className="topbar-icon-button" onClick={onScrollToTop} title="Scroll to Top">
+            &#8593;
+          </button>
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={onToggleTheme}
+            title={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {themeMode === "dark" ? "Light" : "Dark"}
+          </button>
+          <button
+            type="button"
+            className={`topbar-icon-button${autoResizeEnabled ? " is-enabled" : ""}`}
+            onClick={onToggleAutoResize}
+            title="Toggle Auto-Resize Textareas"
+          >
+            Auto
+          </button>
+          <button
+            type="button"
+            className={`topbar-icon-button${trailingSpacesEnabled ? " is-enabled" : ""}`}
+            onClick={onToggleTrailingSpaces}
+            title="Show trailing spaces indicator in preview boxes"
+          >
+            TS
+          </button>
+        </div>
       </div>
     </div>
   );

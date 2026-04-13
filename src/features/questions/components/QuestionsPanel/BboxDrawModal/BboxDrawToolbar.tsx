@@ -1,7 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
 import "./BboxDrawToolbar.css";
-import { normalizeRect, type Rect } from "./bboxDrawGeometry";
-import type { RectEdge } from "./bboxNudgeUtils";
 
 interface BboxDrawToolbarProps {
   source: "textbook" | "guide";
@@ -9,20 +7,20 @@ interface BboxDrawToolbarProps {
   currentPage: number;
   totalPages: number;
   scale: number;
-  rect: Rect | null;
-  hasRect: boolean;
-  onSetSource: (source: "textbook" | "guide") => void;
+  coordsText: string;
+  hasCurrentRect: boolean;
+  onUploadTextbook: () => void;
+  onUploadGuide: () => void;
   onSetPage: (page: number) => void;
   onPrevPage: () => void;
   onNextPage: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
   onResetZoom: () => void;
-  onClearRect: () => void;
-  confirmOnClear: boolean;
-  onToggleConfirmOnClear: (next: boolean) => void;
-  onNudgeRect: (dx: number, dy: number) => void;
-  onNudgeEdge: (edge: RectEdge, delta: number) => void;
+  onUndo: () => void;
+  onAddBbox: () => void;
+  onClearPage: () => void;
+  onClose: () => void;
 }
 
 export function BboxDrawToolbar({
@@ -31,39 +29,26 @@ export function BboxDrawToolbar({
   currentPage,
   totalPages,
   scale,
-  rect,
-  hasRect,
-  onSetSource,
+  coordsText,
+  hasCurrentRect,
+  onUploadTextbook,
+  onUploadGuide,
   onSetPage,
   onPrevPage,
   onNextPage,
   onZoomOut,
   onZoomIn,
   onResetZoom,
-  onClearRect,
-  confirmOnClear,
-  onToggleConfirmOnClear,
-  onNudgeRect,
-  onNudgeEdge
+  onUndo,
+  onAddBbox,
+  onClearPage,
+  onClose
 }: BboxDrawToolbarProps) {
-  const normalizedRect = rect ? normalizeRect(rect) : null;
   const [pageInput, setPageInput] = useState(String(currentPage));
 
   useEffect(() => {
     setPageInput(String(currentPage));
   }, [currentPage]);
-
-  function updateEdgeValue(edge: RectEdge, nextRaw: string) {
-    if (!normalizedRect) {
-      return;
-    }
-    const next = Number.parseFloat(nextRaw);
-    if (!Number.isFinite(next)) {
-      return;
-    }
-    const current = normalizedRect[edge];
-    onNudgeEdge(edge, next - current);
-  }
 
   function commitPageInput() {
     const parsed = Number.parseInt(pageInput, 10);
@@ -82,30 +67,40 @@ export function BboxDrawToolbar({
     commitPageInput();
   }
 
+  const sourceLabel = source === "textbook" ? "Textbook" : "Guide";
+
   return (
     <div className="bbox-draw-controls">
       <div className="bbox-draw-group">
-        <button
-          type="button"
-          className={`tab-button${source === "textbook" ? " active" : ""}`}
-          onClick={() => onSetSource("textbook")}
-        >
-          Textbook
+        <button type="button" className="tab-button" onClick={onUploadTextbook}>
+          Upload Textbook PDF
         </button>
-        <button
-          type="button"
-          className={`tab-button${source === "guide" ? " active" : ""}`}
-          onClick={() => onSetSource("guide")}
-        >
-          Guidebook
+        <button type="button" className="tab-button" onClick={onUploadGuide}>
+          Upload Answers PDF
         </button>
       </div>
 
       <div className="bbox-draw-group">
+        <span className="bbox-metric-label">
+          Doc: <strong>{sourceLabel}</strong>
+        </span>
+      </div>
+
+      <div className="bbox-draw-group">
         <button type="button" className="tab-button" onClick={onPrevPage} disabled={!exists || currentPage <= 1}>
-          &lt;
+          &#9664;
         </button>
-        <span>Page</span>
+        <span className="bbox-metric-label">
+          Page {currentPage}/{Math.max(1, totalPages)}
+        </span>
+        <button
+          type="button"
+          className="tab-button"
+          onClick={onNextPage}
+          disabled={!exists || currentPage >= Math.max(1, totalPages)}
+        >
+          &#9654;
+        </button>
         <input
           className="bbox-draw-page-input"
           type="number"
@@ -117,14 +112,8 @@ export function BboxDrawToolbar({
           onBlur={commitPageInput}
           onKeyDown={onPageInputKeyDown}
         />
-        <span>/ {Math.max(1, totalPages)}</span>
-        <button
-          type="button"
-          className="tab-button"
-          onClick={onNextPage}
-          disabled={!exists || currentPage >= Math.max(1, totalPages)}
-        >
-          &gt;
+        <button type="button" className="tab-button" onClick={commitPageInput} disabled={!exists}>
+          Go
         </button>
       </div>
 
@@ -138,84 +127,31 @@ export function BboxDrawToolbar({
         <button type="button" className="tab-button" onClick={onResetZoom} disabled={!exists}>
           Reset
         </button>
-        <span>{Math.round(scale * 100)}%</span>
+        <span className="bbox-metric-label">{Math.round(scale * 100)}%</span>
       </div>
 
-      <button type="button" className="tab-button" onClick={onClearRect} disabled={!hasRect}>
-        Clear Box
-      </button>
-
-      <label className="bbox-draw-toggle">
-        <input
-          type="checkbox"
-          checked={confirmOnClear}
-          onChange={(event) => onToggleConfirmOnClear(event.target.checked)}
-        />
-        Confirm clear
-      </label>
-
       <div className="bbox-draw-group">
-        <span>Nudge</span>
-        <button type="button" className="tab-button" onClick={() => onNudgeRect(-1, 0)} disabled={!hasRect}>
-          Left
+        <span className="bbox-metric-label">Drawing: Always On</span>
+        <button type="button" className="tab-button" onClick={onUndo} disabled={!hasCurrentRect}>
+          Undo
         </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeRect(1, 0)} disabled={!hasRect}>
-          Right
+        <button type="button" className="tab-button" onClick={onAddBbox} disabled={!hasCurrentRect}>
+          Add BBox
         </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeRect(0, -1)} disabled={!hasRect}>
-          Up
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeRect(0, 1)} disabled={!hasRect}>
-          Down
+        <button type="button" className="tab-button danger" onClick={onClearPage}>
+          Clear Page
         </button>
       </div>
 
       <div className="bbox-draw-group">
-        <span>Edges</span>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("x1", -1)} disabled={!hasRect}>
-          x1-
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("x1", 1)} disabled={!hasRect}>
-          x1+
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("x2", -1)} disabled={!hasRect}>
-          x2-
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("x2", 1)} disabled={!hasRect}>
-          x2+
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("y1", -1)} disabled={!hasRect}>
-          y1-
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("y1", 1)} disabled={!hasRect}>
-          y1+
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("y2", -1)} disabled={!hasRect}>
-          y2-
-        </button>
-        <button type="button" className="tab-button" onClick={() => onNudgeEdge("y2", 1)} disabled={!hasRect}>
-          y2+
-        </button>
+        <span className="bbox-metric-label">Coords</span>
+        <span className="bbox-metric-label">{coordsText}</span>
       </div>
 
-      <div className="bbox-draw-group bbox-draw-coordinates">
-        <span>Coords</span>
-        {(["x1", "y1", "x2", "y2"] as RectEdge[]).map((edge) => (
-          <label key={edge} className="bbox-draw-coordinate-field">
-            <span>{edge}</span>
-            <input
-              type="number"
-              step="1"
-              value={normalizedRect ? normalizedRect[edge] : ""}
-              disabled={!hasRect}
-              onChange={(event) => updateEdgeValue(edge, event.target.value)}
-            />
-          </label>
-        ))}
-      </div>
-
-      <div className="bbox-draw-shortcuts">
-        Shortcuts: `Arrow` move, `Shift+Arrow` x10, `Ctrl/Cmd+Arrow` edge adjust, `Esc` close.
+      <div className="bbox-draw-group bbox-draw-group-right">
+        <button type="button" className="tab-button danger" onClick={onClose}>
+          &#10005;
+        </button>
       </div>
     </div>
   );

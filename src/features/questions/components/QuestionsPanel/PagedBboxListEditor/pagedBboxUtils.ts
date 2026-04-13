@@ -1,9 +1,9 @@
 interface DraftBboxRow {
   page: string;
+  x0: string;
+  y0: string;
   x1: string;
   y1: string;
-  x2: string;
-  y2: string;
 }
 
 export interface ValidateResult {
@@ -39,7 +39,7 @@ function isPosition(value: unknown): value is [[unknown, unknown], [unknown, unk
 
 function toDraftRow(value: unknown): DraftBboxRow {
   if (!value || typeof value !== "object") {
-    return { page: "", x1: "", y1: "", x2: "", y2: "" };
+    return { page: "", x0: "", y0: "", x1: "", y1: "" };
   }
 
   const record = value as Record<string, unknown>;
@@ -47,19 +47,19 @@ function toDraftRow(value: unknown): DraftBboxRow {
   if (!isPosition(position)) {
     return {
       page: toText(record.page),
+      x0: "",
+      y0: "",
       x1: "",
-      y1: "",
-      x2: "",
-      y2: ""
+      y1: ""
     };
   }
 
   return {
     page: toText(record.page),
-    x1: toText(position[0][0]),
-    y1: toText(position[0][1]),
-    x2: toText(position[1][0]),
-    y2: toText(position[1][1])
+    x0: toText(position[0][0]),
+    y0: toText(position[0][1]),
+    x1: toText(position[1][0]),
+    y1: toText(position[1][1])
   };
 }
 
@@ -71,7 +71,7 @@ export function toDraftRows(value: unknown[] | null): DraftBboxRow[] {
 }
 
 export function createEmptyDraftRow(): DraftBboxRow {
-  return { page: "", x1: "", y1: "", x2: "", y2: "" };
+  return { page: "", x0: "", y0: "", x1: "", y1: "" };
 }
 
 export function validateAndBuildPayload(rows: DraftBboxRow[]): ValidateResult {
@@ -85,31 +85,31 @@ export function validateAndBuildPayload(rows: DraftBboxRow[]): ValidateResult {
   rows.forEach((row, index) => {
     const rowNo = index + 1;
     const page = toPositiveInteger(row.page);
+    const x0 = toNumber(row.x0);
+    const y0 = toNumber(row.y0);
     const x1 = toNumber(row.x1);
     const y1 = toNumber(row.y1);
-    const x2 = toNumber(row.x2);
-    const y2 = toNumber(row.y2);
 
     if (page == null) {
       errors.push(`Row ${rowNo}: page must be a positive integer.`);
     }
-    if (x1 == null || y1 == null || x2 == null || y2 == null) {
+    if (x0 == null || y0 == null || x1 == null || y1 == null) {
       errors.push(`Row ${rowNo}: coordinates must be valid numbers.`);
     } else {
-      if (x1 >= x2) {
-        errors.push(`Row ${rowNo}: x1 must be less than x2.`);
+      if (x0 <= x1) {
+        errors.push(`Row ${rowNo}: x0 must be greater than x1.`);
       }
-      if (y1 >= y2) {
-        errors.push(`Row ${rowNo}: y1 must be less than y2.`);
+      if (y0 >= y1) {
+        errors.push(`Row ${rowNo}: y0 must be less than y1.`);
       }
     }
 
-    if (page != null && x1 != null && y1 != null && x2 != null && y2 != null && x1 < x2 && y1 < y2) {
+    if (page != null && x0 != null && y0 != null && x1 != null && y1 != null && x0 > x1 && y0 < y1) {
       payload.push({
         page,
         position: [
-          [x1, y1],
-          [x2, y2]
+          [x0, y0],
+          [x1, y1]
         ]
       });
     }

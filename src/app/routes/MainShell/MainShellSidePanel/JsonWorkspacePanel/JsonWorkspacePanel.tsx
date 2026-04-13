@@ -3,7 +3,9 @@ import "./JsonWorkspacePanel.css";
 interface JsonWorkspacePanelProps {
   onLoadJson: () => void;
   onRestoreLatest: () => void;
-  onClearSavedData: () => void;
+  onClearForm: () => void;
+  onClearCurrentSubtab: () => void;
+  onUploadPdfs: () => void;
   onJumpToFirstError: () => void;
   onValidationMessageClick: (message: string) => void;
   jsonInput: string;
@@ -50,7 +52,9 @@ function ValidationMessageBlock({
 export function JsonWorkspacePanel({
   onLoadJson,
   onRestoreLatest,
-  onClearSavedData,
+  onClearForm,
+  onClearCurrentSubtab,
+  onUploadPdfs,
   onJumpToFirstError,
   onValidationMessageClick,
   jsonInput,
@@ -62,6 +66,17 @@ export function JsonWorkspacePanel({
 }: JsonWorkspacePanelProps) {
   const outputText = jsonOutput.trim().length > 0 ? jsonOutput : "// JSON will be generated here...";
 
+  async function handleCopyJson() {
+    if (!jsonOutput.trim()) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(jsonOutput);
+    } catch {
+      // Keep UX silent if clipboard is blocked.
+    }
+  }
+
   return (
     <div className="json-workspace">
       <div className="panel-actions-row">
@@ -71,8 +86,19 @@ export function JsonWorkspacePanel({
         <button className="tab-button" type="button" onClick={onRestoreLatest}>
           Restore Latest
         </button>
-        <button className="tab-button" type="button" onClick={onClearSavedData}>
-          Clear Saved
+        <button className="tab-button" type="button" onClick={onClearForm}>
+          Clear Form
+        </button>
+        <button className="tab-button" type="button" onClick={onClearCurrentSubtab}>
+          Clear Current Subtab
+        </button>
+        <button className="tab-button" type="button" onClick={onUploadPdfs}>
+          Upload PDFs
+        </button>
+      </div>
+      <div className="panel-actions-row">
+        <button className="tab-button" type="button" onClick={handleCopyJson} disabled={!jsonOutput.trim()}>
+          Copy JSON
         </button>
         <button
           className="tab-button"

@@ -2,10 +2,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
 }
 
 .json-textarea {
-  min-height: 150px;
+  min-height: 160px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
@@ -14,6 +15,7 @@
   font-size: 0.82rem;
   padding: 10px;
   resize: vertical;
+  line-height: 1.4;
 }
 
 .json-output-box {

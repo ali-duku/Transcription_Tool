@@ -1,4 +1,5 @@
 import { useDocumentStore } from "../../state/documentStore";
+import { LiveFieldPreview } from "../../../preview/components/LiveFieldPreview";
 import "./UnitPreambleSection.css";
 
 interface UnitPreambleDraft {
@@ -66,6 +67,7 @@ export function UnitPreambleSection() {
             value={draft.title}
             onChange={(event) => update("title", event.target.value)}
           />
+          <LiveFieldPreview text={draft.title} />
         </label>
       </div>
 
@@ -76,6 +78,7 @@ export function UnitPreambleSection() {
           value={draft.title_translation}
           onChange={(event) => update("title_translation", event.target.value)}
         />
+        <LiveFieldPreview text={draft.title_translation} />
       </label>
 
       <label className="form-field">
@@ -85,6 +88,7 @@ export function UnitPreambleSection() {
           value={draft.text}
           onChange={(event) => update("text", event.target.value)}
         />
+        <LiveFieldPreview text={draft.text} />
       </label>
     </div>
   );

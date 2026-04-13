@@ -1,7 +1,7 @@
 .bbox-draw-modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,8 +9,8 @@
 }
 
 .bbox-draw-dialog {
-  width: min(92vw, 1120px);
-  height: min(90vh, 760px);
+  width: min(92vw, 1300px);
+  height: min(90vh, 860px);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -19,21 +19,13 @@
   overflow: hidden;
 }
 
-.bbox-draw-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border-color);
-}
-
 .bbox-draw-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
   padding: 10px;
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -43,16 +35,27 @@
   gap: 6px;
 }
 
-.bbox-draw-canvas-shell {
-  flex: 1;
+.bbox-draw-content {
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  background: color-mix(in srgb, var(--bg-primary) 94%, #000);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 10px;
   padding: 10px;
+  overflow: hidden;
+}
+
+.bbox-draw-canvas-shell {
+  position: relative;
+  min-height: 220px;
+  overflow: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 
 .bbox-draw-canvas-shell p {
-  margin: 0;
+  margin: 12px;
   color: var(--text-secondary);
 }
 
@@ -73,10 +76,73 @@
   cursor: crosshair;
 }
 
+.bbox-draw-sidebar {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.bbox-draw-sidebar h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.bbox-draw-sidebar-meta {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.bbox-draw-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bbox-draw-list-item {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  text-align: left;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.bbox-draw-list-item code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.72rem;
+}
+
+.bbox-draw-list-item.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.bbox-draw-empty-list {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
 .bbox-draw-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   padding: 10px;
+  background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
+}
+
+.pdf-hidden-input {
+  display: none;
 }

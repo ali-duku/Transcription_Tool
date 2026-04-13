@@ -11,3 +11,18 @@
   color: var(--text-secondary);
   font-size: 0.8rem;
 }
+
+.fitb-preview-block {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fitb-preview-block strong {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}

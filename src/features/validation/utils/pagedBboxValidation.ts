@@ -43,16 +43,16 @@ export function validatePagedBboxArray(
     }
 
     if (!isPosition(record.position)) {
-      errors.push(`${scopePrefix} image row ${itemNo}: position must be [[x1,y1],[x2,y2]].`);
+      errors.push(`${scopePrefix} image row ${itemNo}: position must be [[x0,y0],[x1,y1]].`);
       return;
     }
 
-    const [[x1, y1], [x2, y2]] = record.position;
-    if (x1 >= x2) {
-      errors.push(`${scopePrefix} image row ${itemNo}: x1 must be less than x2.`);
+    const [[x0, y0], [x1, y1]] = record.position;
+    if (x0 <= x1) {
+      errors.push(`${scopePrefix} image row ${itemNo}: x0 must be greater than x1.`);
     }
-    if (y1 >= y2) {
-      errors.push(`${scopePrefix} image row ${itemNo}: y1 must be less than y2.`);
+    if (y0 >= y1) {
+      errors.push(`${scopePrefix} image row ${itemNo}: y0 must be less than y1.`);
     }
   });
 }

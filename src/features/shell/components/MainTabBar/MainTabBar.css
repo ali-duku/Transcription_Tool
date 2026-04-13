@@ -1,23 +1,24 @@
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .tab {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--text-primary);
-  padding: 7px 11px;
-  font-size: 0.86rem;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  font-size: 0.83rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .tab.active {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }

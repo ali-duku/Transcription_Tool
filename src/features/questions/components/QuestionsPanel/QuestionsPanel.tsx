@@ -1,9 +1,12 @@
+import { useState } from "react";
 import type { CanonicalQuestionExport } from "../../../../domain/schema/questionSchemaAdapter";
 import { appendImageReferenceToken } from "../../../../shared/utils/imageReference";
+import { LiveFieldPreview } from "../../../preview/components/LiveFieldPreview";
 import { useDocumentStore } from "../../../shell/state/documentStore";
 import { questionScopedMessages } from "../../../validation/utils/messageScopes";
 import type { QuestionState } from "../../state/questionsReducer";
 import { PagedBboxListEditor } from "./PagedBboxListEditor";
+import { QuestionValidationSummary } from "./QuestionValidationSummary";
 import { QuestionTypeEditor } from "./QuestionTypeEditor";
 import { QUESTION_TYPE_OPTIONS } from "./constants";
 import {
@@ -18,6 +21,7 @@ import "./QuestionsPanel.css";
 export function QuestionsPanel() {
   const { history, persistence, applyDocumentAction } = useDocumentStore();
   const rows = history.present.practice_questions;
+  const [copiedQuestion, setCopiedQuestion] = useState<CanonicalQuestionExport | null>(null);
 
   function replaceQuestion(index: number, payload: CanonicalQuestionExport) {
     applyDocumentAction({
@@ -67,9 +71,19 @@ export function QuestionsPanel() {
     <div className="subtab-form">
       <div className="subtab-header-row">
         <h2>Questions</h2>
-        <button type="button" className="tab-button" onClick={() => applyDocumentAction({ type: "add_question" })}>
-          Add Question
-        </button>
+        <div className="array-card-actions">
+          <button type="button" className="tab-button" onClick={() => applyDocumentAction({ type: "add_question" })}>
+            Add Question
+          </button>
+          <button
+            type="button"
+            className="tab-button"
+            disabled={!copiedQuestion}
+            onClick={() => copiedQuestion && applyDocumentAction({ type: "add_question", payload: copiedQuestion })}
+          >
+            Paste Question
+          </button>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -77,41 +91,28 @@ export function QuestionsPanel() {
       ) : (
         rows.map((row, index) => (
           <div key={row.uid} className="array-card" data-question-index={index + 1}>
-            {(() => {
-              const scopedErrors = questionScopedMessages(persistence.lastValidationErrorSet, index);
-              const scopedWarnings = questionScopedMessages(persistence.lastValidationWarningSet, index);
-              if (scopedErrors.length === 0 && scopedWarnings.length === 0) {
-                return null;
-              }
-              return (
-                <div className="question-validation-summary">
-                  {scopedErrors.length > 0 ? (
-                    <div className="question-validation-errors">
-                      <strong>Errors</strong>
-                      <ul>
-                        {scopedErrors.map((message, messageIndex) => (
-                          <li key={`q-error-${index}-${messageIndex}`}>{message}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {scopedWarnings.length > 0 ? (
-                    <div className="question-validation-warnings">
-                      <strong>Warnings</strong>
-                      <ul>
-                        {scopedWarnings.map((message, messageIndex) => (
-                          <li key={`q-warning-${index}-${messageIndex}`}>{message}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })()}
+            <QuestionValidationSummary
+              errors={questionScopedMessages(persistence.lastValidationErrorSet, index)}
+              warnings={questionScopedMessages(persistence.lastValidationWarningSet, index)}
+            />
 
             <div className="array-card-header">
               <strong>Question {index + 1}</strong>
               <div className="array-card-actions">
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() => applyDocumentAction({ type: "add_question", index })}
+                >
+                  Before
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() => applyDocumentAction({ type: "add_question", index: index + 1 })}
+                >
+                  After
+                </button>
                 <button
                   type="button"
                   className="tab-button"
@@ -125,6 +126,45 @@ export function QuestionsPanel() {
                   onClick={() => applyDocumentAction({ type: "move_question", index, direction: "down" })}
                 >
                   Down
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() => setCopiedQuestion(row.canonical)}
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  disabled={!copiedQuestion}
+                  onClick={() =>
+                    copiedQuestion &&
+                    applyDocumentAction({
+                      type: "paste_question",
+                      index,
+                      mode: "replace",
+                      payload: copiedQuestion
+                    })
+                  }
+                >
+                  Paste Replace
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
+                  disabled={!copiedQuestion}
+                  onClick={() =>
+                    copiedQuestion &&
+                    applyDocumentAction({
+                      type: "paste_question",
+                      index,
+                      mode: "insert_after",
+                      payload: copiedQuestion
+                    })
+                  }
+                >
+                  Paste After
                 </button>
                 <button
                   type="button"
@@ -198,6 +238,7 @@ export function QuestionsPanel() {
                 value={row.canonical.setup_text ?? ""}
                 onChange={(event) => updateQuestion(index, row, { setup_text: event.target.value || null })}
               />
+              <LiveFieldPreview text={row.canonical.setup_text ?? ""} images={row.canonical.question_images} />
             </label>
 
             <label className="form-field">
@@ -230,6 +271,7 @@ export function QuestionsPanel() {
                 value={row.canonical.question}
                 onChange={(event) => updateQuestion(index, row, { question: event.target.value })}
               />
+              <LiveFieldPreview text={row.canonical.question} images={row.canonical.question_images} />
             </label>
 
             <PagedBboxListEditor

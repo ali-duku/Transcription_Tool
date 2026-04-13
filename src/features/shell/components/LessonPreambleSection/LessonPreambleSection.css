@@ -1,1 +1,15 @@
-/* LessonPreambleSection uses shared subtab form and form-field classes from MainShell.css. */
+.preamble-array-row {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preamble-array-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

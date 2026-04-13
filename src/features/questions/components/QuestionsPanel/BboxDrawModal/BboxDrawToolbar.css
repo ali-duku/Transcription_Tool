@@ -1,40 +1,24 @@
-.bbox-draw-group span {
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-}
-
-.bbox-draw-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-}
-
 .bbox-draw-page-input {
-  width: 76px;
+  width: 80px;
   padding: 4px 6px;
 }
 
-.bbox-draw-coordinates {
-  flex-wrap: wrap;
-}
-
-.bbox-draw-coordinate-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.bbox-metric-label {
   color: var(--text-secondary);
   font-size: 0.82rem;
+  white-space: nowrap;
 }
 
-.bbox-draw-coordinate-field input {
-  width: 72px;
-  padding: 4px 6px;
+.bbox-draw-group-right {
+  margin-left: auto;
 }
 
-.bbox-draw-shortcuts {
-  width: 100%;
-  color: var(--text-secondary);
-  font-size: 0.78rem;
+.tab-button.danger {
+  border-color: var(--danger);
+  color: #fff;
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+}
+
+.tab-button.danger:hover {
+  background: var(--danger);
 }

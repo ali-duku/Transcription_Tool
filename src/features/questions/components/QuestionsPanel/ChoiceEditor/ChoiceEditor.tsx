@@ -1,4 +1,5 @@
 import type { ChangeEvent } from "react";
+import { LiveFieldPreview } from "../../../../preview/components/LiveFieldPreview";
 import type { ChoiceEditorProps } from "../types";
 import "./ChoiceEditor.css";
 
@@ -51,13 +52,16 @@ export function ChoiceEditor({ row, isCheckbox, onChange }: ChoiceEditorProps) {
 
       {options.map((option, index) => (
         <div key={`${row.uid}-option-${index}`} className="choice-row">
-          <input
-            data-field="choice-option"
-            data-option-index={index + 1}
-            type="text"
-            value={option}
-            onChange={(event) => onOptionTextChange(index, event)}
-          />
+          <div className="choice-row-main">
+            <input
+              data-field="choice-option"
+              data-option-index={index + 1}
+              type="text"
+              value={option}
+              onChange={(event) => onOptionTextChange(index, event)}
+            />
+            <LiveFieldPreview text={option} />
+          </div>
 
           {isCheckbox ? (
             <label className="choice-toggle">

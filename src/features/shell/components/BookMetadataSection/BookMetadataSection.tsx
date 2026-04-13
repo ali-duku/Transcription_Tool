@@ -1,4 +1,5 @@
 import { useDocumentStore } from "../../state/documentStore";
+import { LiveFieldPreview } from "../../../preview/components/LiveFieldPreview";
 import "./BookMetadataSection.css";
 
 interface BookMetadataDraft {
@@ -69,6 +70,7 @@ export function BookMetadataSection() {
             value={draft.title}
             onChange={(event) => update("title", event.target.value)}
           />
+          <LiveFieldPreview text={draft.title} />
         </label>
 
         <label className="form-field">
@@ -79,6 +81,7 @@ export function BookMetadataSection() {
             value={draft.subtitle}
             onChange={(event) => update("subtitle", event.target.value)}
           />
+          <LiveFieldPreview text={draft.subtitle} />
         </label>
       </div>
 
@@ -91,6 +94,7 @@ export function BookMetadataSection() {
             value={draft.version}
             onChange={(event) => update("version", event.target.value)}
           />
+          <LiveFieldPreview text={draft.version} />
         </label>
 
         <label className="form-field">
@@ -123,6 +127,7 @@ export function BookMetadataSection() {
             value={draft.lang}
             onChange={(event) => update("lang", event.target.value)}
           />
+          <LiveFieldPreview text={draft.lang} />
         </label>
       </div>
 
@@ -134,6 +139,7 @@ export function BookMetadataSection() {
           value={draft.subject}
           onChange={(event) => update("subject", event.target.value)}
         />
+        <LiveFieldPreview text={draft.subject} />
       </label>
     </div>
   );

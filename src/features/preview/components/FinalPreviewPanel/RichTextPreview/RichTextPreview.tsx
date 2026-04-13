@@ -6,6 +6,7 @@ import {
   type TableCellAlignment
 } from "./richTextParser";
 import { renderLatexToHtml } from "./latexRenderer";
+import { useTrailingSpacesIndicator } from "../../../hooks/useTrailingSpacesIndicator";
 import "katex/dist/katex.min.css";
 import "./RichTextPreview.css";
 
@@ -110,17 +111,24 @@ function renderInlineText(text: string, images: unknown[] | null | undefined, ke
 function renderTextWithLineBreaks(
   text: string,
   images: unknown[] | null | undefined,
-  keyPrefix: string
+  keyPrefix: string,
+  showTrailingSpaces: boolean
 ) {
+  const markTrailingSpaces = (line: string) =>
+    showTrailingSpaces
+      ? line.replace(/[ \t]+$/g, (trailing) => trailing.replace(/ /g, "·").replace(/\t/g, "→"))
+      : line;
+
   return text.split("\n").map((line, lineIndex, lines) => (
     <Fragment key={`${keyPrefix}-line-${lineIndex}`}>
-      {renderInlineText(line, images, `${keyPrefix}-line-${lineIndex}`)}
+      {renderInlineText(markTrailingSpaces(line), images, `${keyPrefix}-line-${lineIndex}`)}
       {lineIndex < lines.length - 1 ? <br /> : null}
     </Fragment>
   ));
 }
 
 export function RichTextPreview({ text, images = null, emptyPlaceholder = "(empty)" }: RichTextPreviewProps) {
+  const showTrailingSpaces = useTrailingSpacesIndicator();
   const source = text ?? "";
   const blocks = parseRichTextBlocks(source);
 
@@ -143,7 +151,7 @@ export function RichTextPreview({ text, images = null, emptyPlaceholder = "(empt
         if (block.kind === "paragraph") {
           return (
             <p key={key}>
-              {renderTextWithLineBreaks(block.text, images, `${key}-paragraph`)}
+              {renderTextWithLineBreaks(block.text, images, `${key}-paragraph`, showTrailingSpaces)}
             </p>
           );
         }
@@ -178,7 +186,7 @@ export function RichTextPreview({ text, images = null, emptyPlaceholder = "(empt
         if (block.kind === "blockquote") {
           return (
             <blockquote key={key}>
-              {renderTextWithLineBreaks(block.text, images, `${key}-quote`)}
+              {renderTextWithLineBreaks(block.text, images, `${key}-quote`, showTrailingSpaces)}
             </blockquote>
           );
         }

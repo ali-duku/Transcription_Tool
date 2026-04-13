@@ -1,10 +1,16 @@
 import { extractBlankTokenIds, syncBlankAnswersWithQuestion } from "../questionPanelUtils";
+import { LiveFieldPreview } from "../../../../preview/components/LiveFieldPreview";
 import type { QuestionTypeEditorProps } from "../types";
 import "./FillInTheBlanksEditor.css";
 
 export function FillInTheBlanksEditor({ row, onChange }: QuestionTypeEditorProps) {
   const blankTokenIds = extractBlankTokenIds(row.canonical.question);
   const answers = syncBlankAnswersWithQuestion(row.canonical.question, row.canonical.guide_answer);
+  const filledQuestionPreview = blankTokenIds.reduce((result, tokenId, index) => {
+    const answer = (answers[index] ?? "").trim();
+    const token = new RegExp(`___\\s*${tokenId}\\s*___`, "g");
+    return result.replace(token, answer.length > 0 ? answer : `___${tokenId}___`);
+  }, row.canonical.question);
 
   function updateAnswerAt(index: number, value: string) {
     const nextAnswers = [...answers];
@@ -46,6 +52,10 @@ export function FillInTheBlanksEditor({ row, onChange }: QuestionTypeEditorProps
               />
             </div>
           ))}
+          <div className="fitb-preview-block">
+            <strong>Preview with Answers</strong>
+            <LiveFieldPreview text={filledQuestionPreview} emptyPlaceholder="Preview will appear here." />
+          </div>
         </>
       )}
     </div>

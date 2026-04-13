@@ -1,4 +1,5 @@
 import { appendImageReferenceToken } from "../../../../../shared/utils/imageReference";
+import { LiveFieldPreview } from "../../../../preview/components/LiveFieldPreview";
 import type { QuestionTypeEditorProps } from "../types";
 import { PagedBboxListEditor } from "../PagedBboxListEditor";
 import "./ManualGuideAnswerEditor.css";
@@ -40,6 +41,7 @@ export function ManualGuideAnswerEditor({ row, onChange }: QuestionTypeEditorPro
             })
           }
         />
+        <LiveFieldPreview text={value} images={row.canonical.guide_answer_images} />
       </label>
       <PagedBboxListEditor
         label="Guide Answer Images"

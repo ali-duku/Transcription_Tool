@@ -13,11 +13,11 @@ interface MainShellSidePanelProps {
   activeSidePanel: SidePanelKey;
   onSidePanelChange: (panel: SidePanelKey) => void;
   onGenerateJson: () => void;
-  onAddContent: () => void;
-  onAddQuestion: () => void;
   onLoadJson: () => void;
   onRestoreLatest: () => void;
-  onClearSavedData: () => void;
+  onClearForm: () => void;
+  onClearCurrentSubtab: () => void;
+  onUploadPdfs: () => void;
   onJumpToFirstError: () => void;
   onValidationMessageClick: (message: string) => void;
   jsonInput: string;
@@ -32,11 +32,11 @@ export function MainShellSidePanel({
   activeSidePanel,
   onSidePanelChange,
   onGenerateJson,
-  onAddContent,
-  onAddQuestion,
   onLoadJson,
   onRestoreLatest,
-  onClearSavedData,
+  onClearForm,
+  onClearCurrentSubtab,
+  onUploadPdfs,
   onJumpToFirstError,
   onValidationMessageClick,
   jsonInput,
@@ -63,20 +63,13 @@ export function MainShellSidePanel({
       />
 
       <div className="panel-body">
-        <div className="panel-actions-row">
-          <button className="tab-button" type="button" onClick={onAddContent}>
-            Add Content
-          </button>
-          <button className="tab-button" type="button" onClick={onAddQuestion}>
-            Add Question
-          </button>
-        </div>
-
         <div className="panel-content panel-content-json" hidden={activeSidePanel !== "json-preview"}>
           <JsonWorkspacePanel
             onLoadJson={onLoadJson}
             onRestoreLatest={onRestoreLatest}
-            onClearSavedData={onClearSavedData}
+            onClearForm={onClearForm}
+            onClearCurrentSubtab={onClearCurrentSubtab}
+            onUploadPdfs={onUploadPdfs}
             onJumpToFirstError={onJumpToFirstError}
             onValidationMessageClick={onValidationMessageClick}
             jsonInput={jsonInput}
