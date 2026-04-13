@@ -17,7 +17,7 @@
         //   - Header/UI display
         //   - What's New modal auto-open checks
         //   - Version reload checks
-        const APP_VERSION = '8.2';
+        const APP_VERSION = '8.3';
         const VERSION_SEEN_KEY = 'whatsNewVersionSeen';
         // Question schema migration phase switch.
         // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -61,6 +61,32 @@
         // What's New releases (single source of truth, newest first).
         // To add a new release, prepend a new object at index 0.
         const WHATS_NEW_RELEASES = [
+
+            {
+                version: '8.3',
+                sections: [
+                    {
+                        key: 'enhancements',
+                        title: 'Enhancements',
+                        iconClass: 'fas fa-arrow-up',
+                        iconColor: 'var(--state-success)',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Better font support on Mac:</strong> Updated the app font family so text now looks more consistent and readable on Mac devices.'
+                        ]
+                    },
+                    {
+                        key: 'bug_fixes',
+                        title: 'Bug Fixes',
+                        iconClass: 'fas fa-bug',
+                        iconColor: 'var(--state-danger)',
+                        wrapStyle: 'margin-bottom: 25px;',
+                        items: [
+                            '<strong>Nested block quotes now preview correctly:</strong> Quotes inside quotes now render the right way, so nested quote formatting is clear and predictable.'
+                        ]
+                    }
+                ]
+            },
 
             {
                 version: '8.2',
@@ -15065,98 +15091,6 @@
                     });
                 }
                 
-                // Fix blockquotes: join consecutive lines unless separated by blank ">"
-                // Special handling for tables inside blockquotes - preserve newlines for table rows
-                const hasBlockquoteLines = /(^|\n)>($| )/.test(md);
-                if (hasBlockquoteLines) {
-                    // Process blockquotes line by line
-                    const lines = md.split('\n');
-                    let processedLines = [];
-                    let inBlockquotePre = false;
-                    let blockquoteBuffer = [];
-                    
-                    for (let i = 0; i < lines.length; i++) {
-                        const line = lines[i];
-                        const isBlockquoteLine = /^>($| )/.test(line);
-                        const isBlankBlockquote = line.trim() === '>';
-                        const isBlankLine = line.trim() === '';
-                        const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
-                        const nextIsBlockquote = /^>($| )/.test(nextLine);
-                        
-                        // Check if this blockquote line is part of a table
-                        // Strip blockquote prefix and check if it starts with |
-                        const strippedLine = isBlockquoteLine ? stripBlockquotePrefix(line) : '';
-                        const isTableRowInBlockquote = isBlockquoteLine && strippedLine.trim().startsWith('|');
-                        
-                        if (isBlockquoteLine) {
-                            if (!inBlockquotePre) {
-                                // Start of blockquote section
-                                inBlockquotePre = true;
-                                blockquoteBuffer = [];
-                            }
-                            
-                            if (isBlankBlockquote) {
-                                // Blank ">" creates a paragraph break
-                                // Flush current buffer
-                                if (blockquoteBuffer.length > 0) {
-                                    processedLines.push('> ' + blockquoteBuffer.join(' '));
-                                    blockquoteBuffer = [];
-                                }
-                                // Add blank line in blockquote
-                                processedLines.push('> ');
-                            } else if (isTableRowInBlockquote) {
-                                // This is a table row inside a blockquote
-                                // Flush any non-table content first (regular blockquote text)
-                                if (blockquoteBuffer.length > 0) {
-                                    processedLines.push('> ' + blockquoteBuffer.join(' '));
-                                    blockquoteBuffer = [];
-                                }
-                                
-                                // Add the table row as-is (preserving the blockquote prefix and newline structure)
-                                // This preserves the table structure instead of joining with spaces
-                                processedLines.push(line);
-                            } else {
-                                // Regular blockquote line (not a table) - extract text after "> "
-                                const text = line.substring(1).trim();
-                                if (text) {
-                                    blockquoteBuffer.push(text);
-                                }
-                                
-                                // If next line is not a blockquote or is blank ">", flush buffer
-                                if (!nextIsBlockquote || nextLine.trim() === '>') {
-                                    if (blockquoteBuffer.length > 0) {
-                                        processedLines.push('> ' + blockquoteBuffer.join(' '));
-                                        blockquoteBuffer = [];
-                                    }
-                                }
-                            }
-                        } else if (isBlankLine) {
-                            // Blank line ends blockquote - flush buffer
-                            if (blockquoteBuffer.length > 0) {
-                                processedLines.push('> ' + blockquoteBuffer.join(' '));
-                                blockquoteBuffer = [];
-                            }
-                            inBlockquotePre = false;
-                            processedLines.push(line);
-                        } else {
-                            // Non-blockquote line - flush buffer and add line
-                            if (blockquoteBuffer.length > 0) {
-                                processedLines.push('> ' + blockquoteBuffer.join(' '));
-                                blockquoteBuffer = [];
-                            }
-                            inBlockquotePre = false;
-                            processedLines.push(line);
-                        }
-                    }
-                    
-                    // Flush any remaining buffer
-                    if (blockquoteBuffer.length > 0) {
-                        processedLines.push('> ' + blockquoteBuffer.join(' '));
-                    }
-                    
-                    md = processedLines.join('\n');
-                }
-                
                 // Fix horizontal rules: only allow them if they have blank lines before AND after
                 // Escape horizontal rules that don't meet this requirement
                 const hasHorizontalRuleSyntax = /(^|\n)\s*[-*_]{3,}\s*($|\n)/.test(md);
@@ -15211,7 +15145,7 @@
                         /^[-*_]{3,}$/.test(trimmed) ||  // Horizontal rules: --- *** ___
                         isMarkdownListLine(line) ||  // Unordered/ordered lists with optional indentation
                         /^```/.test(trimmed) ||  // Code blocks: ```
-                        /^>($| )/.test(line) ||  // Blockquotes: > or > text
+                        /^\s*>($| )/.test(line) ||  // Blockquotes: > or > text (optionally indented)
                         /^\|.*\|/.test(trimmed)  // Tables: | cell | cell |
                     );
                 };
@@ -15219,11 +15153,11 @@
                 for (let i = 0; i < mdLines.length; i++) {
                     const line = mdLines[i];
                     const trimmed = line.trim();
-                    const isBlockquoteLine = /^>($| )/.test(line);
+                    const isBlockquoteLine = /^\s*>($| )/.test(line);
                     const isBlankLine = trimmed === '';
                     const isCodeBlockDelimiter = /^```/.test(trimmed);
                     const nextLine = i < mdLines.length - 1 ? mdLines[i + 1] : '';
-                    const nextIsBlockquote = /^>($| )/.test(nextLine);
+                    const nextIsBlockquote = /^\s*>($| )/.test(nextLine);
                     const nextIsBlank = nextLine.trim() === '';
                     const nextIsMarkdownBlock = isMarkdownBlockElement(nextLine);
                     const prevLine = i > 0 ? mdLines[i - 1] : '';
@@ -15358,25 +15292,6 @@
                 
                 // Unescape HTML entities that were escaped during math processing
                 html = html.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-                
-                // Fix blockquotes to end properly at blank lines.
-                if (html.indexOf('<blockquote>') !== -1) {
-                    // Split blockquote HTML where double breaks indicate a paragraph boundary.
-                    html = html.replace(/<blockquote>([\s\S]*?)<\/blockquote>/g, (match, content) => {
-                        const doubleBrRegex = /(<br\s*\/?>\s*){2,}/;
-                        if (doubleBrRegex.test(content)) {
-                            const parts = content.split(doubleBrRegex);
-                            if (parts.length > 1) {
-                                const blockquotePart = parts[0];
-                                const outsidePart = parts.slice(1).filter(p => p.trim()).join('');
-                                if (outsidePart.trim()) {
-                                    return '<blockquote>' + blockquotePart + '</blockquote><p>' + outsidePart + '</p>';
-                                }
-                            }
-                        }
-                        return match;
-                    });
-                }
                 
                 // Remove image description error tokens (errors now shown below preview)
                 imageDescriptionErrors.forEach((error, i) => {
