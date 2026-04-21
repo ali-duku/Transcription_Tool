@@ -15,6 +15,7 @@ desktop.ini
 *.log
 
 # Node / Vite / TypeScript build artifacts
+.vite/
 node_modules/
 dist/
 *.tsbuildinfo
