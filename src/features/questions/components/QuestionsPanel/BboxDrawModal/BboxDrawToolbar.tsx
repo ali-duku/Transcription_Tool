@@ -9,6 +9,7 @@ interface BboxDrawToolbarProps {
   scale: number;
   coordsText: string;
   hasCurrentRect: boolean;
+  onSourceChange: (source: "textbook" | "guide") => void;
   onUploadTextbook: () => void;
   onUploadGuide: () => void;
   onSetPage: (page: number) => void;
@@ -31,6 +32,7 @@ export function BboxDrawToolbar({
   scale,
   coordsText,
   hasCurrentRect,
+  onSourceChange,
   onUploadTextbook,
   onUploadGuide,
   onSetPage,
@@ -72,18 +74,32 @@ export function BboxDrawToolbar({
   return (
     <div className="bbox-draw-controls">
       <div className="bbox-draw-group">
+        <button
+          type="button"
+          className={`tab-button${source === "textbook" ? " active" : ""}`}
+          onClick={() => onSourceChange("textbook")}
+        >
+          Textbook
+        </button>
+        <button
+          type="button"
+          className={`tab-button${source === "guide" ? " active" : ""}`}
+          onClick={() => onSourceChange("guide")}
+        >
+          Guide
+        </button>
+        <span className="bbox-metric-label">
+          Doc: <strong>{sourceLabel}</strong>
+        </span>
+      </div>
+
+      <div className="bbox-draw-group">
         <button type="button" className="tab-button" onClick={onUploadTextbook}>
           Upload Textbook PDF
         </button>
         <button type="button" className="tab-button" onClick={onUploadGuide}>
           Upload Answers PDF
         </button>
-      </div>
-
-      <div className="bbox-draw-group">
-        <span className="bbox-metric-label">
-          Doc: <strong>{sourceLabel}</strong>
-        </span>
       </div>
 
       <div className="bbox-draw-group">

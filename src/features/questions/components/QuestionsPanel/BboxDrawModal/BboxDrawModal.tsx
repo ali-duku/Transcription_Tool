@@ -109,6 +109,10 @@ export function BboxDrawModal({
   const canConfirm = useMemo(() => isValidRect(selectedRect ?? currentRect), [currentRect, selectedRect]);
   const hasUnsavedRectChanges = useMemo(() => !areRectsEqual(initialRect, currentRect), [currentRect, initialRect]);
   const hasAnyModalWork = useMemo(() => hasUnsavedRectChanges || hasSavedBoxes, [hasSavedBoxes, hasUnsavedRectChanges]);
+  const hasTransientRect = useMemo(
+    () => isValidRect(currentRect) && !areRectsEqual(currentRect, selectedRect ?? initialRect),
+    [currentRect, initialRect, selectedRect]
+  );
 
   const requestClose = useCallback(() => {
     if (hasAnyModalWork && !window.confirm("You have unsaved bounding boxes. Close and lose this modal work?")) {
@@ -118,13 +122,27 @@ export function BboxDrawModal({
   }, [hasAnyModalWork, onClose]);
 
   const ensureNoUnsavedRect = useCallback(() => {
-    if (!isValidRect(currentRect)) return true;
+    if (!hasTransientRect) return true;
     if (!window.confirm("You have an unsaved bounding box. Navigate away and lose the current drawing?")) {
       return false;
     }
     setCurrentRect(null);
     return true;
-  }, [currentRect]);
+  }, [hasTransientRect]);
+
+  const handleSourceChange = useCallback(
+    (nextSource: PdfViewerSource) => {
+      if (nextSource === state.source) {
+        return;
+      }
+      if (!ensureNoUnsavedRect()) {
+        return;
+      }
+      setSource(nextSource);
+      setCoordsText("-");
+    },
+    [ensureNoUnsavedRect, setSource, state.source]
+  );
 
   const handleSetPage = useCallback(
     (page: number) => {
@@ -223,6 +241,7 @@ export function BboxDrawModal({
           scale={activeDoc.scale}
           coordsText={coordsText}
           hasCurrentRect={isValidRect(currentRect)}
+          onSourceChange={handleSourceChange}
           onUploadTextbook={() => textbookUploadRef.current?.click()}
           onUploadGuide={() => guideUploadRef.current?.click()}
           onSetPage={handleSetPage}

@@ -1,4 +1,5 @@
 import type { InputSubTabKey } from "../../../../shared/types/navigation";
+import { AppIcon } from "../../../../shared/ui/AppIcon";
 import "./MainShellTopBar.css";
 
 export type QuickJumpKey =
@@ -115,11 +116,25 @@ export function MainShellTopBar({
 
       <div className="topbar-controls">
         <div className="topbar-group">
-          <button type="button" className="topbar-icon-button" onClick={onUndo} disabled={!canUndo} title="Undo">
-            &#8630;
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo"
+            aria-label="Undo"
+          >
+            <AppIcon name="undo" />
           </button>
-          <button type="button" className="topbar-icon-button" onClick={onRedo} disabled={!canRedo} title="Redo">
-            &#8631;
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo"
+            aria-label="Redo"
+          >
+            <AppIcon name="redo" />
           </button>
         </div>
 
@@ -169,38 +184,59 @@ export function MainShellTopBar({
         </select>
 
         <div className="topbar-group">
-          <button type="button" className="topbar-icon-button" onClick={onSave} title="Save Progress (Ctrl+S)">
-            &#128190;
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={onSave}
+            title="Save Progress (Ctrl+S)"
+            aria-label="Save Progress"
+          >
+            <AppIcon name="save" />
           </button>
-          <button type="button" className="topbar-icon-button" onClick={onReload} title="Reload Page">
-            &#8635;
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={onReload}
+            title="Reload Page"
+            aria-label="Reload Page"
+          >
+            <AppIcon name="reload" />
           </button>
-          <button type="button" className="topbar-icon-button" onClick={onScrollToTop} title="Scroll to Top">
-            &#8593;
+          <button
+            type="button"
+            className="topbar-icon-button"
+            onClick={onScrollToTop}
+            title="Scroll to Top"
+            aria-label="Scroll to Top"
+          >
+            <AppIcon name="scrollTop" />
           </button>
           <button
             type="button"
             className="topbar-icon-button"
             onClick={onToggleTheme}
             title={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
-            {themeMode === "dark" ? "Light" : "Dark"}
+            <AppIcon name={themeMode === "dark" ? "sun" : "moon"} />
           </button>
           <button
             type="button"
             className={`topbar-icon-button${autoResizeEnabled ? " is-enabled" : ""}`}
             onClick={onToggleAutoResize}
             title="Toggle Auto-Resize Textareas"
+            aria-label="Toggle Auto-Resize Textareas"
           >
-            Auto
+            <AppIcon name="resizeVertical" />
           </button>
           <button
             type="button"
             className={`topbar-icon-button${trailingSpacesEnabled ? " is-enabled" : ""}`}
             onClick={onToggleTrailingSpaces}
             title="Show trailing spaces indicator in preview boxes"
+            aria-label="Show trailing spaces indicator in preview boxes"
           >
-            TS
+            <AppIcon name="warning" />
           </button>
         </div>
       </div>

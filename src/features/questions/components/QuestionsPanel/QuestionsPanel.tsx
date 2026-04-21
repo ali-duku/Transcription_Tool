@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { CanonicalQuestionExport } from "../../../../domain/schema/questionSchemaAdapter";
-import { appendImageReferenceToken } from "../../../../shared/utils/imageReference";
 import { LiveFieldPreview } from "../../../preview/components/LiveFieldPreview";
 import { useDocumentStore } from "../../../shell/state/documentStore";
 import { questionScopedMessages } from "../../../validation/utils/messageScopes";
@@ -16,6 +15,11 @@ import {
   syncBlankAnswersWithQuestion,
   updateQuestionDraft
 } from "./questionPanelUtils";
+import {
+  buildQuestionImageInsertPatch,
+  buildQuestionImageRefPatch,
+  questionImageCount
+} from "./questionPanelImageActions";
 import "./QuestionsPanel.css";
 
 export function QuestionsPanel() {
@@ -47,24 +51,21 @@ export function QuestionsPanel() {
     replaceQuestion(index, normalized);
   }
 
-  function questionImageCount(row: QuestionState): number {
-    return Array.isArray(row.canonical.question_images) ? row.canonical.question_images.length : 0;
+  function insertQuestionImageRef(index: number, row: QuestionState, field: "question" | "setup_text") {
+    const patch = buildQuestionImageRefPatch(row, field);
+    if (!patch) {
+      return;
+    }
+    updateQuestion(index, row, patch);
   }
 
-  function insertQuestionImageRef(index: number, row: QuestionState, field: "question" | "setup_text") {
-    const imageCount = questionImageCount(row);
-    if (imageCount <= 0) {
+  function insertQuestionImage(index: number, row: QuestionState, field: "question" | "setup_text") {
+    const description = window.prompt("Enter image description:");
+    if (description === null) {
       return;
     }
-    if (field === "question") {
-      updateQuestion(index, row, {
-        question: appendImageReferenceToken(row.canonical.question, imageCount)
-      });
-      return;
-    }
-    updateQuestion(index, row, {
-      setup_text: appendImageReferenceToken(row.canonical.setup_text ?? "", imageCount)
-    });
+    const patch = buildQuestionImageInsertPatch(row, field, description, history.present.textbook_pdf_page);
+    updateQuestion(index, row, patch);
   }
 
   return (
@@ -227,6 +228,13 @@ export function QuestionsPanel() {
                 <button
                   type="button"
                   className="tab-button"
+                  onClick={() => insertQuestionImage(index, row, "setup_text")}
+                >
+                  Insert Image
+                </button>
+                <button
+                  type="button"
+                  className="tab-button"
                   disabled={questionImageCount(row) <= 0}
                   onClick={() => insertQuestionImageRef(index, row, "setup_text")}
                 >
@@ -257,6 +265,13 @@ export function QuestionsPanel() {
                     Add Blank Token
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() => insertQuestionImage(index, row, "question")}
+                >
+                  Insert Image
+                </button>
                 <button
                   type="button"
                   className="tab-button"

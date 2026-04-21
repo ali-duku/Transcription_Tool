@@ -1,4 +1,5 @@
 import type { SidePanelKey } from "../../../../../shared/types/navigation";
+import { AppIcon } from "../../../../../shared/ui/AppIcon";
 import "./PanelHeader.css";
 
 interface PanelHeaderProps {
@@ -31,7 +32,8 @@ export function PanelHeader({
         </button>
       </div>
       <button className="primary-button" type="button" onClick={onGenerateJson}>
-        Generate JSON
+        <AppIcon name="json" />
+        <span>Generate JSON</span>
       </button>
     </div>
   );

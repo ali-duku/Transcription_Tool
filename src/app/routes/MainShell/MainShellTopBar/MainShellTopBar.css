@@ -69,6 +69,11 @@
   line-height: 1;
 }
 
+.topbar-icon-button .app-icon {
+  width: 15px;
+  height: 15px;
+}
+
 .topbar-icon-button:hover {
   background: color-mix(in srgb, var(--bg-primary) 80%, var(--accent) 20%);
 }

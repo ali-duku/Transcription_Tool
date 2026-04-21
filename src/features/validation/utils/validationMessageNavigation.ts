@@ -4,6 +4,8 @@ function resolveTargetFieldSelector(message: string): string {
   const normalized = message.toLowerCase();
 
   if (normalized.includes("image row") && normalized.includes("page")) return `[data-field="bbox-page"]`;
+  if (normalized.includes("image row") && normalized.includes("x0")) return `[data-field="bbox-x0"]`;
+  if (normalized.includes("image row") && normalized.includes("y0")) return `[data-field="bbox-y0"]`;
   if (normalized.includes("image row") && normalized.includes("x1")) return `[data-field="bbox-x1"]`;
   if (normalized.includes("image row") && normalized.includes("y1")) return `[data-field="bbox-y1"]`;
   if (normalized.includes("image row") && normalized.includes("x2")) return `[data-field="bbox-x2"]`;

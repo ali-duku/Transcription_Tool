@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { LiveFieldPreview } from "../../../preview/components/LiveFieldPreview";
 import { useDocumentStore } from "../../../shell/state/documentStore";
-import { appendImageReferenceToken } from "../../../../shared/utils/imageReference";
+import {
+  appendImageReferenceToken,
+  appendImageReferenceTokenAtIndex
+} from "../../../../shared/utils/imageReference";
+import { appendLoosePagedBboxRow } from "../../../../shared/utils/pagedBbox";
 import { PagedBboxListEditor } from "../../../questions/components/QuestionsPanel/PagedBboxListEditor";
 import { contentScopedMessages } from "../../../validation/utils/messageScopes";
 import type { ContentSectionState } from "../../state/contentSectionsReducer";
@@ -27,6 +31,25 @@ export function ContentSectionsPanel() {
 
   function imageCount(row: ContentSectionState): number {
     return Array.isArray(row.images) ? row.images.length : 0;
+  }
+
+  function insertContentImage(index: number, row: ContentSectionState) {
+    const description = window.prompt("Enter image description:");
+    if (description === null) {
+      return;
+    }
+    const nextIndex = imageCount(row);
+    applyDocumentAction({
+      type: "content",
+      action: {
+        type: "replace",
+        index,
+        payload: updateContentRow(row, {
+          text: appendImageReferenceTokenAtIndex(row.text, nextIndex, description),
+          images: appendLoosePagedBboxRow(row.images, history.present.textbook_pdf_page)
+        })
+      }
+    });
   }
 
   return (
@@ -214,6 +237,13 @@ export function ContentSectionsPanel() {
             <label className="form-field">
               <span className="content-field-header">
                 <span>Content (Markdown + LaTeX)</span>
+                <button
+                  type="button"
+                  className="tab-button"
+                  onClick={() => insertContentImage(index, row)}
+                >
+                  Insert Image
+                </button>
                 <button
                   type="button"
                   className="tab-button"

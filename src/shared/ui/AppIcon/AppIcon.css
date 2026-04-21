@@ -1,0 +1,9 @@
+.app-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+
+.app-icon + span {
+  margin-inline-start: 6px;
+}

@@ -1,4 +1,8 @@
-import { appendImageReferenceToken } from "../../../../../shared/utils/imageReference";
+import {
+  appendImageReferenceToken,
+  appendImageReferenceTokenAtIndex
+} from "../../../../../shared/utils/imageReference";
+import { appendLoosePagedBboxRow } from "../../../../../shared/utils/pagedBbox";
 import { LiveFieldPreview } from "../../../../preview/components/LiveFieldPreview";
 import type { QuestionTypeEditorProps } from "../types";
 import { PagedBboxListEditor } from "../PagedBboxListEditor";
@@ -15,6 +19,27 @@ export function ManualGuideAnswerEditor({ row, onChange }: QuestionTypeEditorPro
       <label className="form-field">
         <span className="manual-answer-header">
           <span>Guide Answer</span>
+          <button
+            type="button"
+            className="tab-button"
+            onClick={() => {
+              const description = window.prompt("Enter image description:");
+              if (description === null) {
+                return;
+              }
+              onChange({
+                ...row.canonical,
+                options: null,
+                guide_answer: [appendImageReferenceTokenAtIndex(value, answerImageCount, description)],
+                guide_answer_images: appendLoosePagedBboxRow(
+                  row.canonical.guide_answer_images,
+                  row.canonical.guide_pdf_page
+                )
+              });
+            }}
+          >
+            Insert Image
+          </button>
           <button
             type="button"
             className="tab-button"

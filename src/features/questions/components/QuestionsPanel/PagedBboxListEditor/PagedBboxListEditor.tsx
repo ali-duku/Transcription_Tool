@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppIcon } from "../../../../../shared/ui/AppIcon";
 import { BboxDrawModal } from "../BboxDrawModal";
+import { PagedBboxRowActions } from "./PagedBboxRowActions";
 import {
   createEmptyDraftRow,
   toDraftRows,
@@ -71,6 +73,12 @@ export function PagedBboxListEditor({ label, value, onCommit }: PagedBboxListEdi
   const [rows, setRows] = useState<DraftBboxRow[]>(() => toDraftRows(value));
   const [errors, setErrors] = useState<string[]>([]);
   const [drawRowIndex, setDrawRowIndex] = useState<number | null>(null);
+  const commitRef = useRef(onCommit);
+  const lastCommittedHashRef = useRef("");
+
+  useEffect(() => {
+    commitRef.current = onCommit;
+  }, [onCommit]);
 
   useEffect(() => {
     setRows(toDraftRows(value));
@@ -79,13 +87,14 @@ export function PagedBboxListEditor({ label, value, onCommit }: PagedBboxListEdi
 
   useEffect(() => {
     const result = validateAndBuildPayload(rows);
-    if (!result.ok) {
-      setErrors(result.errors);
+    setErrors(result.errors);
+    const payloadHash = JSON.stringify(result.payload ?? null);
+    if (payloadHash === lastCommittedHashRef.current) {
       return;
     }
-    setErrors([]);
-    onCommit(result.payload);
-  }, [onCommit, rows]);
+    lastCommittedHashRef.current = payloadHash;
+    commitRef.current(result.payload);
+  }, [rows]);
 
   function updateRow(index: number, key: keyof DraftBboxRow, nextValue: string) {
     setRows((current) => {
@@ -94,6 +103,14 @@ export function PagedBboxListEditor({ label, value, onCommit }: PagedBboxListEdi
         ...copy[index],
         [key]: nextValue
       };
+      return copy;
+    });
+  }
+
+  function replaceRow(index: number, nextRow: DraftBboxRow) {
+    setRows((current) => {
+      const copy = [...current];
+      copy[index] = nextRow;
       return copy;
     });
   }
@@ -192,7 +209,8 @@ export function PagedBboxListEditor({ label, value, onCommit }: PagedBboxListEdi
         <strong>{label}</strong>
         <div className="bbox-editor-actions">
           <button type="button" className="tab-button" onClick={addRow}>
-            Add Image
+            <AppIcon name="add" />
+            <span>Add Image</span>
           </button>
         </div>
       </div>
@@ -204,55 +222,62 @@ export function PagedBboxListEditor({ label, value, onCommit }: PagedBboxListEdi
           <div className="bbox-editor-grid">
             <label className="form-field">
               <span>Page</span>
-              <input type="number" value={row.page} onChange={(event) => updateRow(index, "page", event.target.value)} />
+              <input
+                data-field="bbox-page"
+                type="number"
+                value={row.page}
+                onChange={(event) => updateRow(index, "page", event.target.value)}
+              />
             </label>
             <label className="form-field">
               <span>X0</span>
-              <input type="number" value={row.x0} onChange={(event) => updateRow(index, "x0", event.target.value)} />
+              <input
+                data-field="bbox-x0"
+                type="number"
+                value={row.x0}
+                onChange={(event) => updateRow(index, "x0", event.target.value)}
+              />
             </label>
             <label className="form-field">
               <span>Y0</span>
-              <input type="number" value={row.y0} onChange={(event) => updateRow(index, "y0", event.target.value)} />
+              <input
+                data-field="bbox-y0"
+                type="number"
+                value={row.y0}
+                onChange={(event) => updateRow(index, "y0", event.target.value)}
+              />
             </label>
             <label className="form-field">
               <span>X1</span>
-              <input type="number" value={row.x1} onChange={(event) => updateRow(index, "x1", event.target.value)} />
+              <input
+                data-field="bbox-x1"
+                type="number"
+                value={row.x1}
+                onChange={(event) => updateRow(index, "x1", event.target.value)}
+              />
             </label>
             <label className="form-field">
               <span>Y1</span>
-              <input type="number" value={row.y1} onChange={(event) => updateRow(index, "y1", event.target.value)} />
+              <input
+                data-field="bbox-y1"
+                type="number"
+                value={row.y1}
+                onChange={(event) => updateRow(index, "y1", event.target.value)}
+              />
             </label>
           </div>
 
-          <div className="bbox-editor-row-actions">
-            <button type="button" className="tab-button" onClick={() => moveRow(index, "up")}>
-              Up
-            </button>
-            <button type="button" className="tab-button" onClick={() => moveRow(index, "down")}>
-              Down
-            </button>
-            <button type="button" className="tab-button" onClick={() => insertAt(index)}>
-              Before
-            </button>
-            <button type="button" className="tab-button" onClick={() => insertAt(index + 1)}>
-              After
-            </button>
-            <button type="button" className="tab-button" onClick={() => setDrawRowIndex(index)}>
-              Draw
-            </button>
-            <button type="button" className="tab-button" onClick={() => void pasteRow(index)}>
-              Paste
-            </button>
-            <button type="button" className="tab-button" onClick={() => void copyRow(index)}>
-              Copy
-            </button>
-            <button type="button" className="tab-button" onClick={() => duplicateRow(index)}>
-              Duplicate
-            </button>
-            <button type="button" className="tab-button" onClick={() => removeRow(index)}>
-              Remove
-            </button>
-          </div>
+          <PagedBboxRowActions
+            onMoveUp={() => moveRow(index, "up")}
+            onMoveDown={() => moveRow(index, "down")}
+            onInsertBefore={() => insertAt(index)}
+            onInsertAfter={() => insertAt(index + 1)}
+            onDraw={() => setDrawRowIndex(index)}
+            onPaste={() => void pasteRow(index)}
+            onCopy={() => void copyRow(index)}
+            onDuplicate={() => duplicateRow(index)}
+            onRemove={() => removeRow(index)}
+          />
         </div>
       ))}
 
@@ -277,11 +302,13 @@ export function PagedBboxListEditor({ label, value, onCommit }: PagedBboxListEdi
           if (drawRowIndex == null) {
             return;
           }
-          updateRow(drawRowIndex, "page", String(page));
-          updateRow(drawRowIndex, "x0", formatCoord(rect.x2));
-          updateRow(drawRowIndex, "y0", formatCoord(rect.y1));
-          updateRow(drawRowIndex, "x1", formatCoord(rect.x1));
-          updateRow(drawRowIndex, "y1", formatCoord(rect.y2));
+          replaceRow(drawRowIndex, {
+            page: String(page),
+            x0: formatCoord(rect.x2),
+            y0: formatCoord(rect.y1),
+            x1: formatCoord(rect.x1),
+            y1: formatCoord(rect.y2)
+          });
           setErrors([]);
         }}
       />

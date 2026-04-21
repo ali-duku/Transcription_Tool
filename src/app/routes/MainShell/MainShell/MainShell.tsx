@@ -10,27 +10,18 @@ import { validateDocumentForGenerate, validateDocumentForSave } from "../../../.
 import { mapValidationMessageToSubTab, resolveInputTargetFromValidationMessage } from "../../../../features/validation/utils/validationMessageNavigation";
 import { APP_VERSION } from "../../../../shared/constants/appConstants";
 import { THEME_STORAGE_KEY } from "../../../../shared/constants/storageKeys";
+import { WHATS_NEW_RELEASES } from "../../../../shared/constants/whatsNewReleases";
 import type { InputScrollTarget, SidePanelKey } from "../../../../shared/types/navigation";
 import { MainShellSidePanel } from "../MainShellSidePanel";
 import { MainShellTopBar, type QuickJumpKey, type QuickJumpOption } from "../MainShellTopBar";
 import { applyTextareaAutoResize, attachTextareaAutoResizeListener } from "./mainShellAutoResize";
 import { clearCurrentSubTabFields } from "./mainShellClearActions";
-import {
-  applyTrailingSpacesAttribute,
-  applyTypographyCssVars,
-  persistAutoResizeEnabled,
-  persistFontSize,
-  persistLineHeight,
-  persistTrailingSpacesEnabled,
-  readInitialAutoResizeEnabled,
-  readInitialFontSize,
-  readInitialLineHeight,
-  readInitialThemeMode,
-  readInitialTrailingSpacesEnabled
-} from "./mainShellUiPreferences";
+import { applyTrailingSpacesAttribute, applyTypographyCssVars, persistAutoResizeEnabled, persistFontSize, persistLineHeight, persistTrailingSpacesEnabled, readInitialAutoResizeEnabled, readInitialFontSize, readInitialLineHeight, readInitialThemeMode, readInitialTrailingSpacesEnabled } from "./mainShellUiPreferences";
 import { applyQuickJump, navigateToInputWithStatus } from "./mainShellNavigation";
 import { MainShellWorkspace } from "./MainShellWorkspace";
 import { ShellLayout } from "../../../../features/shell/components/ShellLayout/ShellLayout";
+import { WhatsNewModal } from "../../../../features/shell/components/WhatsNewModal";
+import { useWhatsNewModalState } from "./mainShellWhatsNew";
 import "./MainShell.css";
 export function MainShell() {
   const { history, persistence, dispatchPersistence, applyDocumentAction, undo, redo, resetHistory } = useDocumentStore();
@@ -47,12 +38,12 @@ export function MainShell() {
   const [autoResizeEnabled, setAutoResizeEnabled] = useState(readInitialAutoResizeEnabled);
   const [trailingSpacesEnabled, setTrailingSpacesEnabled] = useState(readInitialTrailingSpacesEnabled);
   const [themeMode, setThemeMode] = useState<"light" | "dark">(readInitialThemeMode);
+  const whatsNew = useWhatsNewModalState(APP_VERSION);
   useEffect(() => {
     applyTypographyCssVars(fontSize, lineHeight);
     persistFontSize(fontSize);
     persistLineHeight(lineHeight);
   }, [fontSize, lineHeight]);
-
   useEffect(() => {
     applyTrailingSpacesAttribute(trailingSpacesEnabled);
     persistTrailingSpacesEnabled(trailingSpacesEnabled);
@@ -194,7 +185,6 @@ export function MainShell() {
   function handleQuickJump(value: QuickJumpKey) {
     applyQuickJump(value, setActiveMainTab, setActiveInputSubTab);
   }
-
   function navigateToInputTarget(target: InputScrollTarget, statusMessage: string) {
     navigateToInputWithStatus(target, statusMessage, setActiveMainTab, setActiveInputSubTab, setJsonStatus);
   }
@@ -228,62 +218,78 @@ export function MainShell() {
     }
   }
   return (
-    <ShellLayout
-      topBar={
-        <MainShellTopBar
-          appVersion={APP_VERSION}
-          themeMode={themeMode}
-          autoResizeEnabled={autoResizeEnabled}
-          trailingSpacesEnabled={trailingSpacesEnabled}
-          fontSize={fontSize}
-          lineHeight={lineHeight}
-          canUndo={history.past.length > 0}
-          canRedo={history.future.length > 0}
-          quickJumpOptions={quickJumpOptions}
-          onUndo={undo}
-          onRedo={redo}
-          onFontSizeChange={setFontSize}
-          onLineHeightChange={setLineHeight}
-          onQuickJump={handleQuickJump}
-          onSave={handleManualSave}
-          onReload={() => window.location.reload()}
-          onScrollToTop={() => document.getElementById(activeMainTab === "input-form" ? "input-form-scroll-panel" : "final-preview-scroll-panel")?.scrollTo({ top: 0, behavior: "smooth" })}
-          onToggleTheme={handleToggleTheme}
-          onToggleAutoResize={() => setAutoResizeEnabled((current) => !current)}
-          onToggleTrailingSpaces={() => setTrailingSpacesEnabled((current) => !current)}
-          onOpenWhatsNew={() => window.alert(`You're running version ${APP_VERSION}.`)}
-          saveIndicatorLabel={saveIndicatorLabel}
+    <>
+      <ShellLayout
+        topBar={
+          <MainShellTopBar
+            appVersion={APP_VERSION}
+            themeMode={themeMode}
+            autoResizeEnabled={autoResizeEnabled}
+            trailingSpacesEnabled={trailingSpacesEnabled}
+            fontSize={fontSize}
+            lineHeight={lineHeight}
+            canUndo={history.past.length > 0}
+            canRedo={history.future.length > 0}
+            quickJumpOptions={quickJumpOptions}
+            onUndo={undo}
+            onRedo={redo}
+            onFontSizeChange={setFontSize}
+            onLineHeightChange={setLineHeight}
+            onQuickJump={handleQuickJump}
+            onSave={handleManualSave}
+            onReload={() => window.location.reload()}
+            onScrollToTop={() =>
+              document
+                .getElementById(
+                  activeMainTab === "input-form" ? "input-form-scroll-panel" : "final-preview-scroll-panel"
+                )
+                ?.scrollTo({ top: 0, behavior: "smooth" })
+            }
+            onToggleTheme={handleToggleTheme}
+            onToggleAutoResize={() => setAutoResizeEnabled((current) => !current)}
+            onToggleTrailingSpaces={() => setTrailingSpacesEnabled((current) => !current)}
+            onOpenWhatsNew={whatsNew.open}
+            saveIndicatorLabel={saveIndicatorLabel}
+          />
+        }
+        sidePanel={
+          <MainShellSidePanel
+            activeSidePanel={activeSidePanel}
+            onSidePanelChange={setActiveSidePanel}
+            onGenerateJson={handleGenerateJson}
+            onLoadJson={handleLoadJson}
+            onRestoreLatest={handleRestoreLatest}
+            onClearForm={handleClearForm}
+            onClearCurrentSubtab={handleClearCurrentSubtab}
+            onUploadPdfs={() => setActiveSidePanel("pdf-viewer")}
+            onJumpToFirstError={handleJumpToFirstError}
+            onValidationMessageClick={handleValidationMessageClick}
+            jsonInput={jsonInput}
+            jsonOutput={jsonOutput}
+            jsonStatus={jsonStatus}
+            validationErrors={validationErrors}
+            validationWarnings={validationWarnings}
+            onJsonInputChange={setJsonInput}
+          />
+        }
+      >
+        <MainShellWorkspace
+          activeMainTab={activeMainTab}
+          activeInputSubTab={activeInputSubTab}
+          document={history.present}
+          onMainTabChange={setActiveMainTab}
+          onInputSubTabChange={setActiveInputSubTab}
+          onPreviewNavigateToInput={(target) =>
+            navigateToInputTarget(target, `Jumped to "${target.subTab}" from Final Preview.`)
+          }
         />
-      }
-      sidePanel={
-        <MainShellSidePanel
-          activeSidePanel={activeSidePanel}
-          onSidePanelChange={setActiveSidePanel}
-          onGenerateJson={handleGenerateJson}
-          onLoadJson={handleLoadJson}
-          onRestoreLatest={handleRestoreLatest}
-          onClearForm={handleClearForm}
-          onClearCurrentSubtab={handleClearCurrentSubtab}
-          onUploadPdfs={() => setActiveSidePanel("pdf-viewer")}
-          onJumpToFirstError={handleJumpToFirstError}
-          onValidationMessageClick={handleValidationMessageClick}
-          jsonInput={jsonInput}
-          jsonOutput={jsonOutput}
-          jsonStatus={jsonStatus}
-          validationErrors={validationErrors}
-          validationWarnings={validationWarnings}
-          onJsonInputChange={setJsonInput}
-        />
-      }
-    >
-      <MainShellWorkspace
-        activeMainTab={activeMainTab}
-        activeInputSubTab={activeInputSubTab}
-        document={history.present}
-        onMainTabChange={setActiveMainTab}
-        onInputSubTabChange={setActiveInputSubTab}
-        onPreviewNavigateToInput={(target) => navigateToInputTarget(target, `Jumped to "${target.subTab}" from Final Preview.`)}
+      </ShellLayout>
+      <WhatsNewModal
+        open={whatsNew.isOpen}
+        appVersion={APP_VERSION}
+        releases={WHATS_NEW_RELEASES}
+        onClose={whatsNew.close}
       />
-    </ShellLayout>
+    </>
   );
 }

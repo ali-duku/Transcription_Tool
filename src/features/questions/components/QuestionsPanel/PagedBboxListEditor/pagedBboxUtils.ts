@@ -74,16 +74,56 @@ export function createEmptyDraftRow(): DraftBboxRow {
   return { page: "", x0: "", y0: "", x1: "", y1: "" };
 }
 
+function toLoosePageValue(value: string): number | string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return trimmed;
+  }
+  return parsed;
+}
+
+function toLooseCoordValue(value: string): number | string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return trimmed;
+  }
+  return parsed;
+}
+
+function toLoosePayloadRow(row: DraftBboxRow): unknown {
+  return {
+    page: toLoosePageValue(row.page),
+    position: [
+      [toLooseCoordValue(row.x0), toLooseCoordValue(row.y0)],
+      [toLooseCoordValue(row.x1), toLooseCoordValue(row.y1)]
+    ]
+  };
+}
+
 export function validateAndBuildPayload(rows: DraftBboxRow[]): ValidateResult {
   if (rows.length === 0) {
     return { ok: true, errors: [], payload: null };
   }
 
   const errors: string[] = [];
-  const payload: unknown[] = [];
+  const payload: unknown[] = rows.map((row) => toLoosePayloadRow(row));
 
   rows.forEach((row, index) => {
     const rowNo = index + 1;
+    const isCompletelyEmpty = [row.page, row.x0, row.y0, row.x1, row.y1].every(
+      (value) => value.trim().length === 0
+    );
+    if (isCompletelyEmpty) {
+      return;
+    }
     const page = toPositiveInteger(row.page);
     const x0 = toNumber(row.x0);
     const y0 = toNumber(row.y0);
@@ -104,21 +144,12 @@ export function validateAndBuildPayload(rows: DraftBboxRow[]): ValidateResult {
       }
     }
 
-    if (page != null && x0 != null && y0 != null && x1 != null && y1 != null && x0 > x1 && y0 < y1) {
-      payload.push({
-        page,
-        position: [
-          [x0, y0],
-          [x1, y1]
-        ]
-      });
-    }
   });
 
   return {
     ok: errors.length === 0,
     errors,
-    payload: errors.length === 0 ? payload : null
+    payload
   };
 }
 

@@ -24,10 +24,7 @@ export function InputSubTabContent({ subTab }: InputSubTabContentProps) {
   return (
     <>
       <h2>{tabTitle}</h2>
-      <p>
-        This section is scaffolded for parity migration. Field-level controls and behavior will be
-        ported in Phase 5.
-      </p>
+      <p>No editor is available for this section.</p>
     </>
   );
 }

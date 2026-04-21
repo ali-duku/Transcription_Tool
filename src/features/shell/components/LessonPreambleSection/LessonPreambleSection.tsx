@@ -108,6 +108,7 @@ export function LessonPreambleSection() {
           values.map((value, index) => (
             <div key={`${field}-${index}`} className="preamble-array-row">
               <textarea
+                data-field={field === "lesson_standards" ? "lesson-standards" : "lesson-terminology"}
                 value={value}
                 onChange={(event) => update(field, replaceAt(values, index, event.target.value))}
               />

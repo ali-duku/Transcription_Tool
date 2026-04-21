@@ -1,0 +1,136 @@
+.whats-new-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: var(--modal-overlay, rgba(0, 0, 0, 0.58));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.whats-new-dialog {
+  width: min(920px, 94vw);
+  max-height: min(86vh, 760px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.whats-new-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-primary) 70%, var(--accent) 8%);
+}
+
+.whats-new-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.whats-new-title-row h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.whats-new-version-pill {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  color: var(--text-secondary);
+}
+
+.whats-new-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.whats-new-content {
+  overflow: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.whats-new-release {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  padding: 10px;
+}
+
+.whats-new-release-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whats-new-release-row h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.whats-new-current-badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.whats-new-section {
+  margin-top: 8px;
+}
+
+.whats-new-section h4 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.whats-new-tone-success {
+  color: var(--success);
+}
+
+.whats-new-tone-danger {
+  color: var(--danger);
+}
+
+.whats-new-tone-warning {
+  color: var(--warning);
+}
+
+.whats-new-tone-info {
+  color: var(--accent);
+}
+
+.whats-new-section ul {
+  margin: 6px 0 0;
+  padding-inline-start: 18px;
+}
+
+.whats-new-section li {
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.whats-new-section li:last-child {
+  margin-bottom: 0;
+}

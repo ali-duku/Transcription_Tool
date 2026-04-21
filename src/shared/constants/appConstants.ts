@@ -1,6 +1,6 @@
 import { THEME_STORAGE_KEY } from "./storageKeys";
 
-export const APP_VERSION = "8.2";
+export const APP_VERSION = "8.3";
 export const QUESTION_SCHEMA_MIGRATION_PHASE: "global_scaffold" | "canonical_output" =
   "canonical_output";
 export const DEFAULT_THEME = "dark" as const;

@@ -1,3 +1,4 @@
+import { AppIcon } from "../../../../../shared/ui/AppIcon";
 import "./JsonWorkspacePanel.css";
 
 interface JsonWorkspacePanelProps {
@@ -81,24 +82,30 @@ export function JsonWorkspacePanel({
     <div className="json-workspace">
       <div className="panel-actions-row">
         <button className="tab-button" type="button" onClick={onLoadJson}>
-          Load JSON/Dict
+          <AppIcon name="json" />
+          <span>Load JSON/Dict</span>
         </button>
         <button className="tab-button" type="button" onClick={onRestoreLatest}>
-          Restore Latest
+          <AppIcon name="reload" />
+          <span>Restore Latest</span>
         </button>
         <button className="tab-button" type="button" onClick={onClearForm}>
-          Clear Form
+          <AppIcon name="close" />
+          <span>Clear Form</span>
         </button>
         <button className="tab-button" type="button" onClick={onClearCurrentSubtab}>
-          Clear Current Subtab
+          <AppIcon name="close" />
+          <span>Clear Current Subtab</span>
         </button>
         <button className="tab-button" type="button" onClick={onUploadPdfs}>
-          Upload PDFs
+          <AppIcon name="upload" />
+          <span>Upload PDFs</span>
         </button>
       </div>
       <div className="panel-actions-row">
         <button className="tab-button" type="button" onClick={handleCopyJson} disabled={!jsonOutput.trim()}>
-          Copy JSON
+          <AppIcon name="copy" />
+          <span>Copy JSON</span>
         </button>
         <button
           className="tab-button"
@@ -106,7 +113,8 @@ export function JsonWorkspacePanel({
           onClick={onJumpToFirstError}
           disabled={validationErrors.length === 0}
         >
-          Jump to First Error
+          <AppIcon name="warning" />
+          <span>Jump to First Error</span>
         </button>
       </div>
       <textarea
