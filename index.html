@@ -26666,12 +26666,150 @@
         // ===== MANUAL SAVE FUNCTIONALITY =====
         
         const SAVE_KEY = 'transcription_form_save';
+        const FORM_SAVE_DB_NAME = 'transcriptionToolStorage';
+        const FORM_SAVE_STORE_NAME = 'formSaves';
+        const FORM_SAVE_RECORD_KEY = SAVE_KEY;
+        let formSaveStorageQueue = Promise.resolve();
         let hasUnsavedChanges = false;
-        let lastSavedData = null;
         let autoSaveTimeout = null;
         let fieldValues = new Map(); // Track field values to detect changes
         let lastValidationErrorSet = null; // Track last validation errors to prevent spam
         let lastValidationWarningTime = 0; // Track last warning time for debouncing
+
+        function queueFormSaveStorageTask(task) {
+            formSaveStorageQueue = formSaveStorageQueue
+                .catch(() => null)
+                .then(() => task());
+            return formSaveStorageQueue;
+        }
+
+        function isQuotaExceededError(error) {
+            if (!(error instanceof DOMException)) return false;
+            return error.code === 22 ||
+                   error.code === 1014 ||
+                   error.name === 'QuotaExceededError' ||
+                   error.name === 'NS_ERROR_DOM_QUOTA_REACHED';
+        }
+
+        function openFormSaveDatabase() {
+            return new Promise((resolve, reject) => {
+                if (typeof indexedDB === 'undefined') {
+                    reject(new Error('IndexedDB is not available in this environment.'));
+                    return;
+                }
+
+                const request = indexedDB.open(FORM_SAVE_DB_NAME, 1);
+                request.onerror = () => reject(request.error || new Error('Failed to open IndexedDB.'));
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(FORM_SAVE_STORE_NAME)) {
+                        db.createObjectStore(FORM_SAVE_STORE_NAME);
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+            });
+        }
+
+        async function runFormSaveDatabaseOperation(mode, operation) {
+            const db = await openFormSaveDatabase();
+            return new Promise((resolve, reject) => {
+                let settled = false;
+
+                const finishWithError = (error, fallbackMessage) => {
+                    if (settled) return;
+                    settled = true;
+                    reject(error || new Error(fallbackMessage));
+                };
+
+                const transaction = db.transaction([FORM_SAVE_STORE_NAME], mode);
+                const store = transaction.objectStore(FORM_SAVE_STORE_NAME);
+                let request;
+
+                try {
+                    request = operation(store);
+                } catch (error) {
+                    finishWithError(error, 'IndexedDB operation failed.');
+                    db.close();
+                    return;
+                }
+
+                request.onsuccess = () => {
+                    if (settled) return;
+                    settled = true;
+                    resolve(request.result);
+                };
+                request.onerror = () => finishWithError(request.error, 'IndexedDB request failed.');
+                transaction.onerror = () => finishWithError(transaction.error, 'IndexedDB transaction failed.');
+                transaction.onabort = () => finishWithError(transaction.error, 'IndexedDB transaction aborted.');
+                transaction.oncomplete = () => db.close();
+            });
+        }
+
+        function putSavedDataInIndexedDb(dataString) {
+            return queueFormSaveStorageTask(() =>
+                runFormSaveDatabaseOperation('readwrite', (store) => store.put(dataString, FORM_SAVE_RECORD_KEY))
+            );
+        }
+
+        function getSavedDataFromIndexedDb() {
+            return queueFormSaveStorageTask(() =>
+                runFormSaveDatabaseOperation('readonly', (store) => store.get(FORM_SAVE_RECORD_KEY))
+            );
+        }
+
+        function removeSavedDataFromIndexedDb() {
+            return queueFormSaveStorageTask(() =>
+                runFormSaveDatabaseOperation('readwrite', (store) => store.delete(FORM_SAVE_RECORD_KEY))
+            );
+        }
+
+        function parseSavedDataCandidate(rawValue, sourceName) {
+            if (typeof rawValue !== 'string' || rawValue.trim().length === 0) return null;
+            try {
+                const parsed = JSON.parse(rawValue);
+                if (!parsed || typeof parsed !== 'object') return null;
+                return parsed;
+            } catch (error) {
+                console.warn(`Ignoring invalid saved data from ${sourceName}.`, error);
+                return null;
+            }
+        }
+
+        function getSavedDataTimestamp(data) {
+            const ms = Date.parse(data?._save_timestamp || '');
+            return Number.isFinite(ms) ? ms : 0;
+        }
+
+        async function persistSavedData(dataString) {
+            try {
+                localStorage.setItem(SAVE_KEY, dataString);
+                if (typeof indexedDB !== 'undefined') {
+                    removeSavedDataFromIndexedDb().catch((error) => {
+                        console.warn('Failed to clear IndexedDB fallback save after localStorage write.', error);
+                    });
+                }
+                return;
+            } catch (localStorageError) {
+                const shouldFallbackToIndexedDb =
+                    isQuotaExceededError(localStorageError) ||
+                    localStorageError?.name === 'SecurityError';
+
+                if (!shouldFallbackToIndexedDb) {
+                    throw localStorageError;
+                }
+
+                try {
+                    await putSavedDataInIndexedDb(dataString);
+                    try {
+                        localStorage.removeItem(SAVE_KEY);
+                    } catch (cleanupError) {
+                        // Best effort cleanup only; not a save blocker.
+                    }
+                } catch (indexedDbError) {
+                    throw new Error(`Failed to save progress to both localStorage and IndexedDB. localStorage: ${localStorageError.message}; IndexedDB: ${indexedDbError.message}`);
+                }
+            }
+        }
         
         // Update save indicator
         function updateSaveIndicator(status) {
@@ -26727,20 +26865,15 @@
             // Debounce: wait 1 second after last change before saving
             autoSaveTimeout = setTimeout(() => {
                 if (hasUnsavedChanges) {
-                    try {
-                        updateSaveIndicator('saving');
-                        saveProgress(true); // Pass true to indicate this is an auto-save
-                    } catch (error) {
-                        console.error('Auto-save failed:', error);
-                        updateSaveIndicator('unsaved');
-                    }
+                    updateSaveIndicator('saving');
+                    saveProgress(true); // Pass true to indicate this is an auto-save
                 }
             }, 1000);
         }
         
         // Manual save function - uses the same generateJSON logic
         // Optional parameter: isAutoSave - if true, suppress some alerts for validation warnings
-        function saveProgress(isAutoSave = false) {
+        async function saveProgress(isAutoSave = false) {
             if (window.__saveInProgress) return;
             window.__saveInProgress = true;
             try {
@@ -26941,8 +27074,7 @@
 
                 const dataString = JSON.stringify(jsonData);
                 
-                localStorage.setItem(SAVE_KEY, dataString);
-                lastSavedData = dataString;
+                await persistSavedData(dataString);
                 hasUnsavedChanges = false;
                 
                 updateSaveIndicator('saved');
@@ -26961,20 +27093,41 @@
                 }
             } catch (e) {
                 console.error('Failed to save form data:', e);
+                updateSaveIndicator('unsaved');
                 alert('Failed to save progress: ' + e.message);
             } finally {
                 window.__saveInProgress = false;
             }
         }
         
-        // Load form data from localStorage - returns the JSON data directly
-        function loadSavedData() {
+        // Load form data from storage - returns the newest valid JSON data
+        async function loadSavedData() {
             try {
-                const savedData = localStorage.getItem(SAVE_KEY);
-                if (savedData) {
-                    const jsonData = JSON.parse(savedData);
-                    return jsonData;
+                let localCandidate = null;
+                try {
+                    const localRaw = localStorage.getItem(SAVE_KEY);
+                    localCandidate = parseSavedDataCandidate(localRaw, 'localStorage');
+                } catch (localError) {
+                    console.warn('Failed to read saved data from localStorage.', localError);
                 }
+
+                let indexedDbCandidate = null;
+                if (typeof indexedDB !== 'undefined') {
+                    try {
+                        const indexedDbRaw = await getSavedDataFromIndexedDb();
+                        indexedDbCandidate = parseSavedDataCandidate(indexedDbRaw, 'IndexedDB');
+                    } catch (indexedDbError) {
+                        console.warn('Failed to read saved data from IndexedDB.', indexedDbError);
+                    }
+                }
+
+                if (localCandidate && indexedDbCandidate) {
+                    return getSavedDataTimestamp(indexedDbCandidate) > getSavedDataTimestamp(localCandidate)
+                        ? indexedDbCandidate
+                        : localCandidate;
+                }
+
+                return localCandidate || indexedDbCandidate || null;
             } catch (e) {
                 console.error('Failed to load saved data:', e);
             }
@@ -26985,7 +27138,11 @@
         function clearSavedData() {
             try {
                 localStorage.removeItem(SAVE_KEY);
-                lastSavedData = null;
+                if (typeof indexedDB !== 'undefined') {
+                    removeSavedDataFromIndexedDb().catch((error) => {
+                        console.warn('Failed to clear saved data from IndexedDB.', error);
+                    });
+                }
                 hasUnsavedChanges = false;
                 updateSaveIndicator('none');
             } catch (e) {
@@ -26993,10 +27150,10 @@
             }
         }
         
-        // Restore latest saved work from localStorage
-        function restoreLatest() {
+        // Restore latest saved work from storage
+        async function restoreLatest() {
             // Check if there's saved data
-            const savedData = loadSavedData();
+            const savedData = await loadSavedData();
             if (!savedData) {
                 alert('⚠️ No saved data found. Save your work first using the "Save Progress" button.');
                 return;
@@ -27200,11 +27357,7 @@
                     e.returnValue = message;
                     
                     // Try to save automatically on unload (call the save function directly)
-                    try {
-                        saveProgress();
-                    } catch (err) {
-                        console.error('Failed to auto-save on unload:', err);
-                    }
+                    saveProgress();
                     
                     return message;
                 }
@@ -27423,7 +27576,7 @@
         installInputIsolationGuards();
 
         // Initialize page
-        window.onload = function() {
+        window.onload = async function() {
             installInputIsolationGuards();
             // Hydrate all static button groups first
             hydrateStaticButtons();
@@ -27812,7 +27965,7 @@
             });
             
             // Try to load saved data
-            const savedData = loadSavedData();
+            const savedData = await loadSavedData();
             if (savedData) {
                 const savedDate = savedData._save_timestamp ? new Date(savedData._save_timestamp) : new Date();
                 const timeAgo = getTimeAgo(savedDate);
@@ -27826,7 +27979,6 @@
                         populateFormFromJSON(savedData);
                         
                         // Set the initial saved state
-                        lastSavedData = JSON.stringify(savedData);
                         hasUnsavedChanges = false;
                         updateSaveIndicator('saved');
 
