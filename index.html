@@ -85,6 +85,7 @@
               wrapStyle: "margin-bottom: 25px;",
               items: [
                 "<strong>Wide block LaTeX now stays visible in previews:</strong> Fixed an issue where long block formulas could overflow outside preview boxes. Wide formulas now stay contained and can be viewed with horizontal scrolling in all output previews.",
+                "<strong>PDF viewer now refreshes immediately after JSON load/restore:</strong> Fixed an issue where loading or restoring JSON could leave the PDF viewer on stale pages until you clicked a page-related field. The viewer now refreshes right away after load/restore (including undo/redo of JSON load) using the same canonical auto-navigation logic.",
               ],
             },
           ],
@@ -31450,6 +31451,9 @@
             isDocumentHydrating = false;
           });
         }
+
+        // Trigger canonical PDF context sync only after full JSON population completes.
+        scheduleMainPdfContextSyncAfterFormStateRestore("populateFormFromJSON");
       }
 
       // Try to repair and parse malformed JSON inputs commonly encountered
@@ -31913,6 +31917,8 @@
               }
             });
           }, 100);
+
+          scheduleMainPdfContextSyncAfterFormStateRestore("resetForm");
         }
       }
 
@@ -36298,6 +36304,31 @@
           state.userNavigatedAway = false;
           navigateToContextPage();
         }
+      }
+
+      function scheduleMainPdfContextSyncAfterFormStateRestore(reason) {
+        if (window.__mainPdfContextSyncScheduled) return;
+        window.__mainPdfContextSyncScheduled = true;
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            window.__mainPdfContextSyncScheduled = false;
+
+            const state = window.__mainPdfViewer;
+            if (
+              !state ||
+              !state.visible ||
+              !state.autoSyncEnabled ||
+              !state.pdfDoc
+            ) {
+              return;
+            }
+
+            // Load/restore should not be blocked by recent manual navigation suppression.
+            state.userNavigatedAway = false;
+            navigateToContextPage();
+          });
+        });
       }
 
       /**
