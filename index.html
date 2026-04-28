@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.4";
+      const APP_VERSION = "8.5";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,22 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "8.5",
+          sections: [
+            {
+              key: "bug_fixes",
+              title: "Bug Fixes",
+              iconClass: "fas fa-bug",
+              iconColor: "var(--state-danger)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Long equations now appear fully in preview:</strong> Fixed an issue where parts of long equations could be cut off. They now show completely and stay easy to read.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.4",
           sections: [
@@ -4837,15 +4853,17 @@
         margin: 1em auto !important;
         display: block !important;
         max-width: 100% !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
         box-sizing: border-box !important;
       }
       .live-preview mjx-container[display="true"] {
         display: block !important;
         max-width: 100% !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
         box-sizing: border-box !important;
       }
       /* Ensure KaTeX math blocks are centered even in RTL containers */
