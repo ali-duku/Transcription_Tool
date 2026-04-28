@@ -85,7 +85,7 @@
               wrapStyle: "margin-bottom: 25px;",
               items: [
                 "<strong>Wide block LaTeX now stays visible in previews:</strong> Fixed an issue where long block formulas could overflow outside preview boxes. Wide formulas now stay contained and can be viewed with horizontal scrolling in all output previews.",
-                "<strong>PDF viewer now refreshes immediately after JSON load/restore:</strong> Fixed an issue where loading or restoring JSON could leave the PDF viewer on stale pages until you clicked a page-related field. The viewer now refreshes right away after load/restore (including undo/redo of JSON load) using the same canonical auto-navigation logic.",
+                "<strong>PDF viewer now refreshes immediately after JSON load/restore:</strong> Fixed an issue where loading or restoring JSON could leave the PDF viewer on stale pages until you clicked a page-related field. The viewer now refreshes right away after load/restore (including undo/redo of JSON load), so it always shows the correct pages based on your current data.",
               ],
             },
           ],
@@ -34721,6 +34721,7 @@
         lastSyncedSource: null,
         lastManualNavTime: 0, // Track manual navigation to avoid interrupting user
         userNavigatedAway: false, // Flag to track if user manually navigated away
+        pendingAuthoritativePageRefresh: false, // One-shot flag set by JSON load/restore to force canonical page sync
         elements: {},
         renderTask: null, // Track ongoing render operation
         isRendering: false, // Flag to prevent concurrent renders
@@ -34791,7 +34792,13 @@
 
         // Smart navigation to relevant page
         if (window.__mainPdfViewer.autoSyncEnabled) {
-          setTimeout(() => navigateToContextPage(), 200);
+          setTimeout(() => {
+            const forcePageRefresh = consumePendingAuthoritativePageRefresh();
+            navigateToContextPage({
+              forcePageRefresh: forcePageRefresh,
+              source: forcePageRefresh ? "json-load" : "normal",
+            });
+          }, 200);
         }
       }
 
@@ -35265,7 +35272,12 @@
           if (state.visible && state.autoSyncEnabled) {
             setTimeout(() => {
               if (state.visible && state.autoSyncEnabled && state.pdfDoc) {
-                navigateToContextPage();
+                const forcePageRefresh =
+                  consumePendingAuthoritativePageRefresh();
+                navigateToContextPage({
+                  forcePageRefresh: forcePageRefresh,
+                  source: forcePageRefresh ? "json-load" : "normal",
+                });
               }
             }, 150);
           }
@@ -36307,6 +36319,14 @@
       }
 
       function scheduleMainPdfContextSyncAfterFormStateRestore(reason) {
+        const state = window.__mainPdfViewer;
+        if (state) {
+          state.pendingAuthoritativePageRefresh = true;
+          state.lastSyncedPage = null;
+          state.lastSyncedSource = null;
+          state.userNavigatedAway = false;
+        }
+
         if (window.__mainPdfContextSyncScheduled) return;
         window.__mainPdfContextSyncScheduled = true;
 
@@ -36324,11 +36344,25 @@
               return;
             }
 
-            // Load/restore should not be blocked by recent manual navigation suppression.
-            state.userNavigatedAway = false;
-            navigateToContextPage();
+            const forcePageRefresh = consumePendingAuthoritativePageRefresh();
+            navigateToContextPage({
+              forcePageRefresh: forcePageRefresh,
+              source: forcePageRefresh ? "json-load" : "normal",
+            });
           });
         });
+      }
+
+      function consumePendingAuthoritativePageRefresh() {
+        const state = window.__mainPdfViewer;
+        if (!state || state.pendingAuthoritativePageRefresh !== true) {
+          return false;
+        }
+        if (!state.visible || !state.autoSyncEnabled || !state.pdfDoc) {
+          return false;
+        }
+        state.pendingAuthoritativePageRefresh = false;
+        return true;
       }
 
       /**
@@ -36386,8 +36420,9 @@
         return startPage;
       }
 
-      function navigateToContextPage() {
+      function navigateToContextPage(options = {}) {
         const state = window.__mainPdfViewer;
+        const forcePageRefresh = !!options.forcePageRefresh;
 
         // Don't navigate if disabled
         if (!state.autoSyncEnabled) return;
@@ -36397,7 +36432,11 @@
 
         // Don't navigate if user recently navigated manually (within 5 seconds)
         const timeSinceManualNav = Date.now() - state.lastManualNavTime;
-        if (timeSinceManualNav < 5000 && state.userNavigatedAway) {
+        if (
+          !forcePageRefresh &&
+          timeSinceManualNav < 5000 &&
+          state.userNavigatedAway
+        ) {
           return;
         }
 
@@ -36492,6 +36531,15 @@
                   targetPage = parseInt(textbookPageInput.value, 10);
                   useRangeCheck = true;
                 }
+              } else if (forcePageRefresh) {
+                // On authoritative JSON load/restore, recompute from loaded textbook page instead of preserving nearby stale page.
+                targetSource = "textbook";
+                const textbookPageInput =
+                  document.getElementById("textbook_pdf_page");
+                if (textbookPageInput && textbookPageInput.value) {
+                  targetPage = parseInt(textbookPageInput.value, 10);
+                  useRangeCheck = true;
+                }
               } else {
                 // Stay on guide - no auto-switching
                 return;
@@ -36521,7 +36569,11 @@
                 ?.querySelector("label")
                 ?.textContent?.includes("Textbook"));
 
-          if (state.source === "guide" && !isTextbookField) {
+          if (
+            state.source === "guide" &&
+            !isTextbookField &&
+            !forcePageRefresh
+          ) {
             // Stay on guide if user is there and not explicitly in textbook field
             return;
           }
@@ -36555,7 +36607,7 @@
         }
 
         // If using range check for textbook, check if current page is within acceptable range
-        if (useRangeCheck && targetSource === "textbook") {
+        if (!forcePageRefresh && useRangeCheck && targetSource === "textbook") {
           const rangeStart = Math.max(1, targetPage - TEXTBOOK_RANGE);
           const rangeEnd = Math.min(
             state.totalPages || targetPage,
