@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.3";
+      const APP_VERSION = "8.4";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,22 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "8.4",
+          sections: [
+            {
+              key: "bug_fixes",
+              title: "Bug Fixes",
+              iconClass: "fas fa-bug",
+              iconColor: "var(--state-danger)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Wide block LaTeX now stays visible in previews:</strong> Fixed an issue where long block formulas could overflow outside preview boxes. Wide formulas now stay contained and can be viewed with horizontal scrolling in all output previews.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.3",
           sections: [
@@ -4810,17 +4826,36 @@
         display: block !important;
         direction: ltr !important;
         unicode-bidi: isolate !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        box-sizing: border-box !important;
       }
       .live-preview .katex-display {
         text-align: center !important;
         margin: 1em auto !important;
         display: block !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        box-sizing: border-box !important;
+      }
+      .live-preview mjx-container[display="true"] {
+        display: block !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        box-sizing: border-box !important;
       }
       /* Ensure KaTeX math blocks are centered even in RTL containers */
       .live-preview[dir="rtl"] .__math_block,
       .live-preview[dir="rtl"] .katex-display {
         text-align: center !important;
         margin: 1em auto !important;
+        direction: ltr !important;
+        unicode-bidi: isolate !important;
+      }
+      .live-preview[dir="rtl"] mjx-container[display="true"] {
         direction: ltr !important;
         unicode-bidi: isolate !important;
       }
