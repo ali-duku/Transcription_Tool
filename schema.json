@@ -130,6 +130,10 @@
       "properties": {
         "section_title": { "title": "Section Title", "type": "string" },
         "text": { "title": "Text", "type": "string" },
+        "additional_content": {
+          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "default": null, "title": "Additional Content"
+        },
         "images": {
           "anyOf": [{ "items": { "$ref": "#/$defs/PagedBbox" }, "type": "array" }, { "type": "null" }],
           "default": null, "title": "Images"
