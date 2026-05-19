@@ -9,6 +9,10 @@
       "default": null
     },
     "page_type": { "$ref": "#/$defs/PageType" },
+    "revision_title": {
+      "anyOf": [{ "type": "string" }, { "type": "null" }],
+      "default": null
+    },
     "book_title_page": {
       "anyOf": [{ "$ref": "#/$defs/BookTitlePage" }, { "type": "null" }],
       "default": null,
@@ -74,7 +78,7 @@
       "title": "PagedBbox", "type": "object"
     },
     "PageType": {
-      "enum": ["content","title_page","table_of_content","unit_table_of_content","vocabulary","project","other"],
+      "enum": ["content","title_page","table_of_content","unit_table_of_content","vocabulary","project","revision","other"],
       "title": "PageType", "type": "string"
     },
     "BookTitlePage": {
