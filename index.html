@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.5";
+      const APP_VERSION = "8.6";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,23 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "8.6",
+          sections: [
+            {
+              key: "new_features",
+              title: "New Features",
+              iconClass: "fas fa-star",
+              iconColor: "var(--state-warning)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>New optional Additional Content box:</strong> Each Content Section now has an extra box under the main content box.",
+                "<strong>Fully supported across the tool:</strong> It now stays with your work when adding, loading, copying, duplicating, undoing, redoing, and in Final Preview.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.5",
           sections: [
