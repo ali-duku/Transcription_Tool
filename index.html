@@ -86,6 +86,8 @@
               items: [
                 "<strong>New optional Additional Content box:</strong> Each Content Section now has an extra box under the main content box.",
                 "<strong>Fully supported across the tool:</strong> It now stays with your work when adding, loading, copying, duplicating, undoing, redoing, and in Final Preview.",
+                "<strong>New Appendix page type:</strong> You can now select <code>Appendix</code> in Page Type.",
+                "<strong>New Appendix Title field:</strong> A new optional title field was added to Basic Info, and it appears in Final Preview and saved output when filled.",
               ],
             },
           ],
@@ -7890,6 +7892,7 @@
 
                 <!-- Page Type - Refactored to use createFormControl -->
                 <div id="page_type_container"></div>
+                <div id="appendix_title_container"></div>
 
                 <div class="highlight">
                   <h4><i class="fas fa-lightbulb"></i> Basic Info Tips</h4>
@@ -12565,12 +12568,14 @@
         const pageType = document.getElementById("page_type")
           ? document.getElementById("page_type").value || ""
           : "";
+        const scopedTitleEntries = getBasicPageTypeScopedTitlePreviewEntries();
         let hasBasicInfo =
           textbookPage ||
           textbookPdfPage ||
           guidebookStartPage ||
           guidebookEndPage ||
-          pageType;
+          pageType ||
+          scopedTitleEntries.length > 0;
         if (hasBasicInfo) {
           html += '<div class="final-preview-section"><h3>Basic Info</h3>';
           html += '<div class="final-preview-section">';
@@ -12603,16 +12608,7 @@
             });
           }
           if (pageType) {
-            const pageTypeOptions = {
-              content: "Content",
-              project: "Project",
-              vocabulary: "Vocabulary",
-              unit_table_of_content: "Unit Table of Content",
-              table_of_content: "Table of Content",
-              title_page: "Title Page",
-              other: "Other",
-            };
-            const pageTypeLabel = pageTypeOptions[pageType] || pageType;
+            const pageTypeLabel = getPageTypeLabel(pageType);
             html += buildPreviewBox({
               title: "Page Type",
               editTarget:
@@ -12620,6 +12616,15 @@
               bodyHTML: `<div style="padding: 8px; dir: ltr; text-align: left;">${pageTypeLabel}</div>`,
             });
           }
+          scopedTitleEntries.forEach((entry) => {
+            const inputEl = document.getElementById(entry.inputId);
+            if (!inputEl) return;
+            html += buildDirectionalMarkdownPreviewCard(
+              entry.title,
+              inputEl,
+              entry.inputId,
+            );
+          });
           html += "</div></div>";
         }
         return html;
@@ -12649,11 +12654,30 @@
 
       function buildPreambleMarkdownPreviewCard(fieldTitle, inputEl, inputId) {
         if (!inputEl) return "";
+        return buildDirectionalMarkdownPreviewCard(
+          fieldTitle,
+          inputEl,
+          inputId,
+          { forceRtl: true },
+        );
+      }
+
+      function buildDirectionalMarkdownPreviewCard(
+        fieldTitle,
+        inputEl,
+        inputId,
+        options = {},
+      ) {
+        if (!inputEl) return "";
+        const { forceRtl = false } = options;
+        const isLTR = !forceRtl && inputEl.hasAttribute("data-ltr");
+        const direction = isLTR ? "ltr" : "rtl";
+        const textAlign = isLTR ? "left" : "right";
         const fieldPreviewHTML = getFieldPreviewInnerHTML(inputEl);
         return buildPreviewBox({
           title: fieldTitle,
           editTarget: `navigateToInput(document.getElementById('${inputId}'))`,
-          bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${fieldPreviewHTML}</div>`,
+          bodyHTML: `<div class="live-preview" dir="${direction}" style="text-align: ${textAlign};">${fieldPreviewHTML}</div>`,
         });
       }
 
@@ -19876,6 +19900,7 @@
             "#book_title_page_version",
             "#book_title_page_lang",
             "#book_title_page_subject",
+            "#appendix_title",
             '.form-group input[placeholder="Section title"]',
             "#terminology textarea",
             "#lesson_standards textarea",
@@ -29514,6 +29539,104 @@
         },
       ];
 
+      const PAGE_TYPE_OPTIONS = [
+        { value: "content", text: "Content", selected: true },
+        { value: "project", text: "Project" },
+        { value: "vocabulary", text: "Vocabulary" },
+        { value: "unit_table_of_content", text: "Unit Table of Content" },
+        { value: "table_of_content", text: "Table of Content" },
+        { value: "title_page", text: "Title Page" },
+        { value: "appendix", text: "Appendix" },
+        { value: "other", text: "Other" },
+      ];
+
+      const BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS = [
+        {
+          key: "appendix_title",
+          id: "appendix_title",
+          containerId: "appendix_title_container",
+          label: "Appendix Title",
+          pageType: "appendix",
+          placeholder: "e.g., Appendix A: Formula Sheet",
+          title:
+            "Title used for appendix pages (supports markdown formatting)",
+        },
+      ];
+
+      function getPageTypeLabel(pageType) {
+        const matched = PAGE_TYPE_OPTIONS.find(
+          (option) => option.value === pageType,
+        );
+        return matched ? matched.text : pageType;
+      }
+
+      function getBasicPageTypeScopedTitleValues() {
+        const values = {};
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          values[field.key] = getNullableTrimmedInputValue(field.id);
+        });
+        return values;
+      }
+
+      function buildBasicPageTypeScopedTitlePayload(values = null) {
+        const scopedValues = values || getBasicPageTypeScopedTitleValues();
+        const payload = {};
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          const rawValue = scopedValues[field.key];
+          payload[field.key] =
+            rawValue == null ? null : String(rawValue).trim() || null;
+        });
+        return payload;
+      }
+
+      function populateBasicPageTypeScopedTitleFieldsFromJSON(data) {
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          const value =
+            data &&
+            Object.prototype.hasOwnProperty.call(data, field.key) &&
+            data[field.key] != null
+              ? data[field.key]
+              : "";
+          setInputValue(`#${field.id}`, value);
+        });
+      }
+
+      function clearBasicPageTypeScopedTitleFields() {
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          setInputValue(`#${field.id}`, "");
+        });
+      }
+
+      function validateBasicPageTypeScopedTitleFields(pageType, values = null) {
+        const scopedValues = values || getBasicPageTypeScopedTitleValues();
+        const errors = [];
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          const rawValue = scopedValues[field.key];
+          if (rawValue == null || String(rawValue).trim() === "") return;
+          if (pageType === field.pageType) return;
+          const expectedLabel = getPageTypeLabel(field.pageType);
+          errors.push(
+            `${field.label} can only be filled when Page Type is ${expectedLabel}. Clear ${field.label} or switch Page Type to ${expectedLabel}.`,
+          );
+        });
+        return errors;
+      }
+
+      function getBasicPageTypeScopedTitlePreviewEntries(values = null) {
+        const scopedValues = values || getBasicPageTypeScopedTitleValues();
+        const entries = [];
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          const rawValue = scopedValues[field.key];
+          if (rawValue == null || String(rawValue).trim() === "") return;
+          entries.push({
+            title: field.label,
+            inputId: field.id,
+            editTarget: `navigateToInput(document.getElementById('${field.id}'))`,
+          });
+        });
+        return entries;
+      }
+
       function getBookMetadataFormState() {
         const metadata = {};
         BOOK_METADATA_FIELDS.forEach((field) => {
@@ -30046,6 +30169,13 @@
           pageType,
           bookMetadata,
         );
+        const basicPageTypeScopedTitleValues =
+          getBasicPageTypeScopedTitleValues();
+        const basicPageTypeScopedTitleErrors =
+          validateBasicPageTypeScopedTitleFields(
+            pageType,
+            basicPageTypeScopedTitleValues,
+          );
         const hasGuidebookStart = guidebookStart.trim() !== "";
         const hasGuidebookEnd = guidebookEnd.trim() !== "";
         const hasGuidebookRange = hasGuidebookStart && hasGuidebookEnd;
@@ -30090,6 +30220,9 @@
         }
         if (bookMetadataValidation.errors.length > 0) {
           validationErrors.push(...bookMetadataValidation.errors);
+        }
+        if (basicPageTypeScopedTitleErrors.length > 0) {
+          validationErrors.push(...basicPageTypeScopedTitleErrors);
         }
 
         if (ENABLE_REPEATED_QUESTION_ID_VALIDATION) {
@@ -30282,6 +30415,9 @@
           textbook_pdf_page: textbookPdfPage ? parseInt(textbookPdfPage) : null,
           guidebook_pdf_pages: generateGuidebookPageArray(),
           page_type: document.getElementById("page_type").value || "content",
+          ...buildBasicPageTypeScopedTitlePayload(
+            basicPageTypeScopedTitleValues,
+          ),
           book_title_page: bookMetadataValidation.payload,
           unit_preamble: null,
           lesson_preamble: null,
@@ -30438,6 +30574,8 @@
           document.getElementById("guidebook_end_page").value;
         const pageType = document.getElementById("page_type").value;
         const bookMetadata = getBookMetadataFormState();
+        const basicPageTypeScopedTitleValues =
+          getBasicPageTypeScopedTitleValues();
 
         // Collect form data and generate JSON (without validation)
         const jsonData = {
@@ -30445,6 +30583,9 @@
           textbook_pdf_page: textbookPdfPage ? parseInt(textbookPdfPage) : null,
           guidebook_pdf_pages: generateGuidebookPageArray(),
           page_type: pageType || "content",
+          ...buildBasicPageTypeScopedTitlePayload(
+            basicPageTypeScopedTitleValues,
+          ),
           book_title_page: buildBookMetadataPayload(bookMetadata, {
             allowPartial: true,
           }),
@@ -31520,6 +31661,7 @@
           const pageTypeEl = document.getElementById("page_type");
           if (pageTypeEl) pageTypeEl.value = data.page_type;
         }
+        populateBasicPageTypeScopedTitleFieldsFromJSON(data);
 
         const bookTitlePage =
           data.book_title_page && typeof data.book_title_page === "object"
@@ -32068,6 +32210,7 @@
         setInputValue("#guidebook_end_page", "");
         const pageTypeEl = document.getElementById("page_type");
         if (pageTypeEl) pageTypeEl.value = "content";
+        clearBasicPageTypeScopedTitleFields();
         BOOK_METADATA_FIELDS.forEach((field) => {
           setInputValue(`#${field.id}`, "");
         });
@@ -32888,6 +33031,7 @@
           setInputValue("#guidebook_end_page", "");
           const pageTypeEl = document.getElementById("page_type");
           if (pageTypeEl) pageTypeEl.value = "content";
+          clearBasicPageTypeScopedTitleFields();
           syncBookMetadataRequiredState();
           previewRoot = document.getElementById("basic");
         } else if (normalizedTabKey === "content") {
@@ -33268,6 +33412,13 @@
             pageType,
             bookMetadata,
           );
+          const basicPageTypeScopedTitleValues =
+            getBasicPageTypeScopedTitleValues();
+          const basicPageTypeScopedTitleErrors =
+            validateBasicPageTypeScopedTitleFields(
+              pageType,
+              basicPageTypeScopedTitleValues,
+            );
           const hasGuidebookStart = guidebookStart.trim() !== "";
           const hasGuidebookEnd = guidebookEnd.trim() !== "";
           const hasGuidebookRange = hasGuidebookStart && hasGuidebookEnd;
@@ -33443,6 +33594,8 @@
             validationErrors.push("Page type is required");
           if (bookMetadataValidation.errors.length > 0)
             validationErrors.push(...bookMetadataValidation.errors);
+          if (basicPageTypeScopedTitleErrors.length > 0)
+            validationErrors.push(...basicPageTypeScopedTitleErrors);
 
           // Validation errors are collected but do not block or alert during save
 
@@ -33454,6 +33607,9 @@
               : null,
             guidebook_pdf_pages: generateGuidebookPageArray(),
             page_type: document.getElementById("page_type").value || "content",
+            ...buildBasicPageTypeScopedTitlePayload(
+              basicPageTypeScopedTitleValues,
+            ),
             book_title_page: buildBookMetadataPayload(bookMetadata, {
               allowPartial: true,
             }),
@@ -34285,8 +34441,8 @@
           title: "Additional lesson text that supports markdown formatting",
         });
 
-        // Book Metadata
-        function appendBookMetadataTitleStyleInput(containerId, config) {
+        // Single-line markdown title input (canonical component)
+        function appendTitleStyleInput(containerId, config) {
           const control = createFormControl(config);
           const container = document.getElementById(containerId);
           if (!container || !control || !control.rootEl || !control.controlEl)
@@ -34311,6 +34467,11 @@
           }
           control.rootEl.appendChild(textFieldContainer);
           container.appendChild(control.rootEl);
+        }
+
+        // Book Metadata
+        function appendBookMetadataTitleStyleInput(containerId, config) {
+          appendTitleStyleInput(containerId, config);
         }
 
         appendBookMetadataTitleStyleInput("book_title_page_title_container", {
@@ -34400,15 +34561,7 @@
           label: "Page Type",
           type: "select",
           required: true,
-          options: [
-            { value: "content", text: "Content", selected: true },
-            { value: "project", text: "Project" },
-            { value: "vocabulary", text: "Vocabulary" },
-            { value: "unit_table_of_content", text: "Unit Table of Content" },
-            { value: "table_of_content", text: "Table of Content" },
-            { value: "title_page", text: "Title Page" },
-            { value: "other", text: "Other" },
-          ],
+          options: PAGE_TYPE_OPTIONS.map((option) => ({ ...option })),
           attrs: { title: "Categorizes the content type for organization" },
         });
         const pageTypeContainer = document.getElementById(
@@ -34423,6 +34576,16 @@
             syncBookMetadataRequiredState,
           );
         }
+
+        BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.forEach((field) => {
+          appendTitleStyleInput(field.containerId, {
+            id: field.id,
+            label: field.label,
+            type: "text",
+            placeholder: field.placeholder,
+            attrs: { title: field.title },
+          });
+        });
         syncBookMetadataRequiredState();
 
         // Basic Info number inputs - Refactored to use createFormControl factory
@@ -36951,6 +37114,7 @@
           "unit_title_translation",
           "unit_text",
           "page_type",
+          "appendix_title",
           "book_title_page_title",
           "book_title_page_subtitle",
           "book_title_page_version",
