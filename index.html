@@ -86,7 +86,6 @@
               items: [
                 "<strong>New optional Additional Content box:</strong> Each Content Section now has an extra box under the main content box, and it stays with your work across add, load, copy, duplicate, undo, redo, and Final Preview.",
                 "<strong>New Appendix support:</strong> Page Type now includes <code>Appendix</code>, with an optional Appendix Title in Basic Info that appears in Final Preview and saved output when filled.",
-                "<strong>New Revision support:</strong> Page Type now includes <code>Revision</code>, with an optional Revision Title in Basic Info that appears in Final Preview and saved output when filled.",
                 "<strong>New global text direction switch:</strong> You can now choose Default, RTL, or LTR from the top bar, and your choice is remembered next time.",
               ],
             },
@@ -7907,7 +7906,6 @@
                 <!-- Page Type - Refactored to use createFormControl -->
                 <div id="page_type_container"></div>
                 <div id="appendix_title_container"></div>
-                <div id="revision_title_container"></div>
 
                 <div class="highlight">
                   <h4><i class="fas fa-lightbulb"></i> Basic Info Tips</h4>
@@ -29849,7 +29847,6 @@
         { value: "unit_table_of_content", text: "Unit Table of Content" },
         { value: "table_of_content", text: "Table of Content" },
         { value: "title_page", text: "Title Page" },
-        { value: "revision", text: "Revision" },
         { value: "appendix", text: "Appendix" },
         { value: "other", text: "Other" },
       ];
@@ -29863,15 +29860,6 @@
           pageType: "appendix",
           placeholder: "e.g., Appendix A: Formula Sheet",
           title: "Title used for appendix pages (supports markdown formatting)",
-        },
-        {
-          key: "revision_title",
-          id: "revision_title",
-          containerId: "revision_title_container",
-          label: "Revision Title",
-          pageType: "revision",
-          placeholder: "e.g., Unit 3 Revision",
-          title: "Title used for revision pages (supports markdown formatting)",
         },
       ];
 
