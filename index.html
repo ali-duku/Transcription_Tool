@@ -84,12 +84,10 @@
               iconColor: "var(--state-warning)",
               wrapStyle: "margin-bottom: 25px;",
               items: [
-                "<strong>New optional Additional Content box:</strong> Each Content Section now has an extra box under the main content box.",
-                "<strong>Fully supported across the tool:</strong> It now stays with your work when adding, loading, copying, duplicating, undoing, redoing, and in Final Preview.",
-                "<strong>New Appendix page type:</strong> You can now select <code>Appendix</code> in Page Type.",
-                "<strong>New Appendix Title field:</strong> A new optional title field was added to Basic Info, and it appears in Final Preview and saved output when filled.",
-                "<strong>New Revision page type:</strong> You can now select <code>Revision</code> in Page Type.",
-                "<strong>New Revision Title field:</strong> A new optional title field was added to Basic Info, and it appears in Final Preview and saved output when filled.",
+                "<strong>New optional Additional Content box:</strong> Each Content Section now has an extra box under the main content box, and it stays with your work across add, load, copy, duplicate, undo, redo, and Final Preview.",
+                "<strong>New Appendix support:</strong> Page Type now includes <code>Appendix</code>, with an optional Appendix Title in Basic Info that appears in Final Preview and saved output when filled.",
+                "<strong>New Revision support:</strong> Page Type now includes <code>Revision</code>, with an optional Revision Title in Basic Info that appears in Final Preview and saved output when filled.",
+                "<strong>New global text direction switch:</strong> You can now choose Default, RTL, or LTR from the top bar, and your choice is remembered next time.",
               ],
             },
           ],
@@ -7734,6 +7732,20 @@
               </select>
             </div>
             <span>•</span>
+            <div class="font-settings" data-ignore-autosave="true">
+              <label class="font-settings-label">Dir:</label>
+              <select
+                id="textDirectionProfileSelect"
+                onchange="changeTextDirectionProfile(this.value)"
+                title="Set global text direction profile"
+                class="header-select font-settings-select"
+              >
+                <option value="default" selected>Default</option>
+                <option value="rtl">RTL</option>
+                <option value="ltr">LTR</option>
+              </select>
+            </div>
+            <span>•</span>
             <div id="saveIndicator" class="auto-save-indicator">
               <span>No changes</span>
             </div>
@@ -12408,10 +12420,11 @@
             sibling = sibling.nextElementSibling;
           }
           if (previewEl && previewEl.innerHTML) return previewEl.innerHTML;
+          const directionMeta = getFieldDirectionMeta(fieldEl);
           const tempPreview = document.createElement("div");
           tempPreview.className = "live-preview";
-          tempPreview.setAttribute("dir", "rtl");
-          tempPreview.style.textAlign = "right";
+          tempPreview.setAttribute("dir", directionMeta.direction);
+          tempPreview.style.textAlign = directionMeta.textAlign;
           renderLivePreviewToElement(fieldEl, tempPreview);
           return tempPreview.innerHTML;
         }
@@ -12425,7 +12438,10 @@
           html += buildPreviewBox({
             title: titleText,
             editTarget: editTarget,
-            bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${previewHTML}</div>`,
+            bodyHTML: wrapLivePreviewHTMLWithFieldDirection(
+              previewHTML,
+              fieldEl,
+            ),
             dataAttrs: {
               "navigate-to": sectionId,
               "target-element": targetElement,
@@ -12647,12 +12663,36 @@
         if (existingPreview && existingPreview.innerHTML) {
           return existingPreview.innerHTML;
         }
+        const directionMeta = getFieldDirectionMeta(inputEl);
         const tempPreview = document.createElement("div");
         tempPreview.className = "live-preview";
-        tempPreview.setAttribute("dir", "rtl");
-        tempPreview.style.textAlign = "right";
+        tempPreview.setAttribute("dir", directionMeta.direction);
+        tempPreview.style.textAlign = directionMeta.textAlign;
         renderLivePreviewToElement(inputEl, tempPreview);
         return tempPreview.innerHTML;
+      }
+
+      function getFieldDirectionMeta(inputEl, options = {}) {
+        const { forceRtl = false } = options;
+        const isLTR = !!(
+          inputEl &&
+          !forceRtl &&
+          inputEl.hasAttribute("data-ltr")
+        );
+        return {
+          isLTR: isLTR,
+          direction: isLTR ? "ltr" : "rtl",
+          textAlign: isLTR ? "left" : "right",
+        };
+      }
+
+      function wrapLivePreviewHTMLWithFieldDirection(
+        previewHTML,
+        inputEl,
+        options = {},
+      ) {
+        const meta = getFieldDirectionMeta(inputEl, options);
+        return `<div class="live-preview" dir="${meta.direction}" style="text-align: ${meta.textAlign};">${previewHTML}</div>`;
       }
 
       function buildPreambleMarkdownPreviewCard(fieldTitle, inputEl, inputId) {
@@ -12661,7 +12701,6 @@
           fieldTitle,
           inputEl,
           inputId,
-          { forceRtl: true },
         );
       }
 
@@ -12672,15 +12711,15 @@
         options = {},
       ) {
         if (!inputEl) return "";
-        const { forceRtl = false } = options;
-        const isLTR = !forceRtl && inputEl.hasAttribute("data-ltr");
-        const direction = isLTR ? "ltr" : "rtl";
-        const textAlign = isLTR ? "left" : "right";
         const fieldPreviewHTML = getFieldPreviewInnerHTML(inputEl);
         return buildPreviewBox({
           title: fieldTitle,
           editTarget: `navigateToInput(document.getElementById('${inputId}'))`,
-          bodyHTML: `<div class="live-preview" dir="${direction}" style="text-align: ${textAlign};">${fieldPreviewHTML}</div>`,
+          bodyHTML: wrapLivePreviewHTMLWithFieldDirection(
+            fieldPreviewHTML,
+            inputEl,
+            options,
+          ),
         });
       }
 
@@ -13523,10 +13562,11 @@
           if (isEmpty) {
             rowBodyHTML = `<span style="color: var(--text-secondary); font-style: italic;">${escapeHtml(emptyItemPlaceholder)}</span>`;
           } else {
+            const directionMeta = getFieldDirectionMeta(textarea);
             const tempPreview = document.createElement("div");
             tempPreview.className = "live-preview";
-            tempPreview.setAttribute("dir", "rtl");
-            tempPreview.style.textAlign = "right";
+            tempPreview.setAttribute("dir", directionMeta.direction);
+            tempPreview.style.textAlign = directionMeta.textAlign;
             renderLivePreviewToElement(textarea, tempPreview);
             rowBodyHTML = tempPreview.innerHTML;
           }
@@ -13548,7 +13588,10 @@
           // Render as a list row (similar to choice rows but without marker)
           html += `<div class="preview-choice-row preview-array-item">`;
           html += `<div class="preview-choice-main">`;
-          html += `<div class="live-preview" dir="rtl" style="text-align: right;">${prefixHTML}${rowBodyHTML}</div>`;
+          html += wrapLivePreviewHTMLWithFieldDirection(
+            `${prefixHTML}${rowBodyHTML}`,
+            textarea,
+          );
           html += `</div>`;
           html += editPenHTML;
           html += `</div>`;
@@ -13662,10 +13705,11 @@
         });
         // Setup text - show if not empty (check both value and trimmed value)
         if (setupTextarea && setupText && setupText.trim()) {
+          const setupDirection = getFieldDirectionMeta(setupTextarea);
           const setupPreview = document.createElement("div");
           setupPreview.className = "live-preview setup-text";
-          setupPreview.setAttribute("dir", "rtl");
-          setupPreview.style.textAlign = "right";
+          setupPreview.setAttribute("dir", setupDirection.direction);
+          setupPreview.style.textAlign = setupDirection.textAlign;
           renderLivePreviewToElement(setupTextarea, setupPreview);
           // Store the setup textarea reference for navigation
           const setupTextareaId =
@@ -13676,21 +13720,28 @@
           html += buildPreviewBox({
             title: "Setup Text",
             editTarget: `navigateToInput(document.getElementById('${setupTextareaId}'))`,
-            bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${setupPreview.innerHTML}</div>`,
+            bodyHTML: wrapLivePreviewHTMLWithFieldDirection(
+              setupPreview.innerHTML,
+              setupTextarea,
+            ),
           });
         }
 
-        // Question text - always RTL in final preview
+        // Question text
         if (questionText) {
+          const questionDirection = getFieldDirectionMeta(questionTextarea);
           const questionPreview = document.createElement("div");
           questionPreview.className = "live-preview question-text";
-          questionPreview.setAttribute("dir", "rtl");
-          questionPreview.style.textAlign = "right";
+          questionPreview.setAttribute("dir", questionDirection.direction);
+          questionPreview.style.textAlign = questionDirection.textAlign;
           renderLivePreviewToElement(questionTextarea, questionPreview);
           html += buildPreviewBox({
             title: "Question Text",
             editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('textarea[placeholder*=\\'Enter question text\\']'))`,
-            bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${questionPreview.innerHTML}</div>`,
+            bodyHTML: wrapLivePreviewHTMLWithFieldDirection(
+              questionPreview.innerHTML,
+              questionTextarea,
+            ),
             bodyClass: "question-text",
           });
         }
@@ -13762,12 +13813,13 @@
         html += `${correctBadge}`;
 
         if (choiceText && choiceTextarea) {
+          const choiceDirection = getFieldDirectionMeta(choiceTextarea);
           const choicePreview = document.createElement("div");
           choicePreview.className = "live-preview";
-          choicePreview.setAttribute("dir", "rtl");
-          choicePreview.style.textAlign = "right";
+          choicePreview.setAttribute("dir", choiceDirection.direction);
+          choicePreview.style.textAlign = choiceDirection.textAlign;
           renderLivePreviewToElement(choiceTextarea, choicePreview);
-          html += `<div class="live-preview" dir="rtl" style="text-align: right; margin-top: 4px;">${choicePreview.innerHTML}</div>`;
+          html += `<div class="live-preview" dir="${choiceDirection.direction}" style="text-align: ${choiceDirection.textAlign}; margin-top: 4px;">${choicePreview.innerHTML}</div>`;
         } else {
           html +=
             '<div style="color: var(--text-secondary); font-style: italic; margin-top: 4px;">(No choice text)</div>';
@@ -13883,13 +13935,13 @@
             html += `<span class="blank-number">Blank ${blankNumber}:</span> `;
 
             if (blankText) {
+              const blankDirection = getFieldDirectionMeta(blankTextarea);
               const blankPreview = document.createElement("div");
               blankPreview.className = "live-preview";
-              // Always RTL in final preview
-              blankPreview.setAttribute("dir", "rtl");
-              blankPreview.style.textAlign = "right";
+              blankPreview.setAttribute("dir", blankDirection.direction);
+              blankPreview.style.textAlign = blankDirection.textAlign;
               renderLivePreviewToElement(blankTextarea, blankPreview);
-              html += `<div class="live-preview" dir="rtl" style="text-align: right; margin-top: 4px;">${blankPreview.innerHTML}</div>`;
+              html += `<div class="live-preview" dir="${blankDirection.direction}" style="text-align: ${blankDirection.textAlign}; margin-top: 4px;">${blankPreview.innerHTML}</div>`;
             } else {
               html +=
                 '<span style="color: var(--text-secondary); font-style: italic;">(No answer)</span>';
@@ -13944,20 +13996,28 @@
 
             const filledPreview = document.createElement("div");
             filledPreview.className = "live-preview";
-            // Always RTL in final preview
-            filledPreview.setAttribute("dir", "rtl");
-            filledPreview.style.textAlign = "right";
+            const questionDirection = getFieldDirectionMeta(questionTextarea);
+            filledPreview.setAttribute("dir", questionDirection.direction);
+            filledPreview.style.textAlign = questionDirection.textAlign;
 
             // Create temporary textarea to use renderLivePreviewToElement
             const tempTextarea = document.createElement("textarea");
             tempTextarea.value = filledText;
-            tempTextarea.setAttribute("dir", "rtl");
+            tempTextarea.setAttribute("dir", questionDirection.direction);
+            if (questionDirection.isLTR) {
+              tempTextarea.setAttribute("data-ltr", "true");
+            } else {
+              tempTextarea.removeAttribute("data-ltr");
+            }
             renderLivePreviewToElement(tempTextarea, filledPreview);
 
             html += buildPreviewBox({
               title: "Preview with Answers",
               editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('textarea[placeholder*=\\'Enter question text\\']'))`,
-              bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${filledPreview.innerHTML}</div>`,
+              bodyHTML: wrapLivePreviewHTMLWithFieldDirection(
+                filledPreview.innerHTML,
+                questionTextarea,
+              ),
             });
           }
         }
@@ -13984,12 +14044,16 @@
           side === "left" ? `L${itemIndex + 1}` : `R${itemIndex + 1}`;
         let bodyHTML;
         if (textarea && itemText) {
+          const itemDirection = getFieldDirectionMeta(textarea);
           const previewEl = document.createElement("div");
           previewEl.className = "live-preview";
-          previewEl.setAttribute("dir", "rtl");
-          previewEl.style.textAlign = "right";
+          previewEl.setAttribute("dir", itemDirection.direction);
+          previewEl.style.textAlign = itemDirection.textAlign;
           renderLivePreviewToElement(textarea, previewEl);
-          bodyHTML = `<div class="live-preview" dir="rtl" style="text-align: right;">${previewEl.innerHTML}</div>`;
+          bodyHTML = wrapLivePreviewHTMLWithFieldDirection(
+            previewEl.innerHTML,
+            textarea,
+          );
         } else {
           bodyHTML =
             '<div style="color: var(--text-secondary); font-style: italic;">(empty)</div>';
@@ -14235,11 +14299,11 @@
           return "";
         }
 
+        const guideDirection = getFieldDirectionMeta(guideAnswerTextarea);
         const guidePreview = document.createElement("div");
         guidePreview.className = "live-preview";
-        // Always RTL in final preview
-        guidePreview.setAttribute("dir", "rtl");
-        guidePreview.style.textAlign = "right";
+        guidePreview.setAttribute("dir", guideDirection.direction);
+        guidePreview.style.textAlign = guideDirection.textAlign;
         renderLivePreviewToElement(guideAnswerTextarea, guidePreview);
 
         // Find the selector for the guide answer textarea
@@ -14251,7 +14315,10 @@
         return buildPreviewBox({
           title: "Guide Answer",
           editTarget: `navigateToInput(document.querySelectorAll('#questions_container > .array-item')[${questionIndex}].querySelector('${guideSelector}'))`,
-          bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${guidePreview.innerHTML}</div>`,
+          bodyHTML: wrapLivePreviewHTMLWithFieldDirection(
+            guidePreview.innerHTML,
+            guideAnswerTextarea,
+          ),
           bodyClass: "guide-answer",
         });
       }
@@ -17752,6 +17819,15 @@
           skipBulkCheck = false,
         } = options;
 
+        registerManagedDirectionDefaults(el);
+        applyTextDirectionProfile(getCurrentTextDirectionProfile(), {
+          persist: false,
+          scope: el,
+          syncPreviews: false,
+          updateSelect: false,
+          refreshFinalPreview: false,
+        });
+
         // Order matters: previews before fonts (so previews inherit font settings)
         if (previews) {
           attachPreviews(el);
@@ -20308,6 +20384,208 @@
         }
       }
 
+      const TEXT_DIRECTION_PROFILE = Object.freeze({
+        DEFAULT: "default",
+        RTL: "rtl",
+        LTR: "ltr",
+      });
+      const TEXT_DIRECTION_PROFILE_STORAGE_KEY = "textDirectionProfile";
+      const managedFieldDefaultDirectionMap = new WeakMap();
+      let currentTextDirectionProfile = TEXT_DIRECTION_PROFILE.DEFAULT;
+
+      function normalizeTextDirectionProfile(profile) {
+        if (typeof profile !== "string") {
+          return TEXT_DIRECTION_PROFILE.DEFAULT;
+        }
+        const normalized = profile.trim().toLowerCase();
+        if (
+          normalized === TEXT_DIRECTION_PROFILE.DEFAULT ||
+          normalized === TEXT_DIRECTION_PROFILE.RTL ||
+          normalized === TEXT_DIRECTION_PROFILE.LTR
+        ) {
+          return normalized;
+        }
+        return TEXT_DIRECTION_PROFILE.DEFAULT;
+      }
+
+      function getStoredTextDirectionProfile() {
+        try {
+          return normalizeTextDirectionProfile(
+            localStorage.getItem(TEXT_DIRECTION_PROFILE_STORAGE_KEY),
+          );
+        } catch (error) {
+          return TEXT_DIRECTION_PROFILE.DEFAULT;
+        }
+      }
+
+      function setStoredTextDirectionProfile(profile) {
+        try {
+          localStorage.setItem(
+            TEXT_DIRECTION_PROFILE_STORAGE_KEY,
+            normalizeTextDirectionProfile(profile),
+          );
+        } catch (error) {
+          // Ignore persistence failures (e.g., private mode restrictions).
+        }
+      }
+
+      function getManagedDirectionRoot(scope = null) {
+        const inputFormRoot = document.getElementById("input-form");
+        if (!inputFormRoot) return null;
+        if (!scope || scope === document || scope === inputFormRoot) {
+          return inputFormRoot;
+        }
+        if (scope instanceof Element) {
+          if (scope.id === "input-form") return scope;
+          if (inputFormRoot.contains(scope)) return scope;
+        }
+        return null;
+      }
+
+      function collectManagedDirectionFields(scope = null) {
+        const root = getManagedDirectionRoot(scope);
+        if (!root || !root.querySelectorAll) return [];
+        const fields = root.querySelectorAll(
+          'textarea, input[type="text"], input[type="number"]',
+        );
+        return Array.from(fields).filter((field) => {
+          if (!field || !field.id) return true;
+          if (field.id === "json_input" || field.id === "searchFilter")
+            return false;
+          return true;
+        });
+      }
+
+      function setManagedFieldDirection(field, isLTR) {
+        if (!field) return;
+        if (isLTR) {
+          field.setAttribute("data-ltr", "true");
+          field.setAttribute("dir", "ltr");
+        } else {
+          field.removeAttribute("data-ltr");
+          field.setAttribute("dir", "rtl");
+        }
+        if (
+          field.tagName === "INPUT" &&
+          String(field.type || "").toLowerCase() === "number"
+        ) {
+          field.style.textAlign = isLTR ? "left" : "right";
+        }
+      }
+
+      function registerManagedDirectionDefaults(scope = null) {
+        const fields = collectManagedDirectionFields(scope);
+        fields.forEach((field) => {
+          if (managedFieldDefaultDirectionMap.has(field)) return;
+          managedFieldDefaultDirectionMap.set(field, {
+            isLTR: field.hasAttribute("data-ltr"),
+          });
+        });
+      }
+
+      function syncManagedDirectionUi(scope = null, options = {}) {
+        const fields = collectManagedDirectionFields(scope);
+        if (options.syncPreviews !== false) {
+          fields.forEach((field) => {
+            if (typeof renderLivePreview === "function") {
+              renderLivePreview(field);
+            }
+          });
+          if (typeof updateFilledBlanksPreview === "function") {
+            const questionSet = new Set();
+            fields.forEach((field) => {
+              if (typeof getQuestionContainer !== "function") return;
+              const questionEl = getQuestionContainer(field);
+              if (questionEl) questionSet.add(questionEl);
+            });
+            questionSet.forEach((questionEl) => {
+              updateFilledBlanksPreview(questionEl);
+            });
+          }
+        }
+        const root = getManagedDirectionRoot(scope);
+        if (root && typeof updateDirectionButtonsInScope === "function") {
+          updateDirectionButtonsInScope(root);
+        }
+      }
+
+      function getCurrentTextDirectionProfile() {
+        return currentTextDirectionProfile;
+      }
+
+      function applyTextDirectionProfile(profile, options = {}) {
+        return withAutosaveSuppressed(function () {
+          const normalizedProfile = normalizeTextDirectionProfile(profile);
+          currentTextDirectionProfile = normalizedProfile;
+
+          const root = getManagedDirectionRoot(options.scope);
+          if (root) {
+            registerManagedDirectionDefaults(root);
+            const fields = collectManagedDirectionFields(root);
+            fields.forEach((field) => {
+              let targetIsLTR = false;
+              if (normalizedProfile === TEXT_DIRECTION_PROFILE.DEFAULT) {
+                const snapshot = managedFieldDefaultDirectionMap.get(field);
+                targetIsLTR = snapshot
+                  ? !!snapshot.isLTR
+                  : field.hasAttribute("data-ltr");
+              } else {
+                targetIsLTR = normalizedProfile === TEXT_DIRECTION_PROFILE.LTR;
+              }
+              setManagedFieldDirection(field, targetIsLTR);
+            });
+            syncManagedDirectionUi(root, {
+              syncPreviews: options.syncPreviews !== false,
+            });
+          }
+
+          if (options.persist !== false) {
+            setStoredTextDirectionProfile(normalizedProfile);
+          }
+
+          if (options.updateSelect !== false) {
+            const profileSelect = document.getElementById(
+              "textDirectionProfileSelect",
+            );
+            if (profileSelect) {
+              profileSelect.value = normalizedProfile;
+            }
+          }
+
+          if (options.refreshFinalPreview) {
+            markAllFinalPreviewDirty();
+            if (isFinalPreviewActive()) {
+              flushFinalPreviewIfActive("textDirectionProfile");
+            } else {
+              finalPreviewNeedsResync = true;
+            }
+          }
+        });
+      }
+
+      function initializeTextDirectionProfilePreference() {
+        return withAutosaveSuppressed(function () {
+          const profileSelect = document.getElementById(
+            "textDirectionProfileSelect",
+          );
+          const storedProfile = getStoredTextDirectionProfile();
+          currentTextDirectionProfile = storedProfile;
+          if (profileSelect) {
+            profileSelect.value = storedProfile;
+          }
+        });
+      }
+
+      function changeTextDirectionProfile(profile) {
+        applyTextDirectionProfile(profile, {
+          persist: true,
+          scope: document.getElementById("input-form"),
+          syncPreviews: true,
+          updateSelect: true,
+          refreshFinalPreview: true,
+        });
+      }
+
       function toggleDirection(textarea) {
         return withAutosaveSuppressed(function () {
           // Toggle the data-ltr attribute to switch between RTL and LTR
@@ -20380,6 +20658,13 @@
           if (btn) {
             // Button shows what clicking it will do
             btn.textContent = textarea.hasAttribute("data-ltr") ? "RTL" : "LTR";
+          }
+
+          markAllFinalPreviewDirty();
+          if (isFinalPreviewActive()) {
+            flushFinalPreviewIfActive("fieldDirectionToggle");
+          } else {
+            finalPreviewNeedsResync = true;
           }
         });
       }
@@ -27849,6 +28134,10 @@
 
         if (!questionTextarea || !preview || !blanksContainer) return;
 
+        const questionDirection = getFieldDirectionMeta(questionTextarea);
+        preview.setAttribute("dir", questionDirection.direction);
+        preview.style.textAlign = questionDirection.textAlign;
+
         let questionText = questionTextarea.value.trim();
 
         if (!questionText) {
@@ -27905,6 +28194,12 @@
           const tempTextarea = document.createElement("textarea");
           tempTextarea.style.display = "none";
           tempTextarea.value = filledText;
+          tempTextarea.setAttribute("dir", questionDirection.direction);
+          if (questionDirection.isLTR) {
+            tempTextarea.setAttribute("data-ltr", "true");
+          } else {
+            tempTextarea.removeAttribute("data-ltr");
+          }
 
           // Insert it just before the preview so renderLivePreview finds the right target
           preview.parentElement.insertBefore(tempTextarea, preview);
@@ -28843,7 +29138,9 @@
        * @returns {Object} Object with allIndices and uniqueIndices
        */
       function getContentTextIndices(content) {
-        const allIndices = extractAllImageIndices(getContentImageSourceTexts(content));
+        const allIndices = extractAllImageIndices(
+          getContentImageSourceTexts(content),
+        );
         const uniqueIndices = getUniqueIndices(allIndices);
         return { allIndices, uniqueIndices };
       }
@@ -29565,8 +29862,7 @@
           label: "Appendix Title",
           pageType: "appendix",
           placeholder: "e.g., Appendix A: Formula Sheet",
-          title:
-            "Title used for appendix pages (supports markdown formatting)",
+          title: "Title used for appendix pages (supports markdown formatting)",
         },
         {
           key: "revision_title",
@@ -29575,8 +29871,7 @@
           label: "Revision Title",
           pageType: "revision",
           placeholder: "e.g., Unit 3 Revision",
-          title:
-            "Title used for revision pages (supports markdown formatting)",
+          title: "Title used for revision pages (supports markdown formatting)",
         },
       ];
 
@@ -31132,7 +31427,10 @@
 
       function getContentSectionTextareas(sectionEl) {
         const fields = [
-          getContentSectionFieldElement(sectionEl, CONTENT_SECTION_FIELD_KEYS.CONTENT),
+          getContentSectionFieldElement(
+            sectionEl,
+            CONTENT_SECTION_FIELD_KEYS.CONTENT,
+          ),
           getContentSectionFieldElement(
             sectionEl,
             CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
@@ -31749,33 +32047,12 @@
           attachBboxValidation(hydrationRootForValidation);
         }
 
-        // Ensure all textareas maintain correct direction after population
-        const allTextareas = document.querySelectorAll(
-          'textarea, input[type="text"]',
-        );
-        allTextareas.forEach((ta) => {
-          if (ta.hasAttribute("data-ltr")) {
-            // LTR fields (JSON input, etc.)
-            ta.setAttribute("dir", "ltr");
-          } else {
-            // RTL fields (content, questions, titles, lesson standards, etc.)
-            ta.setAttribute("dir", "rtl");
-          }
-          // CSS will handle the styling based on data-ltr attribute
-        });
-
-        // Update all direction toggle buttons to show correct text
-        const allDirBtns = document.querySelectorAll(".dir-btn");
-        allDirBtns.forEach((btn) => {
-          const textarea =
-            btn.closest(".text-field-container")?.querySelector("textarea") ||
-            btn.parentElement?.querySelector("textarea") ||
-            btn.parentElement?.querySelector('input[type="text"]');
-          if (textarea) {
-            const isLTR = textarea.hasAttribute("data-ltr");
-            // Button shows what clicking it will do
-            btn.textContent = isLTR ? "RTL" : "LTR";
-          }
+        applyTextDirectionProfile(getCurrentTextDirectionProfile(), {
+          persist: false,
+          scope: document.getElementById("input-form"),
+          syncPreviews: true,
+          updateSelect: true,
+          refreshFinalPreview: false,
         });
 
         // Apply font settings synchronously so Correct Answer Position and all output get font in same tick (no timer)
@@ -32275,36 +32552,12 @@
         if (!deferReinit) {
           setTimeout(() => {
             attachPreviews(document);
-
-            // Ensure all textareas are set to correct direction after reset
-            const allTextareas = document.querySelectorAll(
-              'textarea, input[type="text"]',
-            );
-            allTextareas.forEach((ta) => {
-              if (ta.hasAttribute("data-ltr")) {
-                // LTR fields (JSON input, lesson standards)
-                ta.setAttribute("dir", "ltr");
-              } else {
-                // RTL fields (content, questions, titles, etc.)
-                ta.setAttribute("dir", "rtl");
-              }
-              // CSS will handle the styling based on data-ltr attribute
-            });
-
-            // Update all direction toggle buttons to show correct text
-            const allDirBtns = document.querySelectorAll(".dir-btn");
-            allDirBtns.forEach((btn) => {
-              const textarea =
-                btn
-                  .closest(".text-field-container")
-                  ?.querySelector("textarea") ||
-                btn.parentElement?.querySelector("textarea") ||
-                btn.parentElement?.querySelector('input[type="text"]');
-              if (textarea) {
-                const isLTR = textarea.hasAttribute("data-ltr");
-                // Button shows what clicking it will do
-                btn.textContent = isLTR ? "RTL" : "LTR";
-              }
+            applyTextDirectionProfile(getCurrentTextDirectionProfile(), {
+              persist: false,
+              scope: document.getElementById("input-form"),
+              syncPreviews: true,
+              updateSelect: true,
+              refreshFinalPreview: false,
             });
           }, 100);
 
@@ -34707,21 +34960,7 @@
 
         // Initialize trailing spaces indicator
         initializeTrailingSpacesIndicator();
-
-        // Set direction based on data-ltr attribute
-        const allTextareas = document.querySelectorAll(
-          'textarea, input[type="text"]',
-        );
-        allTextareas.forEach((ta) => {
-          if (ta.hasAttribute("data-ltr")) {
-            // LTR fields (JSON input, lesson standards)
-            ta.setAttribute("dir", "ltr");
-          } else {
-            // RTL fields (content, questions, titles, etc.)
-            ta.setAttribute("dir", "rtl");
-          }
-          // CSS will handle the styling based on data-ltr attribute
-        });
+        initializeTextDirectionProfilePreference();
 
         // Hydrate static markdown toolbars in initial HTML items
         hydrateStaticMarkdownToolbars();
@@ -34739,19 +34978,13 @@
 
         // Then attach previews (which will inherit the correct direction)
         attachPreviews(document);
-
-        // Update all existing direction toggle buttons to show correct text
-        const allDirBtns = document.querySelectorAll(".dir-btn");
-        allDirBtns.forEach((btn) => {
-          const textarea =
-            btn.closest(".text-field-container")?.querySelector("textarea") ||
-            btn.parentElement?.querySelector("textarea") ||
-            btn.parentElement?.querySelector('input[type="text"]');
-          if (textarea) {
-            const isLTR = textarea.hasAttribute("data-ltr");
-            // Button shows what clicking it will do
-            btn.textContent = isLTR ? "RTL" : "LTR";
-          }
+        registerManagedDirectionDefaults(document.getElementById("input-form"));
+        applyTextDirectionProfile(getCurrentTextDirectionProfile(), {
+          persist: false,
+          scope: document.getElementById("input-form"),
+          syncPreviews: true,
+          updateSelect: true,
+          refreshFinalPreview: false,
         });
 
         // Try to load saved data
@@ -37513,6 +37746,16 @@
       window.addEventListener("click", function (event) {
         const modal = document.getElementById("whats-new-modal");
         if (event.target === modal) {
+          closeWhatsNew();
+        }
+      });
+
+      // Close What's New modal when pressing Escape
+      window.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        const modal = document.getElementById("whats-new-modal");
+        if (!modal) return;
+        if (window.getComputedStyle(modal).display !== "none") {
           closeWhatsNew();
         }
       });
