@@ -847,6 +847,50 @@
         PASTE_BBOX: "paste_bbox",
       };
 
+      const CONTENT_SECTION_FIELD_KEYS = {
+        TITLE: "title",
+        CONTENT: "content",
+        ADDITIONAL_CONTENT: "additional_content",
+        IMAGES: "images",
+      };
+
+      const CONTENT_SECTION_FIELDS = {
+        [CONTENT_SECTION_FIELD_KEYS.TITLE]: {
+          key: "section_title",
+          label: "Section Title",
+          fieldType: "input",
+          previewTitle: "Section Title",
+          previewTarget: "title",
+          editSelector: "input[placeholder='Section title']",
+        },
+        [CONTENT_SECTION_FIELD_KEYS.CONTENT]: {
+          key: "text",
+          label: "Content (Markdown + LaTeX)",
+          fieldType: "textarea",
+          previewTitle: "Content",
+          previewTarget: "content",
+          placeholder: "Enter content with markdown formatting and LaTeX...",
+          editSelector:
+            "textarea[placeholder*='Enter content with markdown formatting and LaTeX']",
+        },
+        [CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT]: {
+          key: "additional_content",
+          label: "Additional Content (Markdown + LaTeX)",
+          fieldType: "textarea",
+          previewTitle: "Additional Content",
+          previewTarget: "additional_content",
+          placeholder:
+            "Enter additional content with markdown formatting and LaTeX...",
+          editSelector:
+            "textarea[placeholder*='Enter additional content with markdown formatting and LaTeX']",
+        },
+        [CONTENT_SECTION_FIELD_KEYS.IMAGES]: {
+          key: "images",
+          label: "Section Images",
+          fieldType: "group",
+        },
+      };
+
       // Record an action for undo/redo
       function recordFormAction(action) {
         if (isFormUndoRedoInProgress) return;
@@ -1384,26 +1428,25 @@
 
                 // Populate with saved data
                 const state = action.snapshotState;
-                const sectionTitleInput = findFieldByLabel(
+                setContentSectionFieldValue(
                   elementToRestore,
-                  "Section Title",
-                  "input",
+                  CONTENT_SECTION_FIELD_KEYS.TITLE,
+                  state.section_title || "",
                 );
-                if (sectionTitleInput) {
-                  sectionTitleInput.value = state.section_title || "";
-                }
-                const sectionTextTextarea = findFieldByLabel(
+                setContentSectionFieldValue(
                   elementToRestore,
-                  "Content (Markdown + LaTeX)",
-                  "textarea",
+                  CONTENT_SECTION_FIELD_KEYS.CONTENT,
+                  state.text || "",
                 );
-                if (sectionTextTextarea) {
-                  sectionTextTextarea.value = state.text || "";
-                }
+                setContentSectionFieldValue(
+                  elementToRestore,
+                  CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
+                  state.additional_content ?? "",
+                );
                 // Fill bbox data
-                const imagesGroup = findFormGroupByLabel(
+                const imagesGroup = getContentSectionFieldElement(
                   elementToRestore,
-                  "Section Images",
+                  CONTENT_SECTION_FIELD_KEYS.IMAGES,
                 );
                 if (imagesGroup && state.images) {
                   fillBboxGroup(imagesGroup, state.images);
@@ -3804,9 +3847,14 @@
           const sectionText = section.querySelector(
             'textarea[placeholder*="Enter content"]',
           );
+          const sectionAdditionalText = section.querySelector(
+            'textarea[placeholder*="Enter additional content"]',
+          );
 
           if (sectionTitle) sectionSize += (sectionTitle.value || "").length;
           if (sectionText) sectionSize += (sectionText.value || "").length;
+          if (sectionAdditionalText)
+            sectionSize += (sectionAdditionalText.value || "").length;
 
           contentSectionSizes.push(sectionSize);
         });
@@ -11301,7 +11349,9 @@
         if (!rootEl) return;
         if (rootEl.id === "final-preview-content") {
           rootEl
-            .querySelectorAll('.preview-section[data-target-element="content"]')
+            .querySelectorAll(
+              '.preview-section[data-target-element="content"], .preview-section[data-target-element="additional_content"]',
+            )
             .forEach(function (previewSection) {
               var navigateTo = previewSection.getAttribute("data-navigate-to");
               if (!navigateTo || navigateTo.indexOf("content-section-") !== 0)
@@ -12298,94 +12348,96 @@
 
       function renderContentSectionPreview(sectionEl, index) {
         if (!sectionEl) return "";
-        const titleInput = sectionEl.querySelector(
-          'input[placeholder="Section title"]',
+        const titleInput = getContentSectionFieldElement(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.TITLE,
         );
-        const textarea = sectionEl.querySelector(
-          ".text-field-container textarea",
+        const contentTextarea = getContentSectionFieldElement(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.CONTENT,
+        );
+        const additionalContentTextarea = getContentSectionFieldElement(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
         );
         const title = titleInput ? titleInput.value || "" : "";
-        const text = textarea ? textarea.value || "" : "";
+        const text = contentTextarea ? contentTextarea.value || "" : "";
+        const additionalText = additionalContentTextarea
+          ? additionalContentTextarea.value || ""
+          : "";
         const sectionId = "content-section-" + index;
         sectionEl.setAttribute("data-preview-id", sectionId);
 
         let html = `<div class="final-preview-section" data-content-section-index="${index}">`;
 
-        // Section Title Preview (separate box)
-        if (title && titleInput) {
-          // Find existing preview for title
-          let titlePreview = null;
-          let sibling = titleInput.nextElementSibling;
+        function getPreviewHTMLForField(fieldEl) {
+          if (!fieldEl) return "";
+          let previewEl = null;
+          let sibling = fieldEl.nextElementSibling;
           while (sibling) {
             if (
               sibling.classList &&
               sibling.classList.contains("live-preview")
             ) {
-              titlePreview = sibling;
+              previewEl = sibling;
               break;
             }
             sibling = sibling.nextElementSibling;
           }
-
-          let titlePreviewHTML;
-          if (titlePreview && titlePreview.innerHTML) {
-            titlePreviewHTML = titlePreview.innerHTML;
-          } else {
-            const tempTitlePreview = document.createElement("div");
-            tempTitlePreview.className = "live-preview";
-            tempTitlePreview.setAttribute("dir", "rtl");
-            tempTitlePreview.style.textAlign = "right";
-            renderLivePreviewToElement(titleInput, tempTitlePreview);
-            titlePreviewHTML = tempTitlePreview.innerHTML;
-          }
-          html += buildPreviewBox({
-            title: "Section Title",
-            editTarget: `navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) input[placeholder=\\'Section title\\']'))`,
-            bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${titlePreviewHTML}</div>`,
-            dataAttrs: { "navigate-to": sectionId, "target-element": "title" },
-          });
+          if (previewEl && previewEl.innerHTML) return previewEl.innerHTML;
+          const tempPreview = document.createElement("div");
+          tempPreview.className = "live-preview";
+          tempPreview.setAttribute("dir", "rtl");
+          tempPreview.style.textAlign = "right";
+          renderLivePreviewToElement(fieldEl, tempPreview);
+          return tempPreview.innerHTML;
         }
 
-        // Content Preview (separate box)
-        if (text && textarea) {
-          // Find existing preview for content
-          let contentPreview = null;
-          let sibling = textarea.nextElementSibling;
-          while (sibling) {
-            if (
-              sibling.classList &&
-              sibling.classList.contains("live-preview")
-            ) {
-              contentPreview = sibling;
-              break;
-            }
-            sibling = sibling.nextElementSibling;
-          }
-
-          let contentPreviewHTML;
-          if (contentPreview && contentPreview.innerHTML) {
-            contentPreviewHTML = contentPreview.innerHTML;
-          } else {
-            const tempContentPreview = document.createElement("div");
-            tempContentPreview.className = "live-preview";
-            tempContentPreview.setAttribute("dir", "rtl");
-            tempContentPreview.style.textAlign = "right";
-            renderLivePreviewToElement(textarea, tempContentPreview);
-            contentPreviewHTML = tempContentPreview.innerHTML;
-          }
+        function addSectionPreviewBox(options) {
+          const { fieldEl, value, titleText, targetElement, editSelector } =
+            options;
+          if (!value || !fieldEl) return;
+          const previewHTML = getPreviewHTMLForField(fieldEl);
+          const editTarget = `navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) ${editSelector}'))`;
           html += buildPreviewBox({
-            title: "Content",
-            editTarget: `navigateToInput(document.querySelector('#content_sections_container > .array-item:nth-child(${index + 1}) .text-field-container textarea'))`,
-            bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${contentPreviewHTML}</div>`,
+            title: titleText,
+            editTarget: editTarget,
+            bodyHTML: `<div class="live-preview" dir="rtl" style="text-align: right;">${previewHTML}</div>`,
             dataAttrs: {
               "navigate-to": sectionId,
-              "target-element": "content",
+              "target-element": targetElement,
             },
           });
         }
 
-        // If neither title nor content exists
-        if (!title && !text) {
+        addSectionPreviewBox({
+          fieldEl: titleInput,
+          value: title,
+          titleText: "Section Title",
+          targetElement: "title",
+          editSelector: "input[placeholder=\\'Section title\\']",
+        });
+
+        addSectionPreviewBox({
+          fieldEl: contentTextarea,
+          value: text,
+          titleText: "Content",
+          targetElement: "content",
+          editSelector:
+            "textarea[placeholder*=\\'Enter content with markdown formatting and LaTeX\\']",
+        });
+
+        addSectionPreviewBox({
+          fieldEl: additionalContentTextarea,
+          value: additionalText,
+          titleText: "Additional Content",
+          targetElement: "additional_content",
+          editSelector:
+            "textarea[placeholder*=\\'Enter additional content with markdown formatting and LaTeX\\']",
+        });
+
+        // If the section has no renderable text fields
+        if (!title && !text && !additionalText) {
           html +=
             '<p style="color: var(--text-secondary); font-style: italic;">(No content)</p>';
         }
@@ -12400,7 +12452,9 @@
       ) {
         if (!sectionBlock) return;
         sectionBlock
-          .querySelectorAll('.preview-section[data-target-element="content"]')
+          .querySelectorAll(
+            '.preview-section[data-target-element="content"], .preview-section[data-target-element="additional_content"]',
+          )
           .forEach(function (previewSection) {
             var livePreview = previewSection.querySelector(".live-preview");
             if (!livePreview) return;
@@ -13237,12 +13291,19 @@
                 )[index];
                 if (sectionEl) {
                   if (targetElement === "title") {
-                    textarea = sectionEl.querySelector(
-                      'input[placeholder="Section title"]',
+                    textarea = getContentSectionFieldElement(
+                      sectionEl,
+                      CONTENT_SECTION_FIELD_KEYS.TITLE,
                     );
                   } else if (targetElement === "content") {
-                    textarea = sectionEl.querySelector(
-                      ".text-field-container textarea",
+                    textarea = getContentSectionFieldElement(
+                      sectionEl,
+                      CONTENT_SECTION_FIELD_KEYS.CONTENT,
+                    );
+                  } else if (targetElement === "additional_content") {
+                    textarea = getContentSectionFieldElement(
+                      sectionEl,
+                      CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
                     );
                   }
                 }
@@ -14404,11 +14465,20 @@
         );
         contentSections.forEach((section, index) => {
           const sectionTitle =
-            section.querySelector('input[placeholder*="Section title"]')
-              ?.value || "";
+            getContentSectionFieldElement(
+              section,
+              CONTENT_SECTION_FIELD_KEYS.TITLE,
+            )?.value || "";
           const sectionContent =
-            section.querySelector('textarea[placeholder*="Enter content"]')
-              ?.value || "";
+            getContentSectionFieldElement(
+              section,
+              CONTENT_SECTION_FIELD_KEYS.CONTENT,
+            )?.value || "";
+          const sectionAdditionalContent =
+            getContentSectionFieldElement(
+              section,
+              CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
+            )?.value || "";
 
           const sectionNumber = index + 1;
 
@@ -14429,6 +14499,16 @@
               type: "Content Text",
               title: `Content Section ${sectionNumber}`,
               preview: getContextPreview(sectionContent, term),
+              element: section,
+              index: sectionNumber,
+            });
+          }
+
+          if (sectionAdditionalContent.toLowerCase().includes(lowerTerm)) {
+            results.push({
+              type: "Additional Content",
+              title: `Content Section ${sectionNumber}`,
+              preview: getContextPreview(sectionAdditionalContent, term),
               element: section,
               index: sectionNumber,
             });
@@ -17392,11 +17472,10 @@
         newSection.setAttribute("data-section-id", `content-${sectionCount}`);
         newSection.innerHTML = getContentSectionHTML(sectionCount);
 
-        // Ensure the new section textarea starts with RTL (content is RTL)
-        const newTextarea = newSection.querySelector("textarea");
-        if (newTextarea) {
-          newTextarea.setAttribute("dir", "rtl");
-        }
+        // Ensure section textareas start with RTL (content is RTL)
+        newSection.querySelectorAll("textarea").forEach((textarea) => {
+          textarea.setAttribute("dir", "rtl");
+        });
 
         // Ensure the section title starts with RTL (Arabic content)
         const newTitleInput = newSection.querySelector(
@@ -17767,6 +17846,15 @@
                     <div class="text-field-container">
                         <span class="input-label">Input Markdown</span>
                         <textarea placeholder="Enter content with markdown formatting and LaTeX..." title="Main content text supporting markdown and LaTeX math expressions"></textarea>
+                        ${getMarkdownButtonBarHTML({ includeImage: true, includeTable: true })}
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Additional Content (Markdown + LaTeX)</label>
+                    <div class="text-field-container">
+                        <span class="input-label">Input Markdown</span>
+                        <textarea placeholder="Enter additional content with markdown formatting and LaTeX..." title="Optional additional content such as listening exercises, supporting markdown and LaTeX"></textarea>
                         ${getMarkdownButtonBarHTML({ includeImage: true, includeTable: true })}
                     </div>
                 </div>
@@ -23408,10 +23496,9 @@
         // Check content sections
         if (jsonData.instructional_content) {
           jsonData.instructional_content.forEach((content, index) => {
-            const text = content.text || "";
             const images = content.images || [];
 
-            if (text) {
+            if (hasAnyContentImageText(content)) {
               // Check for both image references and table references (tables are images)
               const { uniqueIndices } = getContentTextIndices(content);
 
@@ -23557,9 +23644,8 @@
         if (jsonData.instructional_content) {
           jsonData.instructional_content.forEach((content, index) => {
             const images = content.images || [];
-            const text = content.text || "";
 
-            if (text) {
+            if (hasAnyContentImageText(content)) {
               const { allIndices, uniqueIndices } =
                 getContentTextIndices(content);
 
@@ -23684,10 +23770,9 @@
         // Check content sections
         if (jsonData.instructional_content) {
           jsonData.instructional_content.forEach((content, index) => {
-            const text = content.text || "";
             const images = content.images || [];
 
-            if (text && images.length > 0) {
+            if (hasAnyContentImageText(content) && images.length > 0) {
               const { allIndices, uniqueIndices } =
                 getContentTextIndices(content);
               const sortedIndices = [...uniqueIndices].sort((a, b) => a - b);
@@ -24967,17 +25052,24 @@
        * @returns {Object} Complete content section data object
        */
       function collectContentData(sectionEl) {
-        const sectionTitle = getFieldValue(sectionEl, "Section Title");
-        const text = getFieldValue(
+        const sectionTitle = getContentSectionFieldValue(
           sectionEl,
-          "Content (Markdown + LaTeX)",
-          "textarea",
+          CONTENT_SECTION_FIELD_KEYS.TITLE,
+        );
+        const text = getContentSectionFieldValue(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.CONTENT,
+        );
+        const additionalContent = getContentSectionFieldValue(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
         );
         const images = collectBboxData(sectionEl, "images", true);
 
         return {
           section_title: sectionTitle,
           text: text,
+          additional_content: additionalContent ? additionalContent : null,
           images: images,
         };
       }
@@ -25476,16 +25568,27 @@
         }
 
         // Fill in the data
-        setFieldValue(sectionEl, "Section Title", data.section_title || "");
-        setFieldValue(
+        setContentSectionFieldValue(
           sectionEl,
-          "Content (Markdown + LaTeX)",
+          CONTENT_SECTION_FIELD_KEYS.TITLE,
+          data.section_title || "",
+        );
+        setContentSectionFieldValue(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.CONTENT,
           data.text || "",
-          "textarea",
+        );
+        setContentSectionFieldValue(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
+          data.additional_content ?? "",
         );
 
         // Fill images
-        const imagesGroup = findFormGroupByLabel(sectionEl, "Section Images");
+        const imagesGroup = getContentSectionFieldElement(
+          sectionEl,
+          CONTENT_SECTION_FIELD_KEYS.IMAGES,
+        );
         if (imagesGroup) {
           fillBboxGroup(imagesGroup, data.images || []);
         }
@@ -25622,6 +25725,22 @@
       function getNextImageIndexForField(textarea) {
         // Get the base next index
         let nextIndex = getNextImageIndex(textarea);
+
+        if (textarea.closest("#content_sections_container")) {
+          const sectionEl = textarea.closest(
+            "#content_sections_container > .array-item",
+          );
+          if (sectionEl) {
+            let allContentIndices = [];
+            getContentSectionTextareas(sectionEl).forEach((field) => {
+              allContentIndices.push(...extractAllImageIndices(field.value));
+            });
+            const uniqueIndices = getUniqueIndices(allContentIndices);
+            nextIndex =
+              uniqueIndices.length === 0 ? 0 : Math.max(...uniqueIndices) + 1;
+          }
+          return nextIndex;
+        }
 
         // For questions, check other text fields that share the same image array
         if (textarea.closest("#questions_container")) {
@@ -28676,8 +28795,7 @@
        * @returns {Object} Object with allIndices and uniqueIndices
        */
       function getContentTextIndices(content) {
-        const text = content.text || "";
-        const allIndices = extractAllImageIndices(text);
+        const allIndices = extractAllImageIndices(getContentImageSourceTexts(content));
         const uniqueIndices = getUniqueIndices(allIndices);
         return { allIndices, uniqueIndices };
       }
@@ -30265,7 +30383,12 @@
 
         // Calculate section sizes from generated data
         const contentSizes = jsonData.instructional_content.map(
-          (c) => ((c.section_title || "") + (c.text || "")).length,
+          (c) =>
+            (
+              (c.section_title || "") +
+              (c.text || "") +
+              (c.additional_content || "")
+            ).length,
         );
         const questionSizes = jsonData.practice_questions.map((q) => {
           let size = (q.question || "").length + (q.setup_text || "").length;
@@ -30806,6 +30929,59 @@
         });
       }
 
+      function getContentSectionFieldConfig(fieldKey) {
+        return CONTENT_SECTION_FIELDS[fieldKey] || null;
+      }
+
+      function getContentSectionFieldElement(sectionEl, fieldKey) {
+        const config = getContentSectionFieldConfig(fieldKey);
+        if (!sectionEl || !config) return null;
+        if (config.fieldType === "group") {
+          return findFormGroupByLabel(sectionEl, config.label);
+        }
+        return findFieldByLabel(sectionEl, config.label, config.fieldType);
+      }
+
+      function getContentSectionFieldValue(sectionEl, fieldKey) {
+        const config = getContentSectionFieldConfig(fieldKey);
+        if (!config || config.fieldType === "group") return "";
+        return getFieldValue(sectionEl, config.label, config.fieldType);
+      }
+
+      function setContentSectionFieldValue(sectionEl, fieldKey, value) {
+        const config = getContentSectionFieldConfig(fieldKey);
+        if (!config || config.fieldType === "group") return;
+        const nextValue = value == null ? "" : String(value);
+        setFieldValue(sectionEl, config.label, nextValue, config.fieldType);
+      }
+
+      function getContentSectionTextareas(sectionEl) {
+        const fields = [
+          getContentSectionFieldElement(sectionEl, CONTENT_SECTION_FIELD_KEYS.CONTENT),
+          getContentSectionFieldElement(
+            sectionEl,
+            CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
+          ),
+        ];
+        return fields.filter((field) => field && field.tagName === "TEXTAREA");
+      }
+
+      function getContentImageSourceTexts(content) {
+        const primary =
+          content && typeof content.text === "string" ? content.text : "";
+        const additional =
+          content && typeof content.additional_content === "string"
+            ? content.additional_content
+            : "";
+        return [primary, additional];
+      }
+
+      function hasAnyContentImageText(content) {
+        return getContentImageSourceTexts(content).some(
+          (text) => text && text.trim().length > 0,
+        );
+      }
+
       function populateContentSections(data, defaultPage, options = {}) {
         const { deferHydration = false } = options;
         const sections = Array.isArray(data?.instructional_content)
@@ -30819,14 +30995,33 @@
         sections.forEach((sec, idx) => {
           addContentSection();
           const sectionEl = container.lastElementChild;
-          const groups = sectionEl.querySelectorAll(".form-group");
-          // 0: title, 1: text, 2: images
           const title = (sec.section_title ?? sec.title ?? "").toString();
           const text = (sec.text ?? "").toString();
-          groups[0].querySelector("input").value = title;
-          groups[1].querySelector("textarea").value = text;
+          const additionalContent =
+            sec.additional_content == null
+              ? ""
+              : String(sec.additional_content);
+          setContentSectionFieldValue(
+            sectionEl,
+            CONTENT_SECTION_FIELD_KEYS.TITLE,
+            title,
+          );
+          setContentSectionFieldValue(
+            sectionEl,
+            CONTENT_SECTION_FIELD_KEYS.CONTENT,
+            text,
+          );
+          setContentSectionFieldValue(
+            sectionEl,
+            CONTENT_SECTION_FIELD_KEYS.ADDITIONAL_CONTENT,
+            additionalContent,
+          );
           const normImages = normalizeBboxArray(sec.images, defaultPage);
-          fillBboxGroup(groups[2], normImages);
+          const imagesGroup = getContentSectionFieldElement(
+            sectionEl,
+            CONTENT_SECTION_FIELD_KEYS.IMAGES,
+          );
+          fillBboxGroup(imagesGroup, normImages);
         });
 
         // Reset bulk operation flag
@@ -36761,6 +36956,7 @@
               labelText.includes("Textbook") ||
               labelText.includes("Section Title") ||
               labelText.includes("Content (Markdown") ||
+              labelText.includes("Additional Content (Markdown") ||
               labelText.includes("Question ID") ||
               labelText.includes("Set-up Text") ||
               labelText.includes("Question Text") ||
