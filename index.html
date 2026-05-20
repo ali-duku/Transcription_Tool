@@ -88,6 +88,8 @@
                 "<strong>Fully supported across the tool:</strong> It now stays with your work when adding, loading, copying, duplicating, undoing, redoing, and in Final Preview.",
                 "<strong>New Appendix page type:</strong> You can now select <code>Appendix</code> in Page Type.",
                 "<strong>New Appendix Title field:</strong> A new optional title field was added to Basic Info, and it appears in Final Preview and saved output when filled.",
+                "<strong>New Revision page type:</strong> You can now select <code>Revision</code> in Page Type.",
+                "<strong>New Revision Title field:</strong> A new optional title field was added to Basic Info, and it appears in Final Preview and saved output when filled.",
               ],
             },
           ],
@@ -7893,6 +7895,7 @@
                 <!-- Page Type - Refactored to use createFormControl -->
                 <div id="page_type_container"></div>
                 <div id="appendix_title_container"></div>
+                <div id="revision_title_container"></div>
 
                 <div class="highlight">
                   <h4><i class="fas fa-lightbulb"></i> Basic Info Tips</h4>
@@ -19887,6 +19890,9 @@
          * @param {Object} options - Options passed to createPreviewBox
          */
         function collectPreviewSourceEls(rootEl = document) {
+          const scopedTitleSelectors = BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.map(
+            (field) => `#${field.id}`,
+          );
           const selectors = [
             ".text-field-container textarea",
             "#unit_text",
@@ -19900,7 +19906,7 @@
             "#book_title_page_version",
             "#book_title_page_lang",
             "#book_title_page_subject",
-            "#appendix_title",
+            ...scopedTitleSelectors,
             '.form-group input[placeholder="Section title"]',
             "#terminology textarea",
             "#lesson_standards textarea",
@@ -29546,6 +29552,7 @@
         { value: "unit_table_of_content", text: "Unit Table of Content" },
         { value: "table_of_content", text: "Table of Content" },
         { value: "title_page", text: "Title Page" },
+        { value: "revision", text: "Revision" },
         { value: "appendix", text: "Appendix" },
         { value: "other", text: "Other" },
       ];
@@ -29560,6 +29567,16 @@
           placeholder: "e.g., Appendix A: Formula Sheet",
           title:
             "Title used for appendix pages (supports markdown formatting)",
+        },
+        {
+          key: "revision_title",
+          id: "revision_title",
+          containerId: "revision_title_container",
+          label: "Revision Title",
+          pageType: "revision",
+          placeholder: "e.g., Unit 3 Revision",
+          title:
+            "Title used for revision pages (supports markdown formatting)",
         },
       ];
 
@@ -37114,7 +37131,7 @@
           "unit_title_translation",
           "unit_text",
           "page_type",
-          "appendix_title",
+          ...BASIC_PAGE_TYPE_SCOPED_TITLE_FIELDS.map((field) => field.id),
           "book_title_page_title",
           "book_title_page_subtitle",
           "book_title_page_version",
