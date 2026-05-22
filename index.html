@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.6";
+      const APP_VERSION = "8.7";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,22 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "8.7",
+          sections: [
+            {
+              key: "enhancements",
+              title: "Enhancements",
+              iconClass: "fas fa-arrow-up",
+              iconColor: "var(--state-success)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Smoother Additional Content workflow:</strong> In the Content tab, selecting Additional Content now opens the guidebook automatically, so you stay in the right PDF while working.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.6",
           sections: [
@@ -37079,14 +37095,20 @@
         let useRangeCheck = false; // Flag to enable range checking
         const TEXTBOOK_RANGE = 1; // Pages before/after for textbook range
 
-        // Content tab: use textbook with PDF Page Number
+        // Content tab: usually use textbook with PDF Page Number, except
+        // guide-related fields (e.g., Additional Content) that should use guidebook.
         if (context.activeTab === "content") {
-          targetSource = "textbook";
-          const textbookPageInput =
-            document.getElementById("textbook_pdf_page");
-          if (textbookPageInput && textbookPageInput.value) {
-            targetPage = parseInt(textbookPageInput.value, 10);
-            useRangeCheck = true;
+          if (isGuideRelatedField(document.activeElement)) {
+            targetSource = "guide";
+            targetPage = getGuidebookPageInRange();
+          } else {
+            targetSource = "textbook";
+            const textbookPageInput =
+              document.getElementById("textbook_pdf_page");
+            if (textbookPageInput && textbookPageInput.value) {
+              targetPage = parseInt(textbookPageInput.value, 10);
+              useRangeCheck = true;
+            }
           }
         }
         // Questions tab: use guidebook when guide answer box is active
@@ -37294,6 +37316,7 @@
             if (
               labelText.includes("Guide Answer") ||
               labelText.includes("Guide PDF Page") ||
+              labelText.includes("Additional Content (Markdown") ||
               labelText.includes("Answer Images") ||
               labelText.includes("Choice Text") ||
               labelText.includes("Blank Answers") ||
@@ -37375,7 +37398,6 @@
               labelText.includes("Textbook") ||
               labelText.includes("Section Title") ||
               labelText.includes("Content (Markdown") ||
-              labelText.includes("Additional Content (Markdown") ||
               labelText.includes("Question ID") ||
               labelText.includes("Set-up Text") ||
               labelText.includes("Question Text") ||
@@ -37391,6 +37413,9 @@
             }
           }
         }
+
+        // Guide-related fields should never be treated as textbook-related.
+        if (isGuideRelatedField(element)) return false;
 
         // Check for content/question section indicators
         if (
