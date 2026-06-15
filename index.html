@@ -4930,6 +4930,16 @@
         overflow-y: hidden !important;
         box-sizing: border-box !important;
       }
+      .live-preview .__math_inline {
+        display: inline-block !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        box-sizing: border-box !important;
+        line-height: normal !important;
+        padding: 0.85em 0 0.45em !important;
+        vertical-align: middle !important;
+      }
       .live-preview .katex-display {
         text-align: center !important;
         margin: 1em auto !important;
@@ -13448,6 +13458,7 @@
                   { left: "$", right: "$", display: false },
                 ],
               });
+              normalizeInlineKatexOverflow(preview);
               applyKatexBidi(preview);
             }
           });
@@ -13457,6 +13468,21 @@
         ) {
           AutoSizeManager.finalizeSpawn(previewContainer);
         }
+      }
+
+      function normalizeInlineKatexOverflow(root) {
+        if (!root || !root.querySelectorAll) return;
+        root.querySelectorAll(".katex").forEach((el) => {
+          if (el.closest(".katex-display, .__math_inline")) return;
+          const parent = el.parentNode;
+          if (!parent) return;
+          const wrapper = document.createElement("span");
+          wrapper.className = "__math_inline";
+          wrapper.style.unicodeBidi = "plaintext";
+          wrapper.style.direction = "auto";
+          parent.insertBefore(wrapper, el);
+          wrapper.appendChild(el);
+        });
       }
 
       // Apply consistent KaTeX bidi handling across all previews
@@ -19361,6 +19387,7 @@
                 { left: "\\[", right: "\\]", display: true },
               ],
             });
+            normalizeInlineKatexOverflow(preview);
             applyKatexBidi(preview);
           }
           if (allowBboxes && hasBbox) {
@@ -28244,6 +28271,7 @@
                       { left: "\\[", right: "\\]", display: true },
                     ],
                   });
+                  normalizeInlineKatexOverflow(preview);
                   applyKatexBidi(preview);
                 } catch (e) {
                   // ignore math errors
