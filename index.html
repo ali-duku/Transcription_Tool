@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.7";
+      const APP_VERSION = "8.8";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,22 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "8.8",
+          sections: [
+            {
+              key: "bug_fixes",
+              title: "Bug Fixes",
+              iconClass: "fas fa-bug",
+              iconColor: "var(--state-danger)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Duplicated previews now keep the selected text direction:</strong> When Direction is set to LTR, duplicated content sections and questions now keep their output preview boxes LTR as well. Duplicate, paste, and restored preview flows now use the canonical direction pipeline instead of falling back to RTL.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.7",
           sections: [
@@ -16127,10 +16143,15 @@
         // Get currently selected UID (canonical truth)
         const correctChoiceUid = getCorrectChoiceUid(questionEl);
 
-        // Get or create direction state for this radios container
-        const containerId = radiosContainer.id;
+        // Get or create direction state for this radios container.
+        // Freshly built questions should follow the choice text direction/profile.
         if (!radiosContainer.dataset.direction) {
-          radiosContainer.dataset.direction = "rtl"; // Default to RTL
+          const firstChoiceTextArea = choicesList
+            ? choicesList.querySelector(".choice-text")
+            : null;
+          radiosContainer.dataset.direction = firstChoiceTextArea
+            ? getFieldDirectionMeta(firstChoiceTextArea).direction
+            : "rtl";
         }
         const currentDirection = radiosContainer.dataset.direction;
 
@@ -17799,13 +17820,13 @@
       function finalizePastedSection(sectionEl, options = {}) {
         if (!sectionEl) return;
 
-        // Use canonical finalizer for fonts, refresh, and autosize
-        // Note: previews should already be attached by caller before this is called
+        // Use canonical finalizer for direction, previews, fonts, refresh, and autosize.
         finalizeElement(sectionEl, {
-          previews: false, // Caller should have attached previews already
+          previews: true,
           fonts: true,
-          bbox: false, // We handle bbox finalization separately below
+          bbox: true,
           refresh: true,
+          forcePreviewRefresh: true,
           autoSize: true,
         });
 
@@ -17842,6 +17863,7 @@
        * @param {boolean} [options.fonts=true] - Apply font settings
        * @param {boolean} [options.bbox=true] - Attach bbox validation
        * @param {boolean} [options.refresh=true] - Force render all previews
+       * @param {boolean} [options.forcePreviewRefresh=false] - Re-render initialized previews
        * @param {boolean} [options.autoSize=true] - Trigger autosize pipeline
        * @param {string|null} [options.containerId=null] - Container ID for afterListMutation
        * @param {boolean} [options.skipBulkCheck=false] - Skip isBulkOperation check for containerId
@@ -17854,18 +17876,14 @@
           fonts = true,
           bbox = true,
           refresh = true,
+          forcePreviewRefresh = false,
           autoSize = true,
           containerId = null,
           skipBulkCheck = false,
         } = options;
 
-        registerManagedDirectionDefaults(el);
-        applyTextDirectionProfile(getCurrentTextDirectionProfile(), {
-          persist: false,
-          scope: el,
+        applyCurrentTextDirectionProfileToScope(el, {
           syncPreviews: false,
-          updateSelect: false,
-          refreshFinalPreview: false,
         });
 
         // Order matters: previews before fonts (so previews inherit font settings)
@@ -17890,9 +17908,13 @@
         if (
           refresh &&
           typeof PreviewBox !== "undefined" &&
-          PreviewBox.ensureRendered
+          (PreviewBox.ensureRendered || PreviewBox.refreshAll)
         ) {
-          PreviewBox.ensureRendered(el);
+          if (forcePreviewRefresh && PreviewBox.refreshAll) {
+            PreviewBox.refreshAll(el);
+          } else if (PreviewBox.ensureRendered) {
+            PreviewBox.ensureRendered(el);
+          }
         }
 
         // Spawn finalization: register and force-fit with current content (after values/previews are set)
@@ -20552,6 +20574,17 @@
 
       function getCurrentTextDirectionProfile() {
         return currentTextDirectionProfile;
+      }
+
+      function applyCurrentTextDirectionProfileToScope(scope, options = {}) {
+        registerManagedDirectionDefaults(scope);
+        applyTextDirectionProfile(getCurrentTextDirectionProfile(), {
+          persist: false,
+          scope,
+          syncPreviews: options.syncPreviews === true,
+          updateSelect: options.updateSelect === true,
+          refreshFinalPreview: options.refreshFinalPreview === true,
+        });
       }
 
       function applyTextDirectionProfile(profile, options = {}) {
@@ -25501,8 +25534,9 @@
         if (!sectionEl) return;
         const sectionType = type === "question" ? "question" : "content";
 
-        attachPreviews(sectionEl);
-        attachBboxValidation(sectionEl);
+        applyCurrentTextDirectionProfileToScope(sectionEl, {
+          syncPreviews: false,
+        });
 
         if (sectionType === "question") {
           const questionType = getQuestionType(sectionEl);
@@ -25516,13 +25550,18 @@
             updateMatchingItemNumbers(sectionEl, "left");
             ensureMatchingUids(sectionEl);
             rebuildMatchingRelationshipUI(sectionEl);
-          }
-          if (typeof handleQuestionImageStructureChange === "function") {
-            handleQuestionImageStructureChange(sectionEl, "deserialize");
+          } else if (questionType === "fill_in_the_blanks") {
+            updateFilledBlanksPreview(sectionEl);
           }
         }
 
         finalizePastedSection(sectionEl, { type: sectionType });
+        if (
+          sectionType === "question" &&
+          typeof handleQuestionImageStructureChange === "function"
+        ) {
+          handleQuestionImageStructureChange(sectionEl, "deserialize");
+        }
         updateDirectionButtonsInScope(sectionEl);
       }
 
@@ -28178,6 +28217,12 @@
         const questionDirection = getFieldDirectionMeta(questionTextarea);
         preview.setAttribute("dir", questionDirection.direction);
         preview.style.textAlign = questionDirection.textAlign;
+        const directionButton =
+          preview.closest(".form-group")?.querySelector(".dir-btn") || null;
+        if (directionButton) {
+          directionButton.textContent =
+            questionDirection.direction === "rtl" ? "LTR" : "RTL";
+        }
 
         let questionText = questionTextarea.value.trim();
 
