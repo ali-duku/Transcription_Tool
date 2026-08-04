@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.8";
+      const APP_VERSION = "8.9";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,22 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "8.9",
+          sections: [
+            {
+              key: "enhancements",
+              title: "Enhancements",
+              iconClass: "fas fa-arrow-up",
+              iconColor: "var(--state-success)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Table cell line-break shortcut restored:</strong> The preview now keeps the old <code>$ \\\\ $</code> trick working inside markdown table cells, rendering it as a line break without changing saved text or affecting normal LaTeX elsewhere.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.8",
           sections: [
@@ -13501,6 +13517,10 @@
         });
       }
 
+      function isLegacyTableCellLineBreakMath(tex) {
+        return typeof tex === "string" && tex.trim() === "\\\\";
+      }
+
       // Apply consistent KaTeX bidi handling across all previews
       function applyKatexBidi(root) {
         if (!root) return;
@@ -19382,6 +19402,13 @@
             inlines.forEach((node) => {
               const i = parseInt(node.getAttribute("data-im"), 10);
               const originalTex = inlineMath[i] || "";
+              if (
+                isLegacyTableCellLineBreakMath(originalTex) &&
+                node.closest("td, th")
+              ) {
+                node.parentNode.replaceChild(document.createElement("br"), node);
+                return;
+              }
               const isBold = !!node.closest("strong, b");
               const isItalic = !!node.closest("em, i");
               let texToRender = originalTex;
