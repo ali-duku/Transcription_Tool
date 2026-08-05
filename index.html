@@ -27,7 +27,7 @@
       //   - Header/UI display
       //   - What's New modal auto-open checks
       //   - Version reload checks
-      const APP_VERSION = "8.9";
+      const APP_VERSION = "9.0";
       const VERSION_SEEN_KEY = "whatsNewVersionSeen";
       // Question schema migration phase switch.
       // 'global_scaffold' keeps legacy export fallback; 'canonical_output' emits schema export only.
@@ -74,6 +74,43 @@
       // What's New releases (single source of truth, newest first).
       // To add a new release, prepend a new object at index 0.
       const WHATS_NEW_RELEASES = [
+        {
+          version: "9.0",
+          sections: [
+            {
+              key: "new_feature",
+              title: "New Feature",
+              iconClass: "fas fa-star",
+              iconColor: "var(--state-success)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Remove PDFs from the viewer:</strong> You can now remove the loaded Textbook or Guide PDF directly from the PDF Viewer when you need to replace it or clear it from the tool.",
+              ],
+            },
+            {
+              key: "enhancements",
+              title: "Enhancements",
+              iconClass: "fas fa-arrow-up",
+              iconColor: "var(--state-success)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Smarter PDF remove button:</strong> The PDF Viewer now uses one remove button that automatically removes whichever PDF you are currently viewing, Textbook or Guide.",
+                "<strong>Faster PDF upload:</strong> When no PDF is loaded, the upload button now opens your file picker directly instead of sending you through an extra upload window.",
+              ],
+            },
+            {
+              key: "bug_fixes",
+              title: "Bug Fixes",
+              iconClass: "fas fa-bug",
+              iconColor: "var(--state-danger)",
+              wrapStyle: "margin-bottom: 25px;",
+              items: [
+                "<strong>Centered empty PDF message:</strong> Fixed the empty PDF Viewer message so the icon, text, and upload button are centered in the viewer.",
+              ],
+            },
+          ],
+        },
+
         {
           version: "8.9",
           sections: [
@@ -2788,6 +2825,19 @@
             title: "Switch to guidebook PDF",
             label: "Guide",
             iconClass: "fa-book-open",
+          },
+        ],
+
+        MAIN_PDF_REMOVE: [
+          {
+            id: "main-pdf-remove-current",
+            className: "bbox-btn danger",
+            type: "button",
+            onClick:
+              "event.preventDefault(); event.stopPropagation(); removeMainPdf()",
+            title: "Remove the loaded PDF from the current viewer tab",
+            label: "Remove PDF",
+            iconClass: "fa-trash",
           },
         ],
       };
@@ -21942,6 +21992,22 @@
       }
 
       // Helper functions for PDF persistence in IndexedDB
+      function createDefaultPdfStoreEntry() {
+        return {
+          pdfDoc: null,
+          currentPage: 1,
+          totalPages: 0,
+          scale: 1.2,
+          scrollLeft: 0,
+          scrollTop: 0,
+          scrollLeftPercent: 0,
+          scrollTopPercent: 0,
+          mainViewerScale: 1.0,
+          mainViewerScrollLeft: 0,
+          mainViewerScrollTop: 0,
+        };
+      }
+
       async function savePdfToStorage(key, arrayBuffer) {
         try {
           return new Promise((resolve) => {
@@ -21957,6 +22023,40 @@
 
               putRequest.onsuccess = () => resolve(true);
               putRequest.onerror = () => resolve(false);
+            };
+
+            request.onupgradeneeded = (event) => {
+              const db = event.target.result;
+              if (!db.objectStoreNames.contains("pdfs")) {
+                db.createObjectStore("pdfs");
+              }
+            };
+          });
+        } catch (error) {
+          return false;
+        }
+      }
+
+      async function deletePdfFromStorage(key) {
+        try {
+          return new Promise((resolve) => {
+            const request = indexedDB.open("bboxPdfStorage", 1);
+
+            request.onerror = () => resolve(false);
+
+            request.onsuccess = () => {
+              const db = request.result;
+              if (!db.objectStoreNames.contains("pdfs")) {
+                resolve(true);
+                return;
+              }
+
+              const transaction = db.transaction(["pdfs"], "readwrite");
+              const store = transaction.objectStore("pdfs");
+              const deleteRequest = store.delete(key);
+
+              deleteRequest.onsuccess = () => resolve(true);
+              deleteRequest.onerror = () => resolve(false);
             };
 
             request.onupgradeneeded = (event) => {
@@ -22003,6 +22103,118 @@
         } catch (error) {
           return null;
         }
+      }
+
+      async function loadPdfFileIntoStore(file, key, options = {}) {
+        const buf = await file.arrayBuffer();
+        await savePdfToStorage(key, buf);
+
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        console.warn = function (...args) {
+          const message = args.join(" ");
+          if (
+            !message.includes("Setting up fake worker") &&
+            !message.includes("cross-origin")
+          ) {
+            originalWarn.apply(console, args);
+          }
+        };
+        console.error = function (...args) {
+          const message = args.join(" ");
+          if (
+            !message.includes("cross-origin") &&
+            !message.includes("Refused to")
+          ) {
+            originalError.apply(console, args);
+          }
+        };
+
+        const restoreConsole = () => {
+          console.warn = originalWarn;
+          console.error = originalError;
+        };
+
+        let doc;
+        try {
+          const pdfjs =
+            await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs");
+          pdfjs.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
+          doc = await pdfjs.getDocument({ data: buf }).promise;
+          setTimeout(restoreConsole, 500);
+        } catch (error) {
+          restoreConsole();
+          throw error;
+        }
+
+        const store = (window.__bboxStore = window.__bboxStore || {});
+        store.docs = store.docs || {};
+        if (!store.docs[key]) {
+          store.docs[key] = createDefaultPdfStoreEntry();
+        }
+
+        store.docs[key].pdfDoc = doc;
+        store.docs[key].totalPages = doc.numPages;
+
+        if (
+          !store.docs[key].currentPage ||
+          store.docs[key].currentPage < 1 ||
+          store.docs[key].currentPage > doc.numPages
+        ) {
+          const hintPage = parseInt(options.hintPage, 10);
+          store.docs[key].currentPage = Math.min(
+            Math.max(Number.isFinite(hintPage) ? hintPage : 1, 1),
+            doc.numPages,
+          );
+        }
+
+        if (!store.docs[key].scale || store.docs[key].scale <= 0) {
+          store.docs[key].scale = 1.2;
+        }
+
+        if (
+          (key === "text" || key === "guide") &&
+          typeof maybeHandlePdfSwitch === "function"
+        ) {
+          maybeHandlePdfSwitch();
+        }
+
+        if (options.updateMainViewer) {
+          const state = window.__mainPdfViewer;
+          const sourceKey = key === "text" ? "textbook" : "guide";
+          if (state) {
+            if (state.source !== sourceKey) {
+              state.source = sourceKey;
+              state.lastSyncedPage = null;
+              state.lastSyncedSource = null;
+            }
+
+            state.pdfDoc = doc;
+            state.totalPages = doc.numPages;
+            state.currentPage = store.docs[key].currentPage || 1;
+            state.scale =
+              options.mainViewerScale ||
+              store.docs[key].mainViewerScale ||
+              store.docs[key].scale ||
+              1.0;
+            state.canvas = document.getElementById("main-pdf-canvas");
+            state.context = state.canvas
+              ? state.canvas.getContext("2d", { alpha: false })
+              : null;
+            if (state.elements) {
+              state.elements.canvas = state.canvas;
+            }
+            state._lastRenderedState = null;
+
+            updatePdfControls();
+            if (state.visible) {
+              loadPdfFromStore();
+            }
+          }
+        }
+
+        return doc;
       }
 
       // Auto-load PDFs from IndexedDB on page load (for both bbox modal and main PDF viewer)
@@ -22386,136 +22598,11 @@
         collected = [];
 
         async function loadPdfFromFile(file, key) {
-          const buf = await file.arrayBuffer();
-          // Save PDF to IndexedDB for persistence (await to ensure it completes)
-          await savePdfToStorage(key, buf);
-
-          // Suppress PDF.js warnings (fake worker, cross-origin) - expected when using file:// protocol
-          const originalWarn = console.warn;
-          const originalError = console.error;
-          console.warn = function (...args) {
-            const message = args.join(" ");
-            // Suppress PDF.js warnings
-            if (
-              !message.includes("Setting up fake worker") &&
-              !message.includes("cross-origin")
-            ) {
-              originalWarn.apply(console, args);
-            }
-          };
-          console.error = function (...args) {
-            const message = args.join(" ");
-            // Suppress PDF.js cross-origin errors
-            if (
-              !message.includes("cross-origin") &&
-              !message.includes("Refused to")
-            ) {
-              originalError.apply(console, args);
-            }
-          };
-
-          const pdfjs =
-            await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs");
-          // Set worker source - PDF.js will automatically fall back to fake worker
-          // if cross-origin restrictions prevent loading (e.g., file:// protocol)
-          pdfjs.GlobalWorkerOptions.workerSrc =
-            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs";
-          const doc = await pdfjs.getDocument({ data: buf }).promise;
-
-          // Restore original console methods after a short delay to allow PDF.js to initialize
-          setTimeout(() => {
-            console.warn = originalWarn;
-            console.error = originalError;
-          }, 500);
-          store.docs[key].pdfDoc = doc;
-          store.docs[key].totalPages = doc.numPages;
-          if (
-            (key === "text" || key === "guide") &&
-            typeof maybeHandlePdfSwitch === "function"
-          ) {
-            maybeHandlePdfSwitch();
-          }
-          // Preserve saved state if it exists and is valid, otherwise use hint or default
-          if (
-            !store.docs[key].currentPage ||
-            store.docs[key].currentPage < 1 ||
-            store.docs[key].currentPage > doc.numPages
-          ) {
-            store.docs[key].currentPage = Math.min(
-              Math.max(lastDrawn?.page || parseInt(hintPage, 10) || 1, 1),
-              doc.numPages,
-            );
-          }
-          // Preserve saved scale if it exists and is valid, otherwise use default
-          if (!store.docs[key].scale || store.docs[key].scale <= 0) {
-            store.docs[key].scale = 1.2;
-          }
-          // Preserve saved scroll positions if they exist
-          // (scroll positions are preserved automatically since we don't overwrite them here)
-
-          // Update main viewer if it exists (regardless of visibility or source)
-          const state = window.__mainPdfViewer;
-          if (state) {
-            const sourceKey = key === "text" ? "textbook" : "guide";
-
-            // If this is a main form upload (from PDF viewer buttons), ensure we update
-            const isMainFormUpload =
-              (window.__embeddedBboxTarget &&
-                window.__embeddedBboxTarget.isMainFormUpload) ||
-              false;
-
-            // Only update the main viewer if this is a main form upload
-            // When opened from Draw button, don't affect the main viewer at all
-            if (isMainFormUpload) {
-              // If source doesn't match but it's a main form upload, switch source
-              if (isMainFormUpload && state.source !== sourceKey) {
-                state.source = sourceKey;
-                state.lastSyncedPage = null;
-                state.lastSyncedSource = null;
-
-                // Update toggle button states
-                if (state.elements && state.elements.sourceToggle) {
-                  if (state.elements.sourceToggle.textbook) {
-                    state.elements.sourceToggle.textbook.classList.toggle(
-                      "active",
-                      sourceKey === "textbook",
-                    );
-                  }
-                  if (state.elements.sourceToggle.guide) {
-                    state.elements.sourceToggle.guide.classList.toggle(
-                      "active",
-                      sourceKey === "guide",
-                    );
-                  }
-                }
-              }
-
-              state.pdfDoc = doc;
-              state.totalPages = doc.numPages;
-              state.currentPage = store.docs[key].currentPage || 1;
-              state.scale = scale || 1.0;
-              // Clear last rendered state when PDF document changes to force render
-              state._lastRenderedState = null;
-
-              // Always try to render if viewer is visible
-              if (state.visible) {
-                if (state.canvas && state.context) {
-                  updatePdfControls();
-                  renderMainPdfPage();
-                } else {
-                  // Canvas not ready yet, wait a bit
-                  setTimeout(() => {
-                    if (state.canvas && state.context) {
-                      updatePdfControls();
-                      renderMainPdfPage();
-                    }
-                  }, 200);
-                }
-              }
-            }
-          }
-
-          return doc;
+          return loadPdfFileIntoStore(file, key, {
+            hintPage: lastDrawn?.page || hintPage,
+            updateMainViewer: isMainFormUpload,
+            mainViewerScale: scale || 1.0,
+          });
         }
         textFileInput.onchange = async (e) => {
           const f = e.target.files && e.target.files[0];
@@ -35586,6 +35673,11 @@
                     <div class="pdf-source-toggle" id="pdf-source-toggle-container">
                         <!-- Buttons will be hydrated by JS -->
                     </div>
+
+                    <!-- Remove PDF Controls -->
+                    <div style="display: flex; align-items: center; gap: 6px;" id="main-pdf-remove-container">
+                        <!-- Buttons will be hydrated by JS -->
+                    </div>
                     
                     <!-- Auto Navigation Toggle -->
                     <div style="display: flex; align-items: center; gap: 6px;" id="main-pdf-auto-nav-container">
@@ -35620,6 +35712,10 @@
         renderButtonGroup(
           "pdf-source-toggle-container",
           STATIC_BUTTON_CONFIGS.PDF_SOURCE_TOGGLE,
+        );
+        renderButtonGroup(
+          "main-pdf-remove-container",
+          STATIC_BUTTON_CONFIGS.MAIN_PDF_REMOVE,
         );
         renderButtonGroup(
           "main-pdf-auto-nav-container",
@@ -35685,6 +35781,9 @@
             zoomInBtn: document.getElementById("main-pdf-zoom-in"),
             zoomResetBtn: document.getElementById("main-pdf-zoom-reset"),
             zoomDisplay: document.getElementById("main-pdf-zoom-display"),
+            removeCurrentBtn: document.getElementById(
+              "main-pdf-remove-current",
+            ),
           };
 
           const elements = window.__mainPdfViewer.elements;
@@ -36412,6 +36511,29 @@
           elements.nextBtn.disabled = state.currentPage >= state.totalPages;
         }
 
+        const store = window.__bboxStore;
+        const hasTextbookPdf = !!(
+          store &&
+          store.docs &&
+          store.docs.text &&
+          store.docs.text.pdfDoc
+        );
+        const hasGuidePdf = !!(
+          store &&
+          store.docs &&
+          store.docs.guide &&
+          store.docs.guide.pdfDoc
+        );
+
+        if (elements.removeCurrentBtn) {
+          const isTextbookSource = state.source !== "guide";
+          const label = isTextbookSource ? "Textbook" : "Guide";
+          const hasCurrentPdf = isTextbookSource ? hasTextbookPdf : hasGuidePdf;
+          elements.removeCurrentBtn.disabled = !hasCurrentPdf;
+          elements.removeCurrentBtn.title = `Remove the loaded ${label.toLowerCase()} PDF from this tool`;
+          elements.removeCurrentBtn.innerHTML = `<i class="fas fa-trash"></i> Remove ${label} PDF`;
+        }
+
         if (elements.sourceToggle) {
           if (elements.sourceToggle.textbook) {
             elements.sourceToggle.textbook.classList.toggle(
@@ -36425,6 +36547,87 @@
               state.source === "guide",
             );
           }
+        }
+      }
+
+      async function removeMainPdf(source) {
+        const state = window.__mainPdfViewer;
+        const targetSource = source || state?.source || "textbook";
+        const isTextbook = targetSource !== "guide";
+        const key = isTextbook ? "text" : "guide";
+        const label = isTextbook ? "Textbook" : "Guide";
+        const store = (window.__bboxStore = window.__bboxStore || {});
+        store.docs = store.docs || {
+          text: createDefaultPdfStoreEntry(),
+          guide: createDefaultPdfStoreEntry(),
+        };
+
+        if (!store.docs[key]) {
+          store.docs[key] = createDefaultPdfStoreEntry();
+        }
+
+        if (!store.docs[key].pdfDoc) {
+          alert(`No ${label} PDF is loaded.`);
+          updatePdfControls();
+          return;
+        }
+
+        if (!confirm(`Remove the loaded ${label} PDF from this tool?`)) {
+          return;
+        }
+
+        const isVisibleSource = !!(state && state.source === targetSource);
+
+        if (isVisibleSource && state.renderTask) {
+          try {
+            state.renderTask.cancel();
+          } catch (e) {}
+          state.renderTask = null;
+        }
+
+        const deleted = await deletePdfFromStorage(key);
+        if (!deleted) {
+          alert(`Could not remove the ${label} PDF. Please try again.`);
+          updatePdfControls();
+          return;
+        }
+
+        store.docs[key] = createDefaultPdfStoreEntry();
+        const fileInput = document.getElementById(
+          isTextbook ? "em-text-pdf-file" : "em-guide-pdf-file",
+        );
+        if (fileInput) {
+          fileInput.value = "";
+        }
+
+        if (state && isVisibleSource) {
+          state.renderToken = (state.renderToken || 0) + 1;
+          state.pdfDoc = null;
+          state.totalPages = 0;
+          state.currentPage = 1;
+          state.scale = 1.0;
+          state.canvas = null;
+          state.context = null;
+          if (state.elements) {
+            state.elements.canvas = null;
+          }
+          state.fitToCanvasScale = null;
+          state._lastRenderedState = null;
+          state.renderTask = null;
+          state.isRendering = false;
+          state.pendingRender = false;
+          state.lastSyncedPage = null;
+          state.lastSyncedSource = null;
+          window.__mainPdfScroll = null;
+          window.__restoreScrollAfterRender = false;
+          updatePdfControls();
+          showPdfUploadPrompt(targetSource);
+        } else {
+          updatePdfControls();
+        }
+
+        if (typeof onBboxPdfChanged === "function") {
+          onBboxPdfChanged();
         }
       }
 
@@ -36709,6 +36912,43 @@
         }, 500);
       }
 
+      function openMainPdfFilePicker(source) {
+        const state = window.__mainPdfViewer;
+        const pdfSource = source || state?.source || "textbook";
+        const isTextbook = pdfSource === "textbook";
+        const key = isTextbook ? "text" : "guide";
+        const label = isTextbook ? "Textbook" : "Guide";
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "application/pdf";
+        input.style.position = "fixed";
+        input.style.left = "-9999px";
+        input.style.top = "-9999px";
+
+        input.addEventListener("change", async (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) {
+            input.remove();
+            return;
+          }
+
+          try {
+            await loadPdfFileIntoStore(file, key, {
+              updateMainViewer: true,
+            });
+          } catch (error) {
+            console.error(`Failed to upload ${label} PDF:`, error);
+            alert(`Failed to upload ${label} PDF. Please try again.`);
+            showPdfUploadPrompt(pdfSource);
+          } finally {
+            input.remove();
+          }
+        });
+
+        document.body.appendChild(input);
+        input.click();
+      }
+
       function showPdfUploadPrompt(source) {
         const pdfPanel = document.getElementById("pdf-viewer-panel");
         const canvasContainer = pdfPanel?.querySelector(
@@ -36724,7 +36964,7 @@
             : "pdf-upload-guide-btn";
 
           canvasContainer.innerHTML = `
-                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); padding: 20px;">
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; box-sizing: border-box; text-align: center; color: var(--text-secondary); padding: 20px;">
                         <i class="fas fa-file-pdf" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
                         <p style="font-size: 16px; margin-bottom: 8px;">No ${isTextbook ? "Textbook" : "Guide"} PDF loaded</p>
                         <p style="font-size: 14px; margin-bottom: 16px;">Upload a ${isTextbook ? "Textbook" : "Guide"} PDF to view it here</p>
@@ -36740,13 +36980,11 @@
             uploadBtn.addEventListener("click", function (e) {
               e.preventDefault();
               e.stopPropagation();
-              if (isTextbook) {
-                openBboxDrawerForTextbook();
-              } else {
-                openBboxDrawerForGuide();
-              }
+              openMainPdfFilePicker(pdfSource);
             });
           }
+
+          updatePdfControls();
         }
       }
 
